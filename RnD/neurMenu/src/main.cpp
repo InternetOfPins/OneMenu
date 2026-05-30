@@ -1,6 +1,6 @@
 #include <oneMenu/oneMenu.h>
 
-OutDef<ConsoleOut> out;
+OutDef<oneOutput::ConsoleOut> out;
 
 int main() {
   out<<"Wtf!"<<endl;

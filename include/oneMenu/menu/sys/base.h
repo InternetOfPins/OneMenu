@@ -11,7 +11,12 @@
 
 #pragma once
 
-#include "menu/sys/enums.h"
+#include "oneMenu/menu/sys/enums.h"
+
+using hapi::Chain;
+using hapi::query;
+
+using oneItem::ItemDef;
 
 using oneData::DefaultDataDef;
 using oneData::CText;
@@ -19,6 +24,9 @@ using oneData::Default;
 using oneData::Watch;
 using oneData::NumRange;
 using oneData::StaticNumRange;
+
+using oneOutput::Pos;
+using oneOutput::Area;
 
 #ifdef ARDUINO
 #include <Arduino.h>
@@ -160,56 +168,84 @@ struct Ctx {
   }
 #endif
 
-// rule build ------------------------------------------
-
-//rules system, requires/excludes simple class (will use std::same_as<>) from the derivation chain
-template<typename O> struct Class {
-  template<typename Head,typename Base> using Requires=std::bool_constant<std::is_same<O,Head>::value||Base::template Requires<Class<O>>::value>;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
-};
-
 //rule predicates------------------------------------------
+//IsCursor predicate
 struct IsCursor {
-  template<typename Head,typename Base> using Requires=typename Base::IsCursor;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {static constexpr const bool value{false};};
+  template<typename O> struct Check<O,std::void_t<typename O::IsCursor>> {static constexpr const bool value{O::IsCursor::value};};
 };
 
+//RawDevice predicate
 struct RawDevice {
-  template<typename Head,typename Base> using Requires=typename Base::RawDevice;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::RawDevice>> {
+    static constexpr const bool value{O::RawDevice::value};
+  };
 };
 
+//IsFormat predicate
 struct IsFormat {
-  template<typename Head,typename Base> using Requires=typename Base::IsFormat;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::IsFormat>> {
+    static constexpr const bool value{O::IsFormat::value};
+  };
 };
 
+//IsPrinter predicate
 struct IsPrinter {
-  template<typename Head,typename Base> using Requires=typename Base::IsPrinter;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::IsPrinter>> {
+    static constexpr const bool value{O::IsPrinter::value};
+  };
 };
 
+//IsDataParser predicate
 struct IsDataParser {
-  template<typename Head,typename Base> using Requires=typename Base::IsDataParser;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::IsDataParser>> {
+    static constexpr const bool value{O::IsDataParser::value};
+  };
 };
 
+//IsParser predicate
 struct IsParser {
-  template<typename Head,typename Base> using Requires=typename Base::IsParser;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::IsParser>> {
+    static constexpr const bool value{O::IsParser::value};
+  };
 };
 
+//IsArea predicate
 struct IsArea {
-  template<typename Head,typename Base> using Requires=typename Base::IsArea;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::IsArea>> {
+    static constexpr const bool value{O::IsArea::value};
+  };
 };
 
+//IsBuffer predicate
 struct IsBuffer {
-  template<typename Head,typename Base> using Requires=typename Base::IsBuffer;
-  template<typename Head,typename Base> using Excludes=std::bool_constant<!Requires<Head,Base>::value>;
+  template<typename O,typename =void> struct Check {
+    static constexpr const bool value{false};
+  };
+  template<typename O> struct Check<O,std::void_t<typename O::IsBuffer>> {
+    static constexpr const bool value{O::IsBuffer::value};
+  };
 };
 
 //debug ---
-#include "menu/sys/debug.h"
+#include "oneMenu/menu/sys/debug.h"
 
 

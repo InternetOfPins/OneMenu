@@ -62,9 +62,9 @@ struct Action {
     using Base=I;
     using Base::Base;
     static constexpr bool act(int i) {return action(i);}
-    template<bool isKbd,typename Nav>
-    static constexpr bool nav(Nav& n,const CKE& cke,Path path) 
-      {return cke.cmd==Cmd::Enter&&action(path.sel());}
+    // template<bool isKbd,typename Nav>
+    // static constexpr bool nav(Nav& n,const CKE& cke,Path path) 
+    //   {return cke.cmd==Cmd::Enter&&action(path.sel());}
   };
 };
 
@@ -76,11 +76,11 @@ struct BodyAction {
     using Base=I;
     using Base::Base;
     using Base::enabled;
-    template<bool isKbd,typename Nav>
-    bool nav(Nav& n,const CKE& cke,const Path p) {
-      if(cke.cmd==Cmd::Enter&&p.len) f(p.last());
-      return Base::template nav<isKbd>(n,cke,p);
-    }
+    // template<bool isKbd,typename Nav>
+    // bool nav(Nav& n,const CKE& cke,const Path p) {
+    //   if(cke.cmd==Cmd::Enter&&p.len) f(p.last());
+    //   return Base::template nav<isKbd>(n,cke,p);
+    // }
   };
 };
 

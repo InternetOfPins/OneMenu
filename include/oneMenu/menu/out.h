@@ -11,98 +11,26 @@
 
 #pragma once
 
-#include "menu/sys/base.h"
-#include "menu/sys/formats.h"
+#include "oneMenu/menu/sys/base.h"
+// #include "menu/sys/formats.h"
 
-template<typename Cfg=Nil>
-struct OutAPI:Cfg {
-  using Config=Cfg;
-  using IsBuffer=std::false_type;
-  using IsArea=std::false_type;
-  using IsDataParser=std::false_type;
-  using IsParser=std::false_type;
-  using IsFormat=std::false_type;
-  using IsPrinter=std::false_type;
-  using RawDevice=std::false_type;
-  using IsCursor=std::false_type;
-  using HasGate=std::false_type;
-  using HasPartialUpdate=std::false_type;
-  template<typename> using Requires=std::false_type;
-  template<typename> using Excludes=std::true_type;
-  using Cfg::obj;
-  static constexpr Sz freeX() {return std::numeric_limits<Sz>::max();}
-  static constexpr Sz freeY() {return std::numeric_limits<Sz>::max();}
-  static constexpr Area free() {return {freeX(),freeY()};}
-  static constexpr Sz posX() {return 0;}
-  static constexpr Sz posY() {return 0;}
-  static constexpr Pos pos() {return {posX(),posY()};}
-  static void setPos(Sz,Sz) {}
-  static void setPos(Pos p) {setPos(p.x,p.y);}
-  static constexpr Sz orgX() {return 0;}
-  static constexpr Sz orgY() {return 0;}
-  static constexpr Pos org() {return {orgX(),orgY()};}
-  static constexpr bool unlocked() {return true;}
-  static constexpr bool updating() {return false;}
-  static constexpr bool locked() {return false;}
-  static constexpr LockMode lockMode() {return LockMode::None;}
-  static constexpr void lockMode(LockMode) {}
-  template<typename Cor> static void setColors(Cor,Cor) {}
-
-  static constexpr void clear() {}
-  static constexpr void nl() {}
-  static constexpr void flush() {}
-  static constexpr void resume() {}
-  template<typename T> static constexpr void put(const T&) {}
+template<typename Cfg=hapi::Nil>
+struct OutAPI:oneOutput::OutAPI<Cfg> {
   template<Fmt tag> static constexpr void fmtStart(const Ctx& ctx) {}
   template<Fmt tag> static constexpr void fmtStop(const Ctx& ctx) {}
-  // static constexpr void fmtStart(Fmt tag,const Ctx& ctx) {}
-  // static constexpr void fmtStop (Fmt tag,const Ctx& ctx) {}
   template<typename Item> static constexpr bool printItem(Item& item,Ctx& ctx) {return false;}
   template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
 };
 
-//deprecated, code size surges and we loose the ability to choose if we cnn the next chain module and when or whit what parameters
-//still interesting
-template<typename N>
-struct OutLink:N {
-  template<typename O>
-  struct Part:N::template Part<O> {
-    using Base=typename N::template Part<O>;
-    using Base::Base;
-    // template<Fmt tag> void fmtStart(const Ctx& ctx) {
-    //   Base::template fmtStart<tag>(ctx);
-    //   O::template fmtStart<tag>(ctx);
-    // }
-    // template<Fmt tag> void fmtStop(const Ctx& ctx) {
-    //   O::template fmtStop<tag>(ctx);
-    //   Base::template fmtStop<tag>(ctx);
-    // }
-  };
-};
-
-template<typename API,typename... OO> struct DefinedOut;
+template<typename API,typename... OO> struct OutImpl;
 
 template<typename API,typename O,typename... OO>
-struct DefinedOut<API,O,OO...>:APIOf<API,O,OO...>{//::template Map<OutLink>{
-  using Base=APIOf<API,O,OO...>;//::template Map<OutLink>;
+struct OutImpl<API,O,OO...>:APIOf<API,O,OO...>{
+  using Base=APIOf<API,O,OO...>;
   using Base::printItem;
   using Base::obj;
   using Base::put;
   using Base::nl;
-  static_assert(Base::template Excludes<IsCursor>::value||Base::template Requires<IsDataParser>::value,"Cursor requires preseeding DataParser<>");
-  static_assert(Base::template Excludes<Class<class Clip>>::value||Base::template Requires<IsDataParser>::value,"Clip requires preseeding DataParser<>");
-  static_assert(Base::template Excludes<Class<class TexWrap>>::value||Base::template Requires<IsDataParser>::value,"TextWrap requires preseeding DataParser<>");
-  static_assert(Base::template Excludes<Class<class UTF8>>::value||Base::template Requires<IsDataParser>::value,"UTF8 requires preseeding DataParser<>");
-
-  // template<typename T>
-  // std::enable_if_t<!Base::HasPartialUpdate::value> put(T o) 
-  //   {if(Base::lockMode()==LockMode::None) Base::put(o);}
-
-  // template<typename T>
-  // std::enable_if_t<!Base::HasPartialUpdate::value> put(T o) {Base::put(o);}
-
-  // std::enable_if_t<!Base::HasPartialUpdate::value> nl() 
-  //   {if(Base::lockMode()==LockMode::None) Base::nl();}
 
   template<typename Item>
   bool printTitle(const Item& item,Ctx& ctx){
@@ -114,11 +42,10 @@ struct DefinedOut<API,O,OO...>:APIOf<API,O,OO...>{//::template Map<OutLink>{
 };
 
 template<typename API>
-struct DefinedOut<API>:APIOf<API>//OutLink<APIOf<API>>
-  {using Base=APIOf<API>;};
+struct OutImpl<API>:APIOf<API> {using Base=APIOf<API>;};
 
 template<typename... OO>
-struct OutDef:DefinedOut<OutAPI<CRTP<OutDef<OO...>>>,OO...>{};
+struct OutDef:OutImpl<OutAPI<CRTP<OutDef<OO...>>>,OO...>{};
 
 struct IOut {
   virtual void lockMode(LockMode)=0;
@@ -126,8 +53,6 @@ struct IOut {
   virtual void resume()=0;
   virtual void fmtStart(Fmt,const Ctx&)=0;
   virtual void fmtStop(Fmt,const Ctx&)=0;
-  virtual Sz posX() const=0;
-  virtual Sz posY() const=0;
   virtual void setPos(Pos)=0;
   virtual void put(const int)=0;
   virtual void put(const double)=0;
@@ -139,16 +64,11 @@ struct IOut {
 
   template<Fmt tag> void fmtStart(const Ctx& ctx) {fmtStart(tag,ctx);}
   template<Fmt tag> void fmtStop(const Ctx& ctx) {fmtStart(tag,ctx);}
-  Pos pos() const {return {posX(),posY()};}
-  // virtual bool printItem(IItem& item,Ctx& ctx) {return false;}
-  // virtual bool printMenu(IItem& item,Ctx& ctx) {return false;}
-  // template<typename I> static constexpr bool printItem(I& item,Ctx& ctx) {return printItem(*reinterpret_cast<IItemDef<I>*>(&item),ctx);}
 };
 
 template<typename... OO>
-struct IOutDef:IOut,DefinedOut<OutAPI<CRTP<IOutDef<OO...>>>,OO...>{
-  using IOut::pos;
-  using Base=DefinedOut<OutAPI<CRTP<IOutDef<OO...>>>,OO...>;
+struct IOutDef:IOut,OutImpl<OutAPI<CRTP<IOutDef<OO...>>>,OO...>{
+  using Base=OutImpl<OutAPI<CRTP<IOutDef<OO...>>>,OO...>;
   virtual void lockMode(LockMode m) {Base::lockMode(m);}
   virtual LockMode lockMode() {return Base::lockMode();}
   virtual void resume() override {Base::resume();}
@@ -211,22 +131,22 @@ struct IOutDef:IOut,DefinedOut<OutAPI<CRTP<IOutDef<OO...>>>,OO...>{
 
 //generic stream to outputs -------------------------------------
   template<typename... OO,typename T> 
-  DefinedOut<OO...>& operator<<(DefinedOut<OO...>& out,const T& o) {out.put(o);return out;}
+  OutImpl<OO...>& operator<<(OutImpl<OO...>& out,const T& o) {out.put(o);return out;}
 
   template<template<typename...> class T,typename... NN,typename... OO> 
-  DefinedOut<OO...>& operator<<(DefinedOut<OO...>& out,const T<NN...> o) {o.printItem(out);return out;}
+  OutImpl<OO...>& operator<<(OutImpl<OO...>& out,const T<NN...> o) {o.printItem(out);return out;}
 
-  template<typename... OO> DefinedOut<OO...>& endl (DefinedOut<OO...>& s) {s.nl();return s;}
+  template<typename... OO> OutImpl<OO...>& endl (OutImpl<OO...>& s) {s.nl();return s;}
 
-  template<typename... OO> DefinedOut<OO...>& flush(DefinedOut<OO...>& s) {s.flush();return s;}
+  template<typename... OO> OutImpl<OO...>& flush(OutImpl<OO...>& s) {s.flush();return s;}
 
-  template<Sz x,Sz y,typename... OO> DefinedOut<OO...>& xy(DefinedOut<OO...>& s) {s.xy(x,y);return s;}
+  template<Sz x,Sz y,typename... OO> OutImpl<OO...>& xy(OutImpl<OO...>& s) {s.xy(x,y);return s;}
 
   template<size_t n,typename... OO> 
-  DefinedOut<OO...>& operator<<(DefinedOut<OO...>& out,const char t[n]){for(int i=0;i<n;i++) out.put(t[i]);}
+  OutImpl<OO...>& operator<<(OutImpl<OO...>& out,const char t[n]){for(int i=0;i<n;i++) out.put(t[i]);}
 
   template<typename... OO> 
-  DefinedOut<OO...>& operator<<(DefinedOut<OO...>& out,DefinedOut<OO...>&(f)(DefinedOut<OO...>&))
+  OutImpl<OO...>& operator<<(OutImpl<OO...>& out,OutImpl<OO...>&(f)(OutImpl<OO...>&))
     {f(out);return out;}
 
 //internal components --
@@ -275,7 +195,6 @@ struct Gate {
 struct DeviceCursor {
   template<typename F>
   struct Part:F {
-    static_assert(F::template Excludes<Class<class Gate>>::value,"Gate must be above DeviceCursor");
     using F::fmtStart;
     using F::fmtStop;
     template<Fmt tag>

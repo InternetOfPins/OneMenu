@@ -13,3 +13,8 @@
 #include <oneList/oneList.h>
 #include <oneItem/oneItem.h>
 
+#include "menu/item.h"
+#include "menu/out.h"
+#include "menu/menu.h"
+#include "menu/body/static.h"
+
