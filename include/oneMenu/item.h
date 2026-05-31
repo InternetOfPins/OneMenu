@@ -416,3 +416,8 @@ namespace oneMenu {
     template<int id> struct Id {template<typename O> using Part=O;};
     
 };//namespace oneMenu
+
+//rules ItemDef query specialization --
+template<typename Q,typename... OO>
+constexpr const bool hapi::template query<Q,oneMenu::template ItemDef<OO...>>{(hapi::template query<Q,OO>||...)};
+

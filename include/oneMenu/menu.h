@@ -63,8 +63,6 @@ namespace oneMenu {
   constexpr ItemDef<Menu<T,B,MM...>> menuDef(T&& t,B&& b) {return {std::forward<T>(t),std::forward<B>(b)};}
 };
 
-// namespace hapi {
-//   //rules Menu query specialization --
-//   template<typename Q,typename T,typename B,typename... OO>
-//   constexpr const bool query<Q,oneMenu::Menu<T,B,OO...>>{(query<Q,OO>||...)||query<Q,T>||query<Q,B>};
-// };
+//rules Menu query specialization --
+template<typename Q,typename T,typename B,typename... OO>
+constexpr const bool hapi::query<Q,oneMenu::Menu<T,B,OO...>>{(hapi::query<Q,OO>||...)||hapi::query<Q,T>||hapi::query<Q,B>};
