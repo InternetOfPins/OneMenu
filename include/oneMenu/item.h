@@ -14,8 +14,8 @@
 namespace oneMenu {
   using namespace oneData;
   
-  template<typename Def=Nil>
-  struct ItemAPI:Def {
+  template<typename Cfg=Nil>
+  struct ItemAPI:oneItem::ItemAPI<Cfg> {
     constexpr ItemAPI() {}
     // static constexpr const Wraps wraps{Wraps::no};
     template<typename> using Requires=std::false_type;
@@ -33,7 +33,6 @@ namespace oneMenu {
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&) {return false;}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&) {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Ctx&) {return false;}
-    template<typename Out> static constexpr void print(Out&) {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     //Id--
     static constexpr int getId() {return -1;}
@@ -45,7 +44,6 @@ namespace oneMenu {
   struct ItemDef:APIOf<ItemAPI<>,OO...>{
     using Base=APIOf<ItemAPI<>,OO...>;
     using Base::Base;
-    // template<typename... QQ> ItemDef(QQ&&... qq):Base{std::forward<QQ>(qq)...}{}
     using Base::printMenu;
     using Base::enabled;
     using Base::print;
@@ -53,11 +51,8 @@ namespace oneMenu {
     template<typename Out> void printMenu(Out& out,Ctx&& ctx)
       {Base::printMenu(out,ctx);}
 
-    // void enter(Path path={}) {nav({Cmd::Enter},path);}
-
     template<bool isKbd,typename Nav>
     bool nav(Nav& n,const CKE& cke,const Path p) {
-      // dout<<xy<0,1><<"key:"<<cke.key<<" level:"<<n.level()<<" path:"<<n.path()<<padWith<10><<flush;
       return enabled()?Base::template nav<isKbd>(n,cke,p):cke.cmd==Cmd::Enter;
     }
 
