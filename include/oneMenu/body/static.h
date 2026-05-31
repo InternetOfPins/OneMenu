@@ -33,6 +33,6 @@ namespace oneMenu {
 };//namespace oneMenu
 
 //rules StaticBody query specialization --
-template<typename Q,typename... OO>
-constexpr const bool hapi::query<Q,oneMenu::StaticBody<OO...>>{(hapi::query<Q,OO>||...)};
+// template<typename Q,typename... OO>
+// constexpr const bool hapi::query<Q,oneMenu::StaticBody<OO...>>{(hapi::query<Q,OO>||...)};
 

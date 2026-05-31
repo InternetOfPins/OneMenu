@@ -13,7 +13,7 @@
 
 namespace oneMenu {
   using hapi::Chain;
-  using hapi::query;
+  // using hapi::query;
 
   // using oneItem::ItemDef;
 

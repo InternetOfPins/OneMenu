@@ -56,7 +56,7 @@ struct IsNavCursor {
   };
 };
 
-/// a title = text + newline
+/// a title = text + newline + ...
 template<typename... OO>
 using Title=ItemDef<Text,NL,OO...>;
 
@@ -74,15 +74,25 @@ auto menu=menuDef<Id<1>>(
   )
 );
 
+using MenuT=decltype(menu);
+
 OutDef<ConsoleOut> out;
+
+template<typename Q,typename O>
+constexpr const bool query{Q::template Check<O>::value};
+
+//rules Menu query specialization --
+template<typename Q,typename T,typename B,typename... OO>
+constexpr const bool query<Q,Menu<T,B,OO...>>{(query<Q,OO>||...)||query<Q,T>||query<Q,B>};
 
 int main() {
   cout<<std::boolalpha;
   menu.printMenu(out);
-  cout<<"has id  1:"<<query<SameAs<Id<1>>,decltype(menu)><<endl;
-  cout<<"has id  2:"<<query<SameAs<Id<2>>,decltype(menu)><<endl;
-  cout<<"has id  3:"<<query<SameAs<Id<3>>,decltype(menu)><<endl;
-  cout<<"has id 13:"<<query<SameAs<Id<13>>,decltype(menu)><<endl;
-  cout<<"has IsNavCursor tag:"<<query<IsNavCursor,decltype(menu)><<endl;
+  cout<<"id<1>=id<1>:"<<SameAs<Id<1>>::Check<Id<1>>::value<<endl;
+  cout<<"has id  1:"<<query<SameAs<Id<1>>, MenuT><<endl;
+  // cout<<"has id  2:"<<query<SameAs<Id<2>>, MenuT><<endl;
+  // cout<<"has id  3:"<<query<SameAs<Id<3>>, MenuT><<endl;
+  // cout<<"has id 13:"<<query<SameAs<Id<13>>,MenuT><<endl;
+  // cout<<"has IsNavCursor tag:"<<query<IsNavCursor,MenuT><<endl;
   return 0;
 }
