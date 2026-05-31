@@ -1,5 +1,5 @@
 /**
- * @file item.h
+ * @file data.h
  * @author Rui Azevedo (neu-rah) (ruihfazevedo@gmail.com)
  * @brief 
  * 
@@ -49,38 +49,4 @@ using Int=Data<int>;
 using Bool=Data<bool>;
 using Char=Data<unsigned char>;
 template<const char*& text> using TextRef=StaticData<const char*,text>;
-
-//some parts ----------------------------------------------------
-template<int id> struct Id {template<typename O> using Part=O;};
-
-using ActionFunc=bool(&)(int);
-
-template<ActionFunc action>
-struct Action {
-  template<typename I>
-  struct Part:I {
-    using Base=I;
-    using Base::Base;
-    static constexpr bool act(int i) {return action(i);}
-    // template<bool isKbd,typename Nav>
-    // static constexpr bool nav(Nav& n,const CKE& cke,Path path) 
-    //   {return cke.cmd==Cmd::Enter&&action(path.sel());}
-  };
-};
-
-//attach an action on enter
-template <ActionFunc f>
-struct BodyAction {
-  template <typename I>
-  struct Part : I {
-    using Base=I;
-    using Base::Base;
-    using Base::enabled;
-    // template<bool isKbd,typename Nav>
-    // bool nav(Nav& n,const CKE& cke,const Path p) {
-    //   if(cke.cmd==Cmd::Enter&&p.len) f(p.last());
-    //   return Base::template nav<isKbd>(n,cke,p);
-    // }
-  };
-};
 

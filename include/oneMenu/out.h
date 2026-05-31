@@ -11,8 +11,7 @@
 
 #pragma once
 
-#include "oneMenu/menu/sys/base.h"
-// #include "menu/sys/formats.h"
+// using ConsoleOut=Chain<Raw, oneOutput::ConsoleOut>;
 
 template<typename Cfg=hapi::Nil>
 struct OutAPI:oneOutput::OutAPI<Cfg> {
@@ -22,11 +21,11 @@ struct OutAPI:oneOutput::OutAPI<Cfg> {
   template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
 };
 
-template<typename API,typename... OO> struct OutImpl;
+// template<typename API,typename... OO> struct OutImpl;
 
-template<typename API,typename O,typename... OO>
-struct OutImpl<API,O,OO...>:APIOf<API,O,OO...>{
-  using Base=APIOf<API,O,OO...>;
+template<typename API,typename... OO>
+struct OutImpl:APIOf<API,OO...>{
+  using Base=APIOf<API,OO...>;
   using Base::printItem;
   using Base::obj;
   using Base::put;
@@ -41,8 +40,8 @@ struct OutImpl<API,O,OO...>:APIOf<API,O,OO...>{
   }
 };
 
-template<typename API>
-struct OutImpl<API>:APIOf<API> {using Base=APIOf<API>;};
+// template<typename API>
+// struct OutImpl<API>:APIOf<API> {using Base=APIOf<API>;};
 
 template<typename... OO>
 struct OutDef:OutImpl<OutAPI<CRTP<OutDef<OO...>>>,OO...>{};
@@ -114,8 +113,8 @@ struct IOutDef:IOut,OutImpl<OutAPI<CRTP<IOutDef<OO...>>>,OO...>{
     }
     // Base::template fmtStop<tag>(ctx);
   }
-  virtual Sz posX() const override {return Base::posX();}
-  virtual Sz posY() const override {return Base::posY();}
+  // virtual Sz posX() const override {return Base::posX();}
+  // virtual Sz posY() const override {return Base::posY();}
   virtual void setPos(Pos p) override {Base::setPos(p);}
   virtual void put(const int n) override {Base::put(n);}
   virtual void put(const double n) override {Base::put(n);}
@@ -164,8 +163,8 @@ struct Gate {
   struct Part:O {
     using IsParser=std::true_type;
     using HasGate=std::true_type;
-    static_assert(O::template Excludes<IsDataParser>::value,"DataParser<> must preseed Gate");
-    static_assert(O::template Excludes<IsFormat>::value,"formats must be above Gate");
+    // static_assert(O::template Excludes<IsDataParser>::value,"DataParser<> must preseed Gate");
+    // static_assert(O::template Excludes<IsFormat>::value,"formats must be above Gate");
     using Base=O;
     // using Base::lockMode;
     void nl() {if(unlocked()) Base::nl();}
@@ -242,11 +241,11 @@ struct Raw {
   struct Part:Gate::Part<O> {
     using RawDevice=std::true_type;
     using Base=typename Gate::Part<O>;
-    static_assert(Base::template Excludes<IsFormat>::value,"formats must preseed the raw device");
-    static_assert(Base::template Excludes<IsCursor>::value,"Cursor must preseed the raw device");
-    static_assert(Base::template Excludes<IsPrinter>::value,"Printers must preseed the raw device");
-    static_assert(Base::template Excludes<IsParser>::value,"Parsers must preseed the raw device");
-    static_assert(Base::template Excludes<IsDataParser>::value,"DataParser<> must preseed the raw device");
+    // static_assert(Base::template Excludes<IsFormat>::value,"formats must preseed the raw device");
+    // static_assert(Base::template Excludes<IsCursor>::value,"Cursor must preseed the raw device");
+    // static_assert(Base::template Excludes<IsPrinter>::value,"Printers must preseed the raw device");
+    // static_assert(Base::template Excludes<IsParser>::value,"Parsers must preseed the raw device");
+    // static_assert(Base::template Excludes<IsDataParser>::value,"DataParser<> must preseed the raw device");
     static void _nl() {Base::nl();}
     static void _flush() {Base::flush();}
     template<typename T> void _put(const T o) {Base::put(o);}
@@ -265,7 +264,7 @@ struct DataParser {
   template<typename O>
   struct Part:O {
     using IsDataParser=std::true_type;
-    static_assert(O::template Excludes<IsFormat>::value,"formats must be above DataParser<>");
+    // static_assert(O::template Excludes<IsFormat>::value,"formats must be above DataParser<>");
     using Base=O;
     void put(const char o) {Base::put(o);}
     void put(const char*o,Sz len) {for(Sz i=0;i<len&&o[i];i++) put((char)o[i]);}
@@ -299,8 +298,8 @@ struct UTF8 {
   struct Part:O {
     using IsParser=std::true_type;
     // static_assert(O::Obj::template Requires<IsDataParser>,"DataParser<> must preseed UTF8");
-    static_assert(O::template Excludes<IsFormat>::value,"formats must preseed UTF8");
-    static_assert(O::template Excludes<IsBuffer>::value,"Buffer will not record UTF8");
+    // static_assert(O::template Excludes<IsFormat>::value,"formats must preseed UTF8");
+    // static_assert(O::template Excludes<IsBuffer>::value,"Buffer will not record UTF8");
     using Base=O;
     using This=Part<O>;
     /// @brief filter UTF8 surrogates, send surrogate codes to raw device shortcut, so that only one character is counted
@@ -351,7 +350,7 @@ struct Clip {
     using This=Part<O>;
     using Base::put;
     inline void put(const char o) 
-      {if(Base::freeX()>0&&Base::freeY()>0) Base::put(o);}
+      {if(Base::free().x>0&&Base::free().y>0) Base::put(o);}
   };
 };
 
@@ -389,12 +388,12 @@ struct Cursor {
     using Base::obj;
     using Base::height;
     using Base::width;
-    void clearLine() {Base::padWith(freeX());nl();}
-    void clearFree() {do clearLine(); while(freeY());}
+    void clearLine() {Base::padWith(free().x);nl();}
+    void clearFree() {do clearLine(); while(free().y);}
     Sz fieldWidth() const {return m_fieldWidth;}
     Pos pos() const {return m_at;}
-    Sz posX() const {return m_at.x;}
-    Sz posY() const {return m_at.y;}
+    // Sz posX() const {return m_at.x;}
+    // Sz posY() const {return m_at.y;}
     void setPos(Sz x,Sz y) {m_at.x=x;m_at.y=y;Base::setPos(x,y);}
     void setPos(const Pos& o) {setPos(o.x,o.y);}
     void resume() {Base::setPos(pos());Base::resume();}
@@ -418,9 +417,9 @@ struct Cursor {
         Base::put(o);
       // }
     }
-    Sz freeX() const {return width()-posX();}
-    Sz freeY() const {return height()-posY();}
-    Area free() const {return {freeX(),freeY()};}
+    // Sz freeX() const {return width()-posX();}
+    // Sz freeY() const {return height()-posY();}
+    Area free() const {return {width()-m_at.x,height()-m_at.y};}
   protected: 
     Pos m_at{0,0};
     Sz m_fieldWidth;

@@ -6,6 +6,24 @@
 
 #pragma once
 
+#include "oneMenu/item.h"
+// #include "tinyTimeUtils.h"
+
+//TODO: make this just a query target, it will give the boolean we need, we can generalize this type of tags here
+struct WrapNav {
+  template<typename I>
+  struct Part:I {
+    static constexpr bool wraps() {return true;}
+  };
+};
+
+struct PadDraw {
+  template<typename I>
+  struct Part:ParentDraw::template Part<I> {
+    static constexpr bool isPad() {return true;}
+  };
+};
+
 // menu ------------------------------------------------------------------------------------
 template<typename T,typename B,typename O,typename... OO>
 struct MenuPart:Chain<OO...>::template Part<O> {

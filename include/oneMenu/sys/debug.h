@@ -1,8 +1,8 @@
 #pragma once
 
 #ifdef MENU_DEBUG
-  #include "oneMenu/menu/sys/enums.h"
-  #include "oneMenu/menu/sys/platform/ansiCodes.h"
+  #include "oneMenu/sys/enums.h"
+  #include "oneMenu/sys/platform/ansiCodes.h"
 
   enum {debug};
   template<int id=debug> int cnt{0};

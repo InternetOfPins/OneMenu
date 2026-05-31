@@ -11,12 +11,12 @@
 
 #pragma once
 
-#include "oneMenu/menu/sys/enums.h"
+#include "oneMenu/sys/enums.h"
 
 using hapi::Chain;
 using hapi::query;
 
-using oneItem::ItemDef;
+// using oneItem::ItemDef;
 
 using oneData::DefaultDataDef;
 using oneData::CText;
@@ -246,6 +246,6 @@ struct IsBuffer {
 };
 
 //debug ---
-#include "oneMenu/menu/sys/debug.h"
+#include "oneMenu/sys/debug.h"
 
 
