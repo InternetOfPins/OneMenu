@@ -12,7 +12,8 @@
 #include "oneMenu/sys/base.h"
 
 namespace CharMask {
-  
+  using oneData::CText;
+
   /// @brief values between l and t
   /// @tparam T value type
   /// @tparam l lower value

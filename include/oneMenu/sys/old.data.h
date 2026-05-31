@@ -14,7 +14,7 @@
 template<typename T,T data>
 struct StaticData {
   template<typename O>
-  struct Part:O {
+  struct Part:oneData::StaticData<T,data>::template Part<O> {
     using Base=O;
     using Base::Base;
     using Type=decltype(data);

@@ -11,241 +11,218 @@
 
 #pragma once
 
-#include "oneMenu/sys/enums.h"
+namespace oneMenu {
+  using hapi::Chain;
+  using hapi::query;
 
-using hapi::Chain;
-using hapi::query;
+  // using oneItem::ItemDef;
 
-// using oneItem::ItemDef;
+  using oneData::DefaultDataDef;
+  using oneData::CText;
+  using oneData::Default;
+  using oneData::Watch;
+  using oneData::NumRange;
+  using oneData::StaticNumRange;
 
-using oneData::DefaultDataDef;
-using oneData::CText;
-using oneData::Default;
-using oneData::Watch;
-using oneData::NumRange;
-using oneData::StaticNumRange;
+  using oneOutput::Pos;
+  using oneOutput::Area;
 
-using oneOutput::Pos;
-using oneOutput::Area;
+  using Sz=int;//must be signed
+  #ifdef __AVR__
+    using Depth=char;//must be signed
+    using Key=unsigned char;
+  #else
+    using Depth=int;//must be signed
+    using Key=unsigned int;
+  #endif 
 
-#ifdef ARDUINO
-#include <Arduino.h>
-#undef max
-#endif
+  /// @brief compile time `max(a,b)` function
+  /// @tparam a value
+  /// @tparam b value
+  /// @return Sz
+  template<const Sz a,const Sz b> constexpr Sz staticMax() {return a>b?a:b;}
 
-#ifdef __AVR__
-  #include <assert.h>
-  #include "menu/sys/platform/avr/avr_std.h"
-#else
-  #include <iostream>
-  #include <cstdint>
-  #include <cassert>
-  #include <type_traits>
-  #include <utility>
-  #include <cstring>
-  #include <cstdlib>
-  #include <cstdio>
-  #include <limits>
-  #include <algorithm>
-#endif
+  // struct Nil{};//moved to hapi
 
-using Sz=int;//must be signed
-#ifdef __AVR__
-  using Depth=char;//must be signed
-  using Key=unsigned char;
-#else
-  using Depth=int;//must be signed
-  using Key=unsigned int;
-#endif 
+  struct IItem;
+  struct IOut;
+  struct INav;
 
-/// @brief compile time `max(a,b)` function
-/// @tparam a value
-/// @tparam b value
-/// @return Sz
-template<const Sz a,const Sz b> constexpr Sz staticMax() {return a>b?a:b;}
+  // struct XY{Sz x;Sz y;};
+  // using Pos=XY;
+  // using Area=XY;
+  
+  struct CKE {
+    Cmd cmd;
+    Key key;
+    bool ext;
+  };
 
-// struct Nil{};//moved to hapi
+  template<typename Cor> struct Colors{Cor fg;Cor bg;};
 
-struct IItem;
-struct IOut;
-struct INav;
-
-// struct XY{Sz x;Sz y;};
-// using Pos=XY;
-// using Area=XY;
- 
-struct CKE {
-  Cmd cmd;
-  Key key;
-  bool ext;
-};
-
-template<typename Cor> struct Colors{Cor fg;Cor bg;};
-
-struct Path {
-  Depth len;
-  Sz* data;
-  constexpr Sz sel(Depth i=0) const {return len>i?data[(int)i]:0;}
-  constexpr Sz last() const {return sel(len-1);}
-  constexpr Path next() const {
-    #ifndef ARDUINO
-      assert(len>0);
-    #endif
-    return {(Depth)(len-1),&data[1]};
-  }
-};
-
-template<Depth depth> struct PathData {
-  Sz data[depth]{0};
-  Path focusAt(Depth at)  {assert(at<depth);return {at,data};}
-  Sz operator[](Depth i) const {assert(i<depth);return data[(int)i];}
-  operator Path() {return Path{depth,data};}
-};
-
-struct Ctx {
-  Path path{};//full path
-  NavMode mode{NavMode::Nav};
-  Depth pAt{0};//print level mark
-  bool enabled{true};//collected from target item
-  Sz* tops{nullptr};//given by nav (nav+output specialized)
-  //--------
-  Depth at{0};//depth level counter
-  Sz prev{0};
-  bool pad{false};//pad printing?
-  Sz idx{0};
-  Sz pIdx{0};
-
-  Ctx(
-    Path path,
-    NavMode mode={NavMode::Nav},
-    Depth pAt={0},
-    bool enabled={true},
-    Sz* tops={nullptr},
-    Depth at={0},
-    Sz prev={0},
-    bool pad={false},
-    Sz idx={0},
-    Sz pIdx={-1}
-  ):path{path},mode{mode},pAt{pAt},enabled{enabled},tops{tops},at{at},prev{prev},pad{pad},idx{idx},pIdx{pIdx}{}
-
-  constexpr bool psel() const {return sel(pAt)==pIdx;}// <=> parent is selected?
-  constexpr Depth after() const {return path.len-pAt;}// <=> depth after print root, 1=>menu nav, 2=>pad menu nav, 3=>pad menu edit
-  constexpr Sz sel() const {return path.sel(std::min((Depth)at,(Depth)(path.len-1)));}
-  constexpr Sz sel(Depth i) const {assert(i<path.len);return path.sel(i);}
-  constexpr Sz top() const {return tops[(int)at];}
-  constexpr operator bool() const {return path.sel(at>0?at-1:0)==idx;}
-  constexpr bool padPrinting() const {return at-pAt>0;}
-  Sz top(Sz i) {return tops[(int)at]=i;}
-  Ctx next() const {assert(at+1<path.len);return Ctx{path,mode,pAt,enabled,tops,(Depth)(at+1),0,pad,0};}
-};
-
-#ifdef MENU_DEBUG
-  template<typename Out> Out& operator<<(Out& out,const Pos& o) {return out<<"{"<<o.x<<","<<o.y<<"}";}
-
-  template<typename Out>
-  Out& operator<<(Out& out,const Path o) {
-    out<<"{";
-    for(Sz i=0;i<o.len;i++) {
-      if(i) out<<",";
-      out<<o.data[i];
+  struct Path {
+    Depth len;
+    Sz* data;
+    constexpr Sz sel(Depth i=0) const {return len>i?data[(int)i]:0;}
+    constexpr Sz last() const {return sel(len-1);}
+    constexpr Path next() const {
+      #ifndef ARDUINO
+        assert(len>0);
+      #endif
+      return {(Depth)(len-1),&data[1]};
     }
-    return out<<"}";
-  }
+  };
 
-  template<typename Out>
-  Out& operator<<(Out& out,const Ctx& o) {
-  return out
-    <<"#"<<o.idx
-    <<" path:"<<o.path
-    <<" mode:"<<o.mode
-    <<" pAt:"<<o.pAt
-    <<" at:"<<o.at
-    <<" pIdx:"<<o.pIdx
-    <<" en:"<<o.enabled
-    // <<" tops:"<<o.tops
-    <<" prev:"<<o.prev
-    <<" pad:"<<o.pad;
-  }
-#endif
+  template<Depth depth> struct PathData {
+    Sz data[depth]{0};
+    Path focusAt(Depth at)  {assert(at<depth);return {at,data};}
+    Sz operator[](Depth i) const {assert(i<depth);return data[(int)i];}
+    operator Path() {return Path{depth,data};}
+  };
 
-//rule predicates------------------------------------------
-//IsCursor predicate
-struct IsCursor {
-  template<typename O,typename =void> struct Check {static constexpr const bool value{false};};
-  template<typename O> struct Check<O,std::void_t<typename O::IsCursor>> {static constexpr const bool value{O::IsCursor::value};};
-};
+  struct Ctx {
+    Path path{};//full path
+    NavMode mode{NavMode::Nav};
+    Depth pAt{0};//print level mark
+    bool enabled{true};//collected from target item
+    Sz* tops{nullptr};//given by nav (nav+output specialized)
+    //--------
+    Depth at{0};//depth level counter
+    Sz prev{0};
+    bool pad{false};//pad printing?
+    Sz idx{0};
+    Sz pIdx{0};
 
-//RawDevice predicate
-struct RawDevice {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
-  };
-  template<typename O> struct Check<O,std::void_t<typename O::RawDevice>> {
-    static constexpr const bool value{O::RawDevice::value};
-  };
-};
+    Ctx(
+      Path path,
+      NavMode mode={NavMode::Nav},
+      Depth pAt={0},
+      bool enabled={true},
+      Sz* tops={nullptr},
+      Depth at={0},
+      Sz prev={0},
+      bool pad={false},
+      Sz idx={0},
+      Sz pIdx={-1}
+    ):path{path},mode{mode},pAt{pAt},enabled{enabled},tops{tops},at{at},prev{prev},pad{pad},idx{idx},pIdx{pIdx}{}
 
-//IsFormat predicate
-struct IsFormat {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
+    constexpr bool psel() const {return sel(pAt)==pIdx;}// <=> parent is selected?
+    constexpr Depth after() const {return path.len-pAt;}// <=> depth after print root, 1=>menu nav, 2=>pad menu nav, 3=>pad menu edit
+    constexpr Sz sel() const {return path.sel(std::min((Depth)at,(Depth)(path.len-1)));}
+    constexpr Sz sel(Depth i) const {assert(i<path.len);return path.sel(i);}
+    constexpr Sz top() const {return tops[(int)at];}
+    constexpr operator bool() const {return path.sel(at>0?at-1:0)==idx;}
+    constexpr bool padPrinting() const {return at-pAt>0;}
+    Sz top(Sz i) {return tops[(int)at]=i;}
+    Ctx next() const {assert(at+1<path.len);return Ctx{path,mode,pAt,enabled,tops,(Depth)(at+1),0,pad,0};}
   };
-  template<typename O> struct Check<O,std::void_t<typename O::IsFormat>> {
-    static constexpr const bool value{O::IsFormat::value};
-  };
-};
 
-//IsPrinter predicate
-struct IsPrinter {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
-  };
-  template<typename O> struct Check<O,std::void_t<typename O::IsPrinter>> {
-    static constexpr const bool value{O::IsPrinter::value};
-  };
-};
+  #ifdef MENU_DEBUG
+    template<typename Out> Out& operator<<(Out& out,const Pos& o) {return out<<"{"<<o.x<<","<<o.y<<"}";}
 
-//IsDataParser predicate
-struct IsDataParser {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
-  };
-  template<typename O> struct Check<O,std::void_t<typename O::IsDataParser>> {
-    static constexpr const bool value{O::IsDataParser::value};
-  };
-};
+    template<typename Out>
+    Out& operator<<(Out& out,const Path o) {
+      out<<"{";
+      for(Sz i=0;i<o.len;i++) {
+        if(i) out<<",";
+        out<<o.data[i];
+      }
+      return out<<"}";
+    }
 
-//IsParser predicate
-struct IsParser {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
-  };
-  template<typename O> struct Check<O,std::void_t<typename O::IsParser>> {
-    static constexpr const bool value{O::IsParser::value};
-  };
-};
+    template<typename Out>
+    Out& operator<<(Out& out,const Ctx& o) {
+    return out
+      <<"#"<<o.idx
+      <<" path:"<<o.path
+      <<" mode:"<<o.mode
+      <<" pAt:"<<o.pAt
+      <<" at:"<<o.at
+      <<" pIdx:"<<o.pIdx
+      <<" en:"<<o.enabled
+      // <<" tops:"<<o.tops
+      <<" prev:"<<o.prev
+      <<" pad:"<<o.pad;
+    }
+  #endif
 
-//IsArea predicate
-struct IsArea {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
+  //rule predicates------------------------------------------
+  //IsCursor predicate
+  struct IsCursor {
+    template<typename O,typename =void> struct Check {static constexpr const bool value{false};};
+    template<typename O> struct Check<O,std::void_t<typename O::IsCursor>> {static constexpr const bool value{O::IsCursor::value};};
   };
-  template<typename O> struct Check<O,std::void_t<typename O::IsArea>> {
-    static constexpr const bool value{O::IsArea::value};
-  };
-};
 
-//IsBuffer predicate
-struct IsBuffer {
-  template<typename O,typename =void> struct Check {
-    static constexpr const bool value{false};
+  //RawDevice predicate
+  struct RawDevice {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::RawDevice>> {
+      static constexpr const bool value{O::RawDevice::value};
+    };
   };
-  template<typename O> struct Check<O,std::void_t<typename O::IsBuffer>> {
-    static constexpr const bool value{O::IsBuffer::value};
+
+  //IsFormat predicate
+  struct IsFormat {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::IsFormat>> {
+      static constexpr const bool value{O::IsFormat::value};
+    };
+  };
+
+  //IsPrinter predicate
+  struct IsPrinter {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::IsPrinter>> {
+      static constexpr const bool value{O::IsPrinter::value};
+    };
+  };
+
+  //IsDataParser predicate
+  struct IsDataParser {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::IsDataParser>> {
+      static constexpr const bool value{O::IsDataParser::value};
+    };
+  };
+
+  //IsParser predicate
+  struct IsParser {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::IsParser>> {
+      static constexpr const bool value{O::IsParser::value};
+    };
+  };
+
+  //IsArea predicate
+  struct IsArea {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::IsArea>> {
+      static constexpr const bool value{O::IsArea::value};
+    };
+  };
+
+  //IsBuffer predicate
+  struct IsBuffer {
+    template<typename O,typename =void> struct Check {
+      static constexpr const bool value{false};
+    };
+    template<typename O> struct Check<O,std::void_t<typename O::IsBuffer>> {
+      static constexpr const bool value{O::IsBuffer::value};
+    };
   };
 };
 
 //debug ---
 #include "oneMenu/sys/debug.h"
-
-
