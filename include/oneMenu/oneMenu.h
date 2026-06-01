@@ -16,3 +16,16 @@
 #include "menu/menu.h"
 #include "menu/nav.h"
 
+//factories -----------------------------------------------
+template<typename... OO> 
+constexpr StaticBody<OO...> staticBody(OO&&... oo)
+  {return StaticBody<OO...>{std::forward<OO>(oo)...};}
+
+template<typename... OO,typename T,typename B,typename... PP> 
+constexpr MenuDef<T,B,OO...> menuDef(T&& t,B&& b,PP&&... pp)
+  {return {std::forward<T>(t),std::forward<B>(b),std::forward<PP>(pp)...};}
+
+template<typename... OO,typename T,typename B,typename... PP> 
+constexpr PadMenu<T,B,PadDraw,OO...> padDef(T&& t,B&& b,PP&&... pp)
+  {return {std::forward<T>(t),std::forward<B>(b),std::forward<PP>(pp)...};}
+

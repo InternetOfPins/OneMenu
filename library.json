@@ -22,8 +22,7 @@
   "dependencies": {
     "tinyTimeUtils":"https://github.com/neu-rah/tinyTimeUtils.git",
     "HAPI":"https://github.com/InternetOfPins/HAPI.git@^0.3.8",
-    "OneData":"https://github.com/InternetOfPins/OneData.git@^0.1.8",
-    "OneList":"https://github.com/InternetOfPins/OneList.git@^0.0.9",
+    "OneData":"https://github.com/InternetOfPins/OneData.git@^0.1.10",
     "OneItem":"https://github.com/InternetOfPins/OneItem.git@^0.0.3",
     "OneOutput":"https://github.com/InternetOfPins/OneOutput.git@^0.0.3"
   },

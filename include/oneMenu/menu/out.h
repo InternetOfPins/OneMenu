@@ -438,10 +438,12 @@ namespace oneMenu {
       using Base=O;
       using Base::width;
       using Base::height;
-      using Base::posY;
-      using Base::posX;
-      using Base::freeX;
+      // using Base::posY;
+      // using Base::posX;
+      // using Base::freeX;
       // using Base::freeY;
+      using Base::free;
+      using Base::pos;
       using Base::obj;
       Part() {Base::lockMode(LockMode::Measure);}
       void erase() {
@@ -453,19 +455,28 @@ namespace oneMenu {
         memset(&buffer[(height()-1)*width()],c,width());
         Base::obj().setPos({0,height()-1});
       }
-      Sz freeY() const {
-        return scrl==Scroll::no?
-          Base::freeY():
-          Base::freeY()>0?
+      // Sz freeY() const {
+      //   return scrl==Scroll::no?
+      //     Base::freeY():
+      //     Base::freeY()>0?
+      //       Base::freeY():
+      //       1-Base::free();
+      // }
+      Area free() const {
+        return {
+          free().x,
+          scrl==Scroll::no?
             Base::freeY():
-            1-Base::freeY();
-      }
-      Area free() const {return {freeX(),freeY()};}
+            Base::freeY()>0?
+              Base::freeY():
+              1-Base::free()
+          };
+        }
       void put(char o) {
         m_changed=true;
         if(scrl==Scroll::yes) 
-          while(Base::freeY()<=0) scroll();
-        buffer[posY()*width()+posX()]=o;
+          while(Base::free().y<=0) scroll();
+        buffer[pos().y*width()+pos().x]=o;
         Base::put(o);
       }
       bool changed() const {return m_changed;}

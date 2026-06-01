@@ -8,8 +8,6 @@
   #include <oneMenu/menu/body/cArrayBody.h>
   #include <oneMenu/menu/body/stdBody.h>
 
-  using namespace oneMenu;
-  
   #ifdef __AVR__
     #include <menu/IO/arduino/serialOut.h>
     #include <menu/IO/arduino/serialIn.h>
@@ -26,6 +24,8 @@
 bool running=true;
 
 using namespace hapi;
+using namespace oneMenu;
+using namespace oneData;
 
 InDef<
   #ifdef ARDUINO
@@ -228,7 +228,7 @@ IItem* iBody[]{
 };
 
 using ChooseDemo=ChooseFieldDef<
-  Title<
+  ItemDef<
     StaticText<text::choose_demo>,
     AsEditMode<>,//edit mode indicator
     BodyAction<action::subIdx>
@@ -246,7 +246,7 @@ using ChooseDemo=ChooseFieldDef<
 >;
 
 using SelectDemo=SelectFieldDef<
-  Title<
+  ItemDef<
     AsLabel<StaticText<text::select_demo>>,
     AsEditMode<>,//edit mode indicator
     BodyAction<action::subIdx>
@@ -281,7 +281,7 @@ using Power=NumFieldDef<
     AsLabel<StaticText<text::power>>//field label
   >,
   NumField<//use range to change the data
-    hapi::data::StaticNumRange<int,0,100,false>,//valid range
+    StaticNumRange<int,0,100,false>,//valid range
     ItemNav,
     Watch<AsField<Default<int,55>,Int>>//use `int` and `change watch` as field (data)
   >,
