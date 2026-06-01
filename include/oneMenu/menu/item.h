@@ -48,8 +48,8 @@ namespace oneMenu {
     using Base::enabled;
     using Base::print;
 
-    template<typename Out> void printMenu(Out& out,Ctx&& ctx)
-      {Base::printMenu(out,ctx);}
+    // template<typename Out> bool printMenu(Out& out,Ctx&& ctx)
+    //   {return Base::printMenu(out,ctx);}
 
     template<bool isKbd,typename Nav>
     bool nav(Nav& n,const CKE& cke,const Path p) {

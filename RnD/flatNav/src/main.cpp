@@ -72,9 +72,11 @@ using MenuT=decltype(menu);
 
 OutDef<ConsoleOut> out;
 
+Ctx ctx{{}};
+
 int main() {
   cout<<std::boolalpha;
-  menu.printMenu(out);
+  menu.printMenu(out,ctx);
   cout<<endl;
   return 0;
 }

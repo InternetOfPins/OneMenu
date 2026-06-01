@@ -78,9 +78,11 @@ using MenuT=decltype(menu);
 
 OutDef<ConsoleOut> out;
 
+Ctx ctx{{}};
+
 int main() {
   cout<<std::boolalpha;
-  menu.printMenu(out);
+  menu.printMenu(out,ctx);
   cout<<"id<1>=id<1>:"<<SameAs<Id<1>>::Check<Id<1>>::value<<endl;
   cout<<"query ItemDef:"<<query<SameAs<Id<1>>,ItemDef<Id<1>>><<endl;
   cout<<"has id  1:"<<query<SameAs<Id<1>>, MenuT><<endl;

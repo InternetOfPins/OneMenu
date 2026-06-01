@@ -37,10 +37,10 @@ namespace oneMenu {
     Body body;
     MenuPart(Title&& t,Body&& b):title{std::move(t)},body{std::move(b)} {}
     template<typename Out> void print(Out& out) const {title.print(out);}
-    template<typename Out> void printBody(Out& out) const {body.printBody(out);}
-    template<typename Out> void printMenu(Out& out) const {
+    template<typename Out> bool printBody(Out& out,Ctx& ctx) const {return body.printBody(out);}
+    template<typename Out> bool printMenu(Out& out,Ctx& ctx) const {
       print(out);
-      printBody(out);
+      return printBody(out,ctx);
     }
   };
 
@@ -61,6 +61,12 @@ namespace oneMenu {
   //menu factory ---
   template<typename... MM,typename T,typename B>
   constexpr ItemDef<Menu<T,B,MM...>> menuDef(T&& t,B&& b) {return {std::forward<T>(t),std::forward<B>(b)};}
+
+  template <typename T, typename B,typename... OO> using PadMenu=ItemDef<Menu<T,B,PadDraw,OO...>>;
+  template <typename T, typename B,typename... OO> using MenuDef=ItemDef<Menu<T,B,OO...>>;
+  template <typename T, typename B,typename... OO> using IMenuDef=IItemDef<Menu<T,B,OO...>>;
+
+  // template<typename... OO> using Title=ItemDef<OO...>; 
 };
 
 //rules Menu query specialization --

@@ -375,7 +375,7 @@ auto mainMenu=menuDef<WrapNav>(
     ItemDef<Action<action::op2>,StaticText<text::op2>,Desc<StaticText<desc::op2>>>{},
     ItemDef<Id<ids::op3>,Action<action::op3>,Watch<EnDis<false>>,StaticText<text::op3>,Desc<StaticText<desc::op3>>>{},
     menuDef<WrapNav>(
-      Title<StaticText<text::fields_menu>,Desc<StaticText<desc::fields_menu>>>{},
+      ItemDef<StaticText<text::fields_menu>,Desc<StaticText<desc::fields_menu>>>{},
       staticBody(
         ItemDef<
           AsLabel<Text>,
@@ -386,7 +386,7 @@ auto mainMenu=menuDef<WrapNav>(
           AsField<TextField<15>>
         >{"Name"},
         Power{55},
-        ToggleDemo{"Toggle",{{},{},"Maybe"}},
+        ToggleDemo{"Toggle","Maybe"},
         SelectDemo{},
         ChooseDemo{},
         dateField("date"),
@@ -394,7 +394,7 @@ auto mainMenu=menuDef<WrapNav>(
       )
     ),
     MenuDef<//sub menu with C array body (all items of the same type)
-      Title<
+      ItemDef<
         BodyAction<action::subIdx>,
         StaticText<text::array_sub_menu>,
         Desc<StaticText<desc::array_sub_menu>>
@@ -403,12 +403,12 @@ auto mainMenu=menuDef<WrapNav>(
     >{},
     #ifndef __AVR__
       MenuDef<//sub menu with C array body of virtual `IItem` (not all of the same type)
-        Title<BodyAction<action::subIdx>,StaticText<text::sub_ibody>,Desc<StaticText<desc::sub_ibody>>>,
+        ItemDef<BodyAction<action::subIdx>,StaticText<text::sub_ibody>,Desc<StaticText<desc::sub_ibody>>>,
         CPtrArrayBody<IItem,iBody,sizeof(iBody)/sizeof(iBody[0])>,
         WrapNav
       >{},
       MenuDef<
-        Title<BodyAction<action::subIdx>,StaticText<text::sub_sbody>,Desc<StaticText<desc::sub_sbody>>>,
+        ItemDef<BodyAction<action::subIdx>,StaticText<text::sub_sbody>,Desc<StaticText<desc::sub_sbody>>>,
         StdBody<vector<IItem*>>,
         WrapNav,Id<ids::container>
       >{},
@@ -424,7 +424,7 @@ INavDef<
 
 bool action::op2(Sz) {
   syslog<<"option #2 action called.\ntoggle option #3 enable/disable state"<<endl;
-  mainMenu.template withId<Id<ids::op3>>().enable(!mainMenu.template withId<Id<ids::op3>>().enabled());
+  // mainMenu.template withId<Id<ids::op3>>().enable(!mainMenu.template withId<Id<ids::op3>>().enabled());
   return true;
 }
 
@@ -453,9 +453,9 @@ void setup() {
 
   #ifndef __AVR__
     //populate std container menu
-    mainMenu.template withId<Id<ids::container>>().body().push_back(new IItemDef<Text>{"runtime"});
-    mainMenu.template withId<Id<ids::container>>().body().push_back(new IItemDef<Text>{"populated"});
-    mainMenu.template withId<Id<ids::container>>().body().push_back(new IItemDef<Text>{"items"});
+    // mainMenu.template withId<Id<ids::container>>().body().push_back(new IItemDef<Text>{"runtime"});
+    // mainMenu.template withId<Id<ids::container>>().body().push_back(new IItemDef<Text>{"populated"});
+    // mainMenu.template withId<Id<ids::container>>().body().push_back(new IItemDef<Text>{"items"});
   #endif
 
   web.lockMode(LockMode::None);

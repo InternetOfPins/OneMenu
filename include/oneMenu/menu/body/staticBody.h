@@ -12,7 +12,7 @@ namespace oneMenu {
   template<typename...> struct StaticBody;
 
   template<> struct StaticBody<>:Chain<> {
-    template<typename Out> static constexpr void printBody(Out& out) {}
+    template<typename Out> static constexpr bool printBody(Out& out) {return false;}
   };
 
   template<typename O,typename... OO>
@@ -25,7 +25,9 @@ namespace oneMenu {
     constexpr StaticBody(I&& o,II&&... oo):head{std::forward<I>(o)},tail{std::forward<II>(oo)...}{}
     template<typename... II>
     constexpr StaticBody(II&&... oo):head{},tail{std::forward<II>(oo)...}{}
-    template<typename Out> void printBody(Out& out) const {head.print(out);tail.printBody(out);}
+    template<typename Out> bool printBody(Out& out) const {
+      head.print(out);//TODO change to `printItem` or `printTo` verify name available
+      return tail.printBody(out);}
   };
 
   //static body factory ---
