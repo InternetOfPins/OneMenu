@@ -9,8 +9,8 @@
  * 
 */
 
-#include "menu/sys/base.h"
-#include "menu/sys/formats.h"
+#include "oneMenu/menu/sys/base.h"
+#include "oneMenu/menu/sys/formats.h"
 
 struct XmlFmt {
   template<typename O>

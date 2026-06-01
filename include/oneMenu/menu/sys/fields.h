@@ -1,10 +1,10 @@
 #pragma once
 
-#include "oneMenu/menu.h"
-#include "oneMenu/out.h"
-#include "oneMenu/sys/printers.h"
-#include "oneMenu/item.h"
-#include "oneMenu/sys/charMask.h"
+#include "oneMenu/menu/menu.h"
+#include "oneMenu/menu/out.h"
+#include "oneMenu/menu/sys/printers.h"
+#include "oneMenu/menu/item.h"
+#include "oneMenu/menu/sys/charMask.h"
 
 namespace oneMenu {
   template<Sz sz,typename Mask=CharMask::ASCII7>

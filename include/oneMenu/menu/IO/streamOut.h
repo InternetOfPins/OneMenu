@@ -1,6 +1,6 @@
 #pragma once
 
-#include "oneMenu/out.h"
+#include "oneMenu/menu/out.h"
 #include <iostream>
 
 namespace oneMenu {

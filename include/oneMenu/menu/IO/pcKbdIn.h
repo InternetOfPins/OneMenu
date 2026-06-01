@@ -9,8 +9,8 @@
  * 
  */
 
-#include "menu/in.h"
-#include "tinyTimeUtils.h"
+#include "oneMenu/menu/in.h"
+#include <tinyTimeUtils.h>
 
 /// @brief handles PC keyboard extended codes (arrow keys) and translates them to menu commands
 struct PCKbd {

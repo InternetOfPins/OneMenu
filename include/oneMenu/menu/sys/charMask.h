@@ -9,7 +9,7 @@
  * 
 */
 
-#include "oneMenu/sys/base.h"
+#include "oneMenu/menu/sys/base.h"
 
 namespace CharMask {
   using oneData::CText;

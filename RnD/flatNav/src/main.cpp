@@ -1,8 +1,5 @@
 #include <oneMenu/oneMenu.h>
 #include <oneMenu/menu/IO/streamOut.h>
-// using namespace oneData;
-// using namespace oneIten;
-// using namespace oneOutput;
 using namespace oneMenu;
 using namespace hapi;
 
@@ -25,9 +22,6 @@ struct FlatNav {
   struct Part:O {
     using Base=O;
     using Base::Base;
-    // template<typename Out>
-    // void print(Out& out,int i) const 
-    //   {out.put(i==at?'>':' ');Base::printItem(out,i);}
   };
 };
 
@@ -81,12 +75,6 @@ OutDef<ConsoleOut> out;
 int main() {
   cout<<std::boolalpha;
   menu.printMenu(out);
-  cout<<"id<1>=id<1>:"<<SameAs<Id<1>>::Check<Id<1>>::value<<endl;
-  cout<<"query ItemDef:"<<query<SameAs<Id<1>>,ItemDef<Id<1>>><<endl;
-  cout<<"has id  1:"<<query<SameAs<Id<1>>, MenuT><<endl;
-  cout<<"has id  2:"<<query<SameAs<Id<2>>, MenuT><<endl;
-  cout<<"has id  3:"<<query<SameAs<Id<3>>, MenuT><<endl;
-  cout<<"has id 13:"<<query<SameAs<Id<13>>,MenuT><<endl;
-  cout<<"has IsNavCursor tag:"<<query<IsNavCursor,MenuT><<endl;
+  cout<<endl;
   return 0;
 }

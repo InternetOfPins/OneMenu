@@ -1,6 +1,6 @@
 {
   "name": "ArduinoMenu Library",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "generic menu UI system",
   "keywords": "menu, UI, modular, API",
   "repository":
@@ -23,8 +23,10 @@
     "tinyTimeUtils":"https://github.com/neu-rah/tinyTimeUtils.git",
     "HAPI":"https://github.com/InternetOfPins/HAPI.git@^0.3.8",
     "OneData":"https://github.com/InternetOfPins/OneData.git@^0.1.8",
-    "OneList":"https://github.com/InternetOfPins/OneList.git@^0.0.9"
+    "OneList":"https://github.com/InternetOfPins/OneList.git@^0.0.9",
+    "OneItem":"https://github.com/InternetOfPins/OneItem.git@^0.0.3",
+    "OneOutput":"https://github.com/InternetOfPins/OneOutput.git@^0.0.3"
   },
   "frameworks": "*",
   "platforms": "*"
-}
+} 

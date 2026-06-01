@@ -2,7 +2,7 @@
 
 #ifdef ARDUINO
 #include <Arduino.h>
-#include "oneMenu/out.h"
+#include "oneMenu/menu/out.h"
 
 template<typename Dev, Dev& dev>
 struct ArduinoSerialOut {

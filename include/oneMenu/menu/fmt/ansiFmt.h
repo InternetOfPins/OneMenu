@@ -9,8 +9,8 @@
  * 
 */
 
-#include "oneMenu/sys/base.h"
-#include "oneMenu/sys/formats.h"
+#include "oneMenu/menu/sys/base.h"
+#include "oneMenu/menu/sys/formats.h"
 
 // F3 -----------------------------------------------------------------
 struct ANSIFmt {

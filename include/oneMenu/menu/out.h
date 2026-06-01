@@ -3,15 +3,13 @@
  * @author Rui Azevedo (neu-rah) (ruihfazevedo@gmail.com)
  * @brief output API
  * @version 5
- * @date 2026-04-17
- * 
- * @copyright Copyright (c) 2026
- * 
 */
 
 #pragma once
 
-// using ConsoleOut=Chain<Raw, oneOutput::ConsoleOut>;
+#include <hapi/hapi.h>
+#include <oneOutput/oneOutput.h>
+#include <oneMenu/menu/sys/base.h>
 
 namespace oneMenu {
   template<typename Cfg=hapi::Nil>

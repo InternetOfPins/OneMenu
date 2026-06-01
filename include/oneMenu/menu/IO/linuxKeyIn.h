@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <sys/select.h>
 #include <termios.h>
-#include "menu/in.h"
+#include "oneMenu/menu/in.h"
 
 static struct termios orig_termios;
 

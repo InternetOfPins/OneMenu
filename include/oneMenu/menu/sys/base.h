@@ -11,6 +11,38 @@
 
 #pragma once
 
+// #ifdef ARDUINO
+//   #include <Arduino.h>
+//   #undef max
+// #endif
+
+#ifdef __AVR__
+  #include <assert.h>
+  #include "menu/sys/platform/avr/avr_std.h"
+#else
+  #include <iostream>
+  #include <cstdint>
+  #include <cassert>
+  #include <type_traits>
+  #include <utility>
+  #include <cstring>
+  #include <cstdlib>
+  #include <cstdio>
+  #include <limits>
+  #include <algorithm>
+#endif
+#include <tinyTimeUtils.h>
+
+#include <hapi/hapi.h>
+#include <oneList/oneList.h>
+#include <oneOutput/oneOutput.h>
+#include <oneData/oneData.h>
+#include <oneItem/oneItem.h>
+
+#include "oneMenu/menu/sys/enums.h"
+
+using hapi::Nil;
+
 namespace oneMenu {
   using hapi::Chain;
   // using hapi::query;
@@ -225,4 +257,4 @@ namespace oneMenu {
 };
 
 //debug ---
-#include "oneMenu/sys/debug.h"
+#include "oneMenu/menu/sys/debug.h"
