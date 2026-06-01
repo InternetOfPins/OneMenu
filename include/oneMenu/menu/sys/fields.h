@@ -21,7 +21,7 @@ namespace oneMenu {
       bool changed() const {return edited;}
       void sync() {edited=false;}
       template<typename Out>
-      void print(Out& out,Ctx& ctx) {
+      void printTo(Out& out,Ctx& ctx) {
         Sz i=ctx.sel();
         if (ctx) {
           out.put(&text[0],i);

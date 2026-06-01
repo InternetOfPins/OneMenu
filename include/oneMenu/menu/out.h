@@ -455,21 +455,14 @@ namespace oneMenu {
         memset(&buffer[(height()-1)*width()],c,width());
         Base::obj().setPos({0,height()-1});
       }
-      // Sz freeY() const {
-      //   return scrl==Scroll::no?
-      //     Base::freeY():
-      //     Base::freeY()>0?
-      //       Base::freeY():
-      //       1-Base::free();
-      // }
       Area free() const {
         return {
-          free().x,
+          Base::free().x,
           scrl==Scroll::no?
-            Base::freeY():
-            Base::freeY()>0?
-              Base::freeY():
-              1-Base::free()
+            Base::free().y:
+            Base::free().y>0?
+              Base::free().y:
+              1-Base::free().y
           };
         }
       void put(char o) {

@@ -259,7 +259,7 @@ namespace oneMenu {
         using Base=O;
         using Base::Base;
         template<typename Out>
-        void print(Out& out,Ctx& ctx) {}
+        void printTo(Out& out,Ctx& ctx) {}
       };
     };
     template<typename O>
@@ -267,7 +267,7 @@ namespace oneMenu {
       using Base=typename Chain<OO...,PartEnd>::template Part<O>;
       using Base::Base;
       template<typename Out>
-      void print(Out& out,Ctx& ctx) {
+      void printTo(Out& out,Ctx& ctx) {
         out.template fmtStart<tag>(ctx);
         Base::print(out,ctx);
         out.template fmtStop<tag>(ctx);

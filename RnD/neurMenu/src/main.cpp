@@ -386,7 +386,7 @@ auto mainMenu=menuDef<WrapNav>(
           AsField<TextField<15>>
         >{"Name"},
         Power{55},
-        ToggleDemo{"Toggle","Maybe"},
+        // ToggleDemo{"Toggle","Maybe"},
         SelectDemo{},
         ChooseDemo{},
         dateField("date"),
