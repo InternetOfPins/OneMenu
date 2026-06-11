@@ -171,11 +171,28 @@ namespace oneMenu {
   template<typename... II>
   struct Hidden {
     template<typename I>
-    struct Part:Chain<II...>::template Part<I> {
-      using Base=typename Chain<II...>::template Part<I>;
+    struct Part:oneItem::Hidden<II...>::template Part<I> {
+      using Base=typename oneItem::Hidden<II...>::template Part<I>;
       using Base::Base;
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {I::printItem(out,ctx);}
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path p)
+        {return Base::template nav<isKbd>(n,cke,p);}
+    };
+  };
+
+  template<typename... II>
+  struct Decor {
+    template<typename I>
+    struct Part:oneItem::Decor<II...>::template Part<I> {
+      using Base=typename oneItem::Decor<II...>::template Part<I>;
+      using Base::Base;
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {Base::printItem(out,ctx);}
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path p) noexcept
+        {return I::template nav<isKbd>(n,cke,p);}
     };
   };
 

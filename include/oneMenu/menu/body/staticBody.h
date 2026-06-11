@@ -10,18 +10,22 @@ namespace oneMenu {
 
   template<typename...> struct StaticBody;
 
-  template<> struct StaticBody<> : Chain<> {
+  template<> struct StaticBody<> {
     static constexpr Sz size() noexcept {return 0;}
+    static constexpr Depth depth() noexcept {return 0;}
     template<typename Out> static constexpr void printTo(Out&) noexcept {}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Sz=0) noexcept {return false;}
+    template<bool isKbd,typename Nav>
+    static constexpr bool nav(Nav&,const CKE&,Path,Sz=0) noexcept {return false;}
   };
 
   template<typename O, typename... OO>
   struct StaticBody<O, OO...> : Chain<O, OO...> {
     static constexpr Sz size() noexcept {return 1+sizeof...(OO);}
+    static constexpr Depth depth() {return staticMax<Head::depth(),Tail::depth()>();}
     using Head = O;
     using Tail = StaticBody<OO...>;
     

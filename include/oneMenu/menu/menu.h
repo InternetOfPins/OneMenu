@@ -102,7 +102,18 @@ namespace oneMenu {
     template<typename Out>
     bool printItem(Out& out,Ctx& ctx)
       {return title.printItem(out,ctx);}
-    
+
+    static constexpr Depth depth() {return Body::depth()+1;}
+
+    template<bool isKbd,typename Nav>
+    bool nav(Nav& n,const CKE& cke,Path p) {
+      if(p.len>0)
+        return body.template nav<isKbd>(n,cke,p.next(),p.sel())
+        ||Base::template nav<isKbd>(n,cke,p)
+        ||(p.len==1&&n.doNav(cke,size(),Base::wraps()));
+      return Base::template nav<isKbd>(n,cke,p);
+    }
+
   };
 
   template<typename T,typename B,typename... OO>
