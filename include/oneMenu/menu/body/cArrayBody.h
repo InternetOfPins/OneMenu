@@ -21,7 +21,7 @@ namespace oneMenu {
       {return data[i].template nav<isKbd>(n,cke,path);}
 
     template<typename Out> bool printBody(Out& out,Ctx& ctx) {
-      for(Sz i=0;i<_sz&&out.freeY();i++) out.printItem(data[ctx.idx],ctx);
+      for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(data[ctx.idx],ctx);
       return false;
     }
 
@@ -52,7 +52,7 @@ namespace oneMenu {
       {return data[i]->template nav<isKbd>(n,cke,path);}
 
     template<typename Out> bool printBody(Out& out,Ctx& ctx) {
-      for(Sz i=0;i<_sz&&out.freeY();i++) out.printItem(*data[ctx.idx],ctx);
+      for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(*data[ctx.idx],ctx);
       return false;
     }
 

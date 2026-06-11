@@ -21,7 +21,7 @@ namespace oneMenu {
       bool changed() const {return edited;}
       void sync() {edited=false;}
       template<typename Out>
-      void printTo(Out& out,Ctx& ctx) {
+      void printItem(Out& out,Ctx& ctx) {
         Sz i=ctx.sel();
         if (ctx) {
           out.put(&text[0],i);
@@ -30,7 +30,7 @@ namespace oneMenu {
           out.template fmtStop<Fmt::EditCursor>(ctx);
           out.put(&text[i+1]);
         } else out.put(text,sz);
-        Base::print(out,ctx);
+        Base::printItem(out,ctx);
       }
 
       template<bool isKbd,typename Nav>

@@ -33,14 +33,23 @@ namespace oneMenu {
     static constexpr bool down() {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&) {return false;}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&) {return false;}
-    template<typename Out> static constexpr bool printItem(Out&,Ctx&) {return false;}
-    template<typename Out> static constexpr void printTo(Out& out,Ctx& ctx) {Base::print(out);}
+    using Base::print;
+    template<typename Out> constexpr void printItem(Out&,Ctx&) {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     //Id--
     static constexpr int getId() {return -1;}
     template<int> using HasId=std::false_type;
     template<int> using WithId=ItemAPI<hapi::CRTP<ItemAPI<Nil>>>;
   };
+
+  // namespace detail {
+  //   template<typename B, typename Out, typename=void>
+  //   struct has_printTo_ctx : std::false_type {};
+  //   template<typename B, typename Out>
+  //   struct has_printTo_ctx<B,Out,std::void_t<
+  //     decltype(std::declval<B&>().printTo(std::declval<Out&>(),std::declval<Ctx&>()))
+  //   >> : std::true_type {};
+  // }
 
   template<typename... OO>
   struct ItemDef:APIOf<ItemAPI<>,OO...>{
@@ -50,21 +59,20 @@ namespace oneMenu {
     using Base::enabled;
     using Base::print;
 
-    // template<typename Out> bool printMenu(Out& out,Ctx&& ctx)
-    //   {return Base::printMenu(out,ctx);}
-
     template<bool isKbd,typename Nav>
     bool nav(Nav& n,const CKE& cke,const Path p) {
       return enabled()?Base::template nav<isKbd>(n,cke,p):cke.cmd==Cmd::Enter;
     }
 
-    template<typename Out> bool printItem(Out& out,Ctx&& ctx={{}})  
-      {return print(out,ctx);}
-
     template<typename Out> bool printItem(Out& out,Ctx& ctx) {
-      Base::print(out,ctx);//<----------------------------------
+      out.template fmtStart<Fmt::Data>(ctx);
+      print(out);
+      out.template fmtStop<Fmt::Data>(ctx);
+      Base::printItem(out,ctx);
       return Base::changed();
     }
+    template<typename Out> bool printItem(Out& out,Ctx&& ctx={{}})
+      {return printItem(out,static_cast<Ctx&>(ctx));}
 
     template<typename... XX> using Ins=oneMenu::ItemDef<XX...,OO...>;
     template<typename... XX> using App=oneMenu::ItemDef<OO...,XX...>;
@@ -74,7 +82,7 @@ namespace oneMenu {
   struct IItem {
     virtual bool printMenu(IOut& out,Ctx& ctx)=0;
     virtual bool printBody(IOut& out,Ctx&)=0;
-    virtual void printTo(IOut& out,Ctx&)=0;
+
     virtual bool enabled() const=0;
     virtual void enable(bool=true)=0;
     virtual bool changed()=0;
@@ -90,8 +98,10 @@ namespace oneMenu {
       return isKbd?_kbdNav(n,cke,path):_nav(n,cke,path);
     }
 
+    virtual void printItem(IOut& out,Ctx& ctx) {}
+
     template <typename Out>
-    static constexpr bool printMenu(Out& out,Ctx& ctx) 
+    static constexpr bool printMenu(Out& out,Ctx& ctx)
       {return printMenu(out,ctx);}
 
   };
@@ -104,7 +114,7 @@ namespace oneMenu {
     // virtual Depth depth() const override {return Base::depth();}
     virtual bool printMenu(IOut& out,Ctx& ctx) override {return Base::printMenu(out,ctx);}
     virtual bool printBody(IOut& out,Ctx& ctx) override {return Base::printBody(out,ctx);}
-    virtual void printTo(IOut& out,Ctx& ctx) override {Base::printTo(out,ctx);}
+    virtual void printItem(IOut& out,Ctx& ctx) override {Base::printItem(out,ctx);}
     virtual bool enabled() const override {return Base::enabled();}
     virtual void enable(bool o=true) override {return Base::enable(o);}
     virtual bool changed() override {return Base::changed();}
@@ -116,7 +126,7 @@ namespace oneMenu {
     virtual bool _nav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<false>(n,cke,p);}
     virtual bool _kbdNav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<true>(n,cke,p);}
     template <typename Out> static constexpr bool printMenu(Out& out,Ctx& ctx) {return Base::printMenu(out,ctx);}
-    template<typename Out> static constexpr void printTo(Out& out,Ctx& ctx) {return Base::printTo(out,ctx);}
+    template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {return Base::printItem(out,ctx);}
 
     //Id--
     static constexpr int getId() {return -1;}
@@ -164,15 +174,16 @@ namespace oneMenu {
       using Base=typename Chain<II...>::template Part<I>;
       using Base::Base;
       template<typename Out>
-      void printTo(Out& out,Ctx& ctx) {I::printTo(out,ctx);}
+      void printItem(Out& out,Ctx& ctx) {I::printItem(out,ctx);}
     };
   };
 
   template<bool ens>
   struct EnDis {
+    using Type = bool;
     template<typename I>
-    struct Part:Chain<Default<bool,ens>,Hidden<Bool>>::template Part<I> {
-      using Base=typename Chain<Default<bool,ens>,Hidden<Bool>>::template Part<I>;
+    struct Part:Chain<Hidden<Default<Bool,ens>>>::template Part<I> {
+      using Base=typename Chain<Hidden<Default<Bool,ens>>>::template Part<I>;
       using Base::Base;
       bool enabled(const Path ={}) const {return Base::get();}
       void enable(bool e=true) {Base::set(e);}
@@ -232,7 +243,7 @@ namespace oneMenu {
     /// @brief provide a default value to a index Recall
     /// @tparam val Sz index
     template<Sz val>
-    using Default=Chain<Default<Sz,val>>;
+    using Default=Chain<Default<Data<Sz>,val>>;
     template<typename I>
     struct Part:I {
       using Base=I;
@@ -240,14 +251,14 @@ namespace oneMenu {
       template<typename... OO>
       constexpr Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
       template<typename Out> 
-      void printTo(Out& out,Ctx& ctx) {
-        Base::print(out,ctx);
+      void printItem(Out& out,Ctx& ctx) {
+        Base::printItem(out,ctx);
         out.setPos(out.pos());
         if(ctx) {
-          if(ctx.mode==NavMode::Edit) Base::m_body.printItem(out,ctx,ctx.path.last());
-          else Base::m_body.printItem(out,ctx,m_sel);
+          if(ctx.mode==NavMode::Edit) Base::body.printItem(out,ctx,ctx.path.last());
+          else Base::body.printItem(out,ctx,m_sel);
         }
-        else Base::body().printItem(out,ctx,m_sel);
+        else Base::body.printItem(out,ctx,m_sel);
       }
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
@@ -344,8 +355,8 @@ namespace oneMenu {
         {return ref.printBody(out,ctx);}
 
       template<typename Out> 
-      static constexpr void printTo(Out& out,Ctx& ctx) 
-        {ref.print(out,ctx);}
+      static constexpr void printItem(Out& out,Ctx& ctx)
+        {ref.printItem(out,ctx);}
 
       template<bool isKbd,typename Nav> 
       static constexpr bool nav(Nav& n,const CKE& cke,const Path p) 
@@ -367,21 +378,21 @@ namespace oneMenu {
         struct Part:O {
           using Base=O;
           using Base::Base;
-          template<typename Out> static constexpr void printTo(Out& out,Ctx& ctx) {}
+          template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {}
         };
       };
       template<typename O>
       struct Part:Chain<OO...,End>::template Part<O> {
         using Base=typename Chain<OO...,End>::template Part<O>;
         using Base::Base;
-        template<typename Out> 
-        void printTo(Out& out,Ctx& ctx) {
+        template<typename Out>
+        void printItem(Out& out,Ctx& ctx) {
           if(!(out.lockMode()==LockMode::None||out.lockMode()==LockMode::Update)) return;
           alt.resume();
           if(clr==Clear::yes) alt.clear();
-          Base::printTo(alt,ctx);
+          Base::printItem(alt,ctx);
           out.resume();
-          O::printTo(out,ctx);
+          O::printItem(out,ctx);
         }
       };
     };
@@ -394,16 +405,16 @@ namespace oneMenu {
       struct Part:O {
         using Base=O;
         using Base::Base;
-        template<typename Out> static constexpr void printTo(Out& out,Ctx& ctx) {}
+        template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {}
       };
     };
     template<typename O>
     struct Part:Chain<OO...,End>::template Part<O> {
       using Base=typename Chain<OO...,End>::template Part<O>;
         using Base::Base;
-      template<typename Out> void printTo(Out& out,Ctx& ctx) {
-        if(ctx) Base::printTo(out,ctx);
-        O::printTo(out,ctx);
+      template<typename Out> void printItem(Out& out,Ctx& ctx) {
+        if(ctx) Base::printItem(out,ctx);
+        O::printItem(out,ctx);
       }
     };
   };

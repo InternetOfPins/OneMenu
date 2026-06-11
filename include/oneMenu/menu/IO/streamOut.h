@@ -17,4 +17,5 @@ namespace oneMenu {
   };
 
   using ConsoleOut=StreamOut<decltype(std::cout), std::cout>;
+  using DeviceOut=ConsoleOut;
 }

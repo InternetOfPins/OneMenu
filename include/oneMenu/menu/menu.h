@@ -25,6 +25,22 @@ namespace oneMenu {
     };
   };
 
+  namespace detail {
+    template<typename B, typename Out, typename=void>
+    struct has_printBody : std::false_type {};
+    template<typename B, typename Out>
+    struct has_printBody<B,Out,std::void_t<
+      decltype(std::declval<B&>().printBody(std::declval<Out&>(),std::declval<Ctx&>()))
+    >> : std::true_type {};
+
+    template<typename T, typename Out, typename=void>
+    struct has_print : std::false_type {};
+    template<typename T, typename Out>
+    struct has_print<T,Out,std::void_t<
+      decltype(std::declval<T&>().print(std::declval<Out&>()))
+    >> : std::true_type {};
+  }
+
   // menu ------------------------------------------------------------------------------------
   template<typename T,typename B,typename O,typename... OO>
   struct MenuPart:Chain<OO...>::template Part<O> {
@@ -36,12 +52,57 @@ namespace oneMenu {
     Title title;
     Body body;
     MenuPart(Title&& t,Body&& b):title{std::move(t)},body{std::move(b)} {}
-    template<typename Out> void print(Out& out) const {title.print(out);}
-    template<typename Out> bool printBody(Out& out,Ctx& ctx) const {return body.printBody(out);}
-    template<typename Out> bool printMenu(Out& out,Ctx& ctx) const {
-      print(out);
-      return printBody(out,ctx);
+
+    // template<typename Out> void print(Out& out) const {
+    //   static_assert(detail::has_print<Title,Out>::value,
+    //     "Title::print(Out&) missing");
+    //   title.print(out);
+    // }
+    // template<typename Out> bool printBody(Out& out,Ctx& ctx) {
+    //   if constexpr (detail::has_printBody<Body,Out>::value) {
+    //     return body.printBody(out,ctx);
+    //   } else {
+    //     static_assert(detail::has_printBody<Body,Out>::value,
+    //       "Body::printBody(Out&,Ctx&) missing");
+    //     return false;
+    //   }
+    // }
+    // template<typename Out> bool printMenu(Out& out,Ctx& ctx) {
+    //   print(out);
+    //   return printBody(out,ctx);
+    // }
+    template<typename Out>
+    void print(Out& out) {
+      title.print(out);
+      if(Base::isPad()) {//<----- this is a pad... (second pass) lets print the body inplace, will need a new ctx thou, the original will be messed up
+        // Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+(Depth)1),0,true,0,ctx.idx};
+        {Ctx tmp{{0}};body.printBody(out,tmp);}
+      }
     }
+    template<typename Out> void print(Out& out,Ctx&) {print(out);}
+    Sz size() const {return body.size();}
+
+    template<typename Out>
+    bool printMenu(Out& out,Ctx& ctx) {
+      if(ctx.pAt>ctx.at){//walk to print level
+        //TODO: can this tmp be an update of ctx?
+        Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+1),0,ctx.pad,0, ctx.idx };
+        Sz s=ctx.sel();
+        return body.printMenu(out,tmp,s);
+      }
+      ctx.at++;
+      bool r=out.printMenu(/*obj()*/*this,ctx);// print the target menu
+      return r;
+    }
+
+    template<typename Out> 
+    bool printBody(Out& out,Ctx& ctx)
+      {return body.printBody(out,ctx);}
+
+    template<typename Out>
+    bool printItem(Out& out,Ctx& ctx)
+      {return title.printItem(out,ctx);}
+    
   };
 
   template<typename T,typename B,typename... OO>
@@ -69,6 +130,3 @@ namespace oneMenu {
   // template<typename... OO> using Title=ItemDef<OO...>; 
 };
 
-//rules Menu query specialization --
-template<typename Q,typename T,typename B,typename... OO>
-constexpr const bool hapi::query<Q,oneMenu::Menu<T,B,OO...>>{(hapi::query<Q,OO>||...)||hapi::query<Q,T>||hapi::query<Q,B>};

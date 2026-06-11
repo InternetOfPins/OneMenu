@@ -104,8 +104,8 @@ namespace oneMenu {
       bool printMenu(I& i,Ctx& ctx) {
         if(i.size()==0) return false;
         LockMode om=lockMode();
-        Sz x=Base::posX();
-        Sz y=Base::posY();
+        Sz x=Base::pos().x;
+        Sz y=Base::pos().y;
         if(ctx.sel(ctx.pAt)<0) ctx.path.data[(int)ctx.pAt]=0;
         else if(ctx.sel(ctx.pAt)>=i.size()) ctx.path.data[(int)ctx.pAt]=i.size()-1;
         if(ctx.sel(ctx.pAt)<ctx.top()) {
@@ -133,7 +133,7 @@ namespace oneMenu {
           ctx.idx++;
           return false;
         }
-        return Base::freeY()>0?Base::printItem(i,ctx):false;
+        return Base::free().y>0?Base::printItem(i,ctx):false;
       }
     };
   };
@@ -179,7 +179,7 @@ namespace oneMenu {
       using Base=O;
       template<typename I>
       bool printItem(I& i,Ctx& ctx) {
-        i.print(Base::obj(),ctx);
+        i.printItem(Base::obj(),ctx);
         return Base::printItem(i,ctx)||i.changed();
       }
     };
@@ -259,19 +259,23 @@ namespace oneMenu {
         using Base=O;
         using Base::Base;
         template<typename Out>
-        void printTo(Out& out,Ctx& ctx) {}
+        void printItem(Out& out,Ctx& ctx) {}
       };
     };
     template<typename O>
     struct Part:Chain<OO...,PartEnd>::template Part<O> {
       using Base=typename Chain<OO...,PartEnd>::template Part<O>;
       using Base::Base;
+      template<typename Out> void print(Out&) const {}  // data flows inside printItem only
       template<typename Out>
-      void printTo(Out& out,Ctx& ctx) {
+      void printItem(Out& out,Ctx& ctx) {
         out.template fmtStart<tag>(ctx);
-        Base::print(out,ctx);
+        out.template fmtStart<Fmt::Data>(ctx);
+        Base::print(out);
+        out.template fmtStop<Fmt::Data>(ctx);
+        Base::printItem(out,ctx);
         out.template fmtStop<tag>(ctx);
-        O::print(out,ctx);
+        O::printItem(out,ctx);
       }
     };
   };

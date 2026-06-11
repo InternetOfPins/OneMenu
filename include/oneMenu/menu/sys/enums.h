@@ -12,6 +12,7 @@
 #pragma once
 
 namespace oneMenu {
+  
   // enum {no=false,yes=true};
   enum class Scroll {no=false,yes=true};
   enum Edge {start=true,stop=false};

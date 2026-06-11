@@ -19,6 +19,7 @@ struct ArduinoSerialOut {
 };
 
 using SerialOut=ArduinoSerialOut<decltype(Serial),Serial>;
+using DeviceOut=SerialOut;
 #endif
 
 
