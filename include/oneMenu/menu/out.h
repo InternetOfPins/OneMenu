@@ -14,10 +14,16 @@
 namespace oneMenu {
   template<typename Cfg=hapi::Nil>
   struct OutAPI:oneOutput::OutAPI<Cfg> {
+    using Base=oneOutput::OutAPI<Cfg>;
     template<Fmt tag> static constexpr void fmtStart(const Ctx& ctx) {}
     template<Fmt tag> static constexpr void fmtStop(const Ctx& ctx) {}
     template<typename Item> static constexpr bool printItem(Item& item,Ctx& ctx) {return false;}
     template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
+    static constexpr Pos pos() {return {0,0};}
+    using Base::setPos;
+    static constexpr void setPos(Sz,Sz) {}
+    using Base::put;
+    static constexpr void put(const char*,Sz) {}
   };
 
   // template<typename API,typename... OO> struct OutImpl;
@@ -170,6 +176,7 @@ namespace oneMenu {
       void clear() {if(unlocked()) Base::clear();}
       template<typename T>
       void put(const T o) {if(unlocked()) Base::put(o);}
+      void put(const char* s,Sz n) {if(unlocked()) Base::put(s,n);}
       Pos measure() {
         lockMode(LockMode::Measure);
         return Base::getPos();

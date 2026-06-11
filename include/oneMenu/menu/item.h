@@ -27,6 +27,7 @@ namespace oneMenu {
     static constexpr bool isPad() {return false;}
     static constexpr void enable(bool=true) {}
     static constexpr bool changed() {return false;}
+    static constexpr Pos pos() {return {0,0};}
     static constexpr void sync() {}
     template<typename Out> static constexpr void sync(Out&) {}
     static constexpr bool up() {return false;}
