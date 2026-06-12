@@ -163,13 +163,17 @@ namespace oneMenu {
     };
   };
 
-  struct Gate {
+  struct Gate : aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsDataParser, After>, "Gate: DataParser<sz> must be placed above Gate — character parsing must happen before gating");
+      static_assert(Excludes<IsFormat, After>,     "Gate: format layers must be placed above Gate — formatting must happen before gating");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsParser=std::true_type;
       using HasGate=std::true_type;
-      // static_assert(O::template Excludes<IsDataParser>::value,"DataParser<> must preseed Gate");
-      // static_assert(O::template Excludes<IsFormat>::value,"formats must be above Gate");
       using Base=O;
       // using Base::lockMode;
       void nl() {if(unlocked()) Base::nl();}
@@ -220,7 +224,7 @@ namespace oneMenu {
   };
 
   template<int w,int h>
-  struct StaticArea {
+  struct StaticArea : anArea {
     template<typename O>
     struct Part:O {
       using IsArea=std::true_type;
@@ -242,16 +246,20 @@ namespace oneMenu {
   };
 
   /// @brief provides raw access to the output device
-  struct Raw {
+  struct Raw : aRawDevice, aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsFormat,     After>, "Raw: format layers must be placed above the raw device");
+      static_assert(Excludes<IsCursor,     After>, "Raw: Cursor must be placed above the raw device");
+      static_assert(Excludes<IsPrinter,    After>, "Raw: printer layers must be placed above the raw device");
+      static_assert(Excludes<IsParser,     After>, "Raw: parser layers (Gate/UTF8/etc.) must be placed above the raw device");
+      static_assert(Excludes<IsDataParser, After>, "Raw: DataParser<sz> must be placed above the raw device");
+      return true;
+    }
     template<typename O>
     struct Part:Gate::Part<O> {
       using RawDevice=std::true_type;
       using Base=typename Gate::Part<O>;
-      // static_assert(Base::template Excludes<IsFormat>::value,"formats must preseed the raw device");
-      // static_assert(Base::template Excludes<IsCursor>::value,"Cursor must preseed the raw device");
-      // static_assert(Base::template Excludes<IsPrinter>::value,"Printers must preseed the raw device");
-      // static_assert(Base::template Excludes<IsParser>::value,"Parsers must preseed the raw device");
-      // static_assert(Base::template Excludes<IsDataParser>::value,"DataParser<> must preseed the raw device");
       static void _nl() {Base::nl();}
       static void _flush() {Base::flush();}
       template<typename T> void _put(const T o) {Base::put(o);}
@@ -266,11 +274,15 @@ namespace oneMenu {
   /// @brief alternative printing, we need this to account for cursor movements
   /// @tparam sz : intermediate buffer size ( make your choice ;)
   template<Sz sz=16>
-  struct DataParser {
+  struct DataParser : aDataParser, aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsFormat, After>, "DataParser<sz>: format layers must be placed above DataParser<> — formatting occurs before character decomposition");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsDataParser=std::true_type;
-      // static_assert(O::template Excludes<IsFormat>::value,"formats must be above DataParser<>");
       using Base=O;
       void put(const char o) {Base::put(o);}
       void put(const char*o,Sz len) {for(Sz i=0;i<len&&o[i];i++) put((char)o[i]);}
@@ -299,13 +311,17 @@ namespace oneMenu {
   };
 
   /// @brief support utf8 surrogates, only needed if using cursors and clipping
-  struct UTF8 {
+  struct UTF8 : aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsDataParser, After>, "UTF8: DataParser<sz> must be placed above UTF8 — DataParser feeds the raw pipeline that UTF8 bypasses for surrogates");
+      static_assert(Excludes<IsFormat,     After>, "UTF8: format layers must be placed above UTF8 in the OutDef chain");
+      static_assert(Excludes<IsBuffer,     After>, "UTF8: Buffer cannot be placed below UTF8 — Buffer would miss surrogate continuation bytes");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsParser=std::true_type;
-      // static_assert(O::Obj::template Requires<IsDataParser>,"DataParser<> must preseed UTF8");
-      // static_assert(O::template Excludes<IsFormat>::value,"formats must preseed UTF8");
-      // static_assert(O::template Excludes<IsBuffer>::value,"Buffer will not record UTF8");
       using Base=O;
       using This=Part<O>;
       /// @brief filter UTF8 surrogates, send surrogate codes to raw device shortcut, so that only one character is counted
@@ -327,12 +343,16 @@ namespace oneMenu {
     };
   };
 
-  struct TextWrap {
+  struct TextWrap : aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsDataParser,                     After>, "TextWrap: DataParser<sz> must be placed above TextWrap");
+      static_assert(Excludes<hapi::SameAs<UTF8>,               After>, "TextWrap: UTF8 must be placed above TextWrap — wrapping must count characters after surrogate filtering");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsParser=std::true_type;
-      // static_assert(O::template Excludes<IsDataParser>::value,"DataParser<> must preseed TextWrap");
-      // static_assert(O::template Excludes<Class<UTF8>>::value,"UTF8 must preseed TextWrap");
       using Base=O;
       using This=Part<O>;
       inline void put(const char o) {
@@ -345,13 +365,17 @@ namespace oneMenu {
   /// @brief clip output to defined area
   /// this will require `DataParser` and possibly `UTF8` above 
   /// and `Cursor` + `Gate` bellow
-  struct Clip {
+  struct Clip : aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsDataParser,      After>, "Clip: DataParser<sz> must be placed above Clip");
+      static_assert(Requires<IsCursor,          After>, "Clip: Cursor must be placed below Clip — clipping needs tracked position");
+      static_assert(Requires<hapi::SameAs<Gate>,After>, "Clip: Gate must be placed below Clip — clipping relies on Gate's lock mode");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsParser=std::true_type;
-      // static_assert(O::template Excludes<IsDataParser>::value,"DataParser<> must preseed Clip");
-      // static_assert(O::template Requires<IsCursor>::value,"Clip needs Cursor");
-      // static_assert(O::template Requires<Class<Gate>>::value,"Clip needs Gate following");
       using Base=O;
       using This=Part<O>;
       using Base::put;
@@ -384,12 +408,15 @@ namespace oneMenu {
     };
   };
 
-  struct Cursor {
+  struct Cursor : aCursor {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsDataParser,                         After>, "Cursor: DataParser<sz> must be placed above Cursor — position tracking only works after character parsing");
+      static_assert(Requires<hapi::IsInstanceOf<StaticArea>,       After>, "Cursor: StaticArea<w,h> must be placed below Cursor — area dimensions required for boundary tracking");
+      return true;
+    }
     template<typename O>
     struct Part:O {
-      // static_assert(O::Obj::template Requires<IsDataParser>::value,"DataParser<> must preseed UTF8");
-      // static_assert(O::template Excludes<IsDataParser>::value,"DataParser<> must preseed Cursor");
-      // static_assert(O::template Requires<IsArea>::value,"Cursor requires area information (StaticArea<>)");
       using IsCursor=std::true_type;
       using Base=O;
       using Base::obj;
@@ -435,14 +462,18 @@ namespace oneMenu {
 
   //panel buffer, can support cursor over serial
   template<Scroll scrl=Scroll::yes,char c=' '>
-  struct Buffer {
+  struct Buffer : aBuffer {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Requires<hapi::SameAs<Gate>,    After>, "Buffer: Gate must be placed below Buffer — Buffer uses Gate's lock mode to control reprinting");
+      static_assert(Requires<IsCursor,              After>, "Buffer: Cursor must be placed below Buffer — Buffer indexes its storage via cursor position");
+      static_assert(Excludes<hapi::SameAs<Clip>,    After>, "Buffer: Clip must be placed above Buffer — clipping should happen before buffering");
+      static_assert(Excludes<hapi::SameAs<TextWrap>,After>, "Buffer: TextWrap must be placed above Buffer — wrapping should happen before buffering");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsBuffer=std::true_type;
-      // static_assert(O::template Requires<Class<Gate>>::value,"Buffer requires Gate");
-      // static_assert(O::template Requires<IsCursor>::value,"Buffer requires Cursor");
-      // static_assert(O::template Excludes<Class<Clip>>::value,"Clip must preseed Buffer");
-      // static_assert(O::template Excludes<Class<TextWrap>>::value,"TextWrap must preseed Buffer");
       using Base=O;
       using Base::width;
       using Base::height;

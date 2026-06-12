@@ -7,7 +7,7 @@ namespace oneMenu {
   /// @brief will call fmtStart(tag) + Base::print + fmtStop(tag)
   /// @tparam tag 
   template<Fmt tag>
-  struct FmtPrinter {
+  struct FmtPrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;
@@ -36,7 +36,7 @@ namespace oneMenu {
   /// @brief groups some printer parts to form menu
   /// @tparam ...OO the body parts
   template<typename... OO>
-  struct MenuPrinter {
+  struct MenuPrinter : aPrinter {
     template<typename O>
     struct Part:Chain<OO...>::template Part<O> {
       using IsPrinter=std::true_type;
@@ -57,7 +57,7 @@ namespace oneMenu {
   };
 
   /// @brief print the title + format
-  struct TitlePrinter {
+  struct TitlePrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;
@@ -73,7 +73,7 @@ namespace oneMenu {
   };
 
   /// @brief start body printing process by redirecting to the item
-  struct BodyPrinter {
+  struct BodyPrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;
@@ -90,7 +90,7 @@ namespace oneMenu {
   };
 
   /// @brief print scroll menu body
-  struct ScrollBodyPrinter {
+  struct ScrollBodyPrinter : aPrinter {
     template<typename P>
     struct Part:BodyPrinter::Part<P> {
       using IsPrinter=std::true_type;
@@ -141,7 +141,7 @@ namespace oneMenu {
   /// @brief groups some printer parts to form a item body, will be formatted as a item
   /// also checks LockMode and act appropriately
   template<typename... OO>
-  struct ItemPrinter {
+  struct ItemPrinter : aPrinter {
     template<typename O>
     struct Part:Chain<OO...>::template Part<O> {
       using IsPrinter=std::true_type;
@@ -172,7 +172,7 @@ namespace oneMenu {
   };
 
   /// @brief print the item
-  struct ItemBodyPrinter {
+  struct ItemBodyPrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;
@@ -186,7 +186,7 @@ namespace oneMenu {
   };
 
   /// @brief triggers the edit index accel number print
-  struct IndexPrinter {
+  struct IndexPrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;
@@ -202,7 +202,7 @@ namespace oneMenu {
   };
 
   /// @brief triggers the navigation cursor print
-  struct NavCursorPrinter {
+  struct NavCursorPrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;
@@ -221,7 +221,7 @@ namespace oneMenu {
   /// @brief allow inclusion of data on the printers queue as a item part
   /// @tparam Data: included static data
   template<typename Data>
-  struct StaticDataPrinter {
+  struct StaticDataPrinter : aPrinter {
     template<typename O>
     struct Part:O {
       using IsPrinter=std::true_type;

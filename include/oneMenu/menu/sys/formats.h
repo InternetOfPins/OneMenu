@@ -4,18 +4,26 @@
 
 namespace oneMenu {
 
-  struct Formats {
+  struct Formats : aFormat {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsPrinter, After>, "Formats: printer layers must be placed above format layers — printers drive the format pipeline, not the reverse");
+      return true;
+    }
     template<typename O>
     struct Part:O {
       using IsFormat=std::true_type;
-      // static_assert(O::template Excludes<IsPrinter>::value,"Printers must preseed Formats");//TODO:: then chop OutDef into Printers|Fmt|Dev
     };
   };
 
   struct ClearFreeFmt {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Requires<IsCursor, After>, "ClearFreeFmt: Cursor must be placed below ClearFreeFmt — clearFree is a no-op without a real tracked cursor");
+      return true;
+    }
     template<typename O>
     struct Part:O {
-      // static_assert(O::template Requires<IsCursor>::value,"ClearFree needs a valid Cursor (IsCursor class) not the API default fallback");
       using Base=O;
       using Base::fmtStart;
       using Base::fmtStop;

@@ -295,10 +295,14 @@ namespace oneMenu {
   };
 
   struct ParentDraw {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>, "ParentDraw: RecallNavPos must be placed above ParentDraw in the ItemDef chain");
+      return true;
+    }
     template<typename I>
     struct Part:I {
       using I::I;
-      // static_assert(I::template Excludes<Class<RecallNavPos>>::value,"Recall must preseed ParentDraw");
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
         if(cke.cmd==Cmd::Enter) {
@@ -312,13 +316,17 @@ namespace oneMenu {
 
   /// @brief put nav focus on this item on Cmd::Enter
   struct ItemNav {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>, "ItemNav: RecallNavPos must be placed above ItemNav in the ItemDef chain");
+      static_assert(Excludes<hapi::SameAs<ParentDraw>,   After>, "ItemNav: ParentDraw must be placed above ItemNav in the ItemDef chain");
+      static_assert(Excludes<hapi::SameAs<ItemNav>,      Before>, "ItemNav: ItemNav appears more than once in this ItemDef chain");
+      return true;
+    }
     template<typename I>
     struct Part:I {
       using Base=I;
       using Base::Base;
-      // static_assert(I::template Excludes<Class<RecallNavPos>>::value,"Recall must preseed ItemNav");
-      // static_assert(I::template Excludes<Class<ParentDraw>>::value,"ParentDraw must preseed ItemNav");
-      // static_assert(I::template Excludes<Class<ItemNav>>::value,"ItemNav must be used only one time on an `Item` definition");
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path path) {
         if(cke.cmd==Cmd::Enter) {

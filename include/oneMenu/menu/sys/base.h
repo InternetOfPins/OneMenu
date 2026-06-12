@@ -178,82 +178,28 @@ namespace oneMenu {
     }
   #endif
 
-  //rule predicates------------------------------------------
-  //IsCursor predicate
-  struct IsCursor {
-    template<typename O,typename =void> struct Check {static constexpr const bool value{false};};
-    template<typename O> struct Check<O,std::void_t<typename O::IsCursor>> {static constexpr const bool value{O::IsCursor::value};};
-  };
+  // tag structs — inherit from these on the outer component struct to declare membership
+  struct aCursor    {};
+  struct aFormat    {};
+  struct aPrinter   {};
+  struct aParser    {};
+  struct anArea     {};
+  struct aBuffer    {};
+  struct aDataParser{};
+  struct aRawDevice {};
 
-  //RawDevice predicate
-  struct RawDevice {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::RawDevice>> {
-      static constexpr const bool value{O::RawDevice::value};
-    };
-  };
+  // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
+  using IsCursor     = hapi::TagIs<aCursor>;
+  using IsFormat     = hapi::TagIs<aFormat>;
+  using IsPrinter    = hapi::TagIs<aPrinter>;
+  using IsParser     = hapi::TagIs<aParser>;
+  using IsArea       = hapi::TagIs<anArea>;
+  using IsBuffer     = hapi::TagIs<aBuffer>;
+  using IsDataParser = hapi::TagIs<aDataParser>;
+  using RawDevice    = hapi::TagIs<aRawDevice>;
 
-  //IsFormat predicate
-  struct IsFormat {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::IsFormat>> {
-      static constexpr const bool value{O::IsFormat::value};
-    };
-  };
-
-  //IsPrinter predicate
-  struct IsPrinter {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::IsPrinter>> {
-      static constexpr const bool value{O::IsPrinter::value};
-    };
-  };
-
-  //IsDataParser predicate
-  struct IsDataParser {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::IsDataParser>> {
-      static constexpr const bool value{O::IsDataParser::value};
-    };
-  };
-
-  //IsParser predicate
-  struct IsParser {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::IsParser>> {
-      static constexpr const bool value{O::IsParser::value};
-    };
-  };
-
-  //IsArea predicate
-  struct IsArea {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::IsArea>> {
-      static constexpr const bool value{O::IsArea::value};
-    };
-  };
-
-  //IsBuffer predicate
-  struct IsBuffer {
-    template<typename O,typename =void> struct Check {
-      static constexpr const bool value{false};
-    };
-    template<typename O> struct Check<O,std::void_t<typename O::IsBuffer>> {
-      static constexpr const bool value{O::IsBuffer::value};
-    };
-  };
+  using hapi::Requires;
+  using hapi::Excludes;
 };
 
 //debug ---
