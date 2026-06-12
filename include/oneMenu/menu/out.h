@@ -225,6 +225,8 @@ namespace oneMenu {
 
   template<int w,int h>
   struct StaticArea : anArea {
+    static_assert(w > 0, "StaticArea<w,h>: width must be positive");
+    static_assert(h > 0, "StaticArea<w,h>: height must be positive");
     template<typename O>
     struct Part:O {
       using IsArea=std::true_type;
@@ -275,6 +277,7 @@ namespace oneMenu {
   /// @tparam sz : intermediate buffer size ( make your choice ;)
   template<Sz sz=16>
   struct DataParser : aDataParser, aParser {
+    static_assert(sz > 0, "DataParser<sz>: buffer size must be positive");
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsFormat, After>, "DataParser<sz>: format layers must be placed above DataParser<> — formatting occurs before character decomposition");
@@ -412,7 +415,7 @@ namespace oneMenu {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsDataParser,                         After>, "Cursor: DataParser<sz> must be placed above Cursor — position tracking only works after character parsing");
-      static_assert(Requires<hapi::IsInstanceOf<StaticArea>,       After>, "Cursor: StaticArea<w,h> must be placed below Cursor — area dimensions required for boundary tracking");
+      static_assert(Requires<IsArea,                                After>, "Cursor: StaticArea<w,h> must be placed below Cursor — area dimensions required for boundary tracking");
       return true;
     }
     template<typename O>
