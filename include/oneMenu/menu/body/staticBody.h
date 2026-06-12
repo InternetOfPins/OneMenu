@@ -70,4 +70,3 @@ namespace oneMenu {
     {return StaticBody<OO...>{std::forward<OO>(oo)...};}
 
 } // namespace oneMenu
-

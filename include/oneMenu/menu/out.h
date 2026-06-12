@@ -365,13 +365,14 @@ namespace oneMenu {
     template<typename O>
     struct Part:O {
       using Base=O;
-      void setColors(Cor f,Cor b) {m_fg=f;m_bg=b;Base::setColors(f,b);}
-      void setColors(const Colors<Cor>& o) {m_fg=o.fg;m_bg=o.bg;Base::setColors(o.fg,o.bg);}
+      void setColors(Cor f,Cor b) {m_fg=f;m_bg=b;m_set=true;Base::setColors(f,b);}
+      void setColors(const Colors<Cor>& o) {m_fg=o.fg;m_bg=o.bg;m_set=true;Base::setColors(o.fg,o.bg);}
       Colors<Cor> getColors() const {return {m_fg,m_bg};}
-      void resume() {Base::setColors(m_fg,m_bg);Base::resume();}
+      void resume() {if(m_set) Base::setColors(m_fg,m_bg);Base::resume();}
       private:
-        Cor m_fg;
-        Cor m_bg;
+        Cor m_fg{};
+        Cor m_bg{};
+        bool m_set{false};
     };
   };
 
