@@ -14,7 +14,12 @@
 
 namespace oneMenu {
 
-  struct ANSIFmt {
+  struct ANSIFmt : aFormat {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsPrinter, After>, "ANSIFmt: printer layers must be placed above ANSIFmt");
+      return true;
+    }
     template<typename O>
     struct Part:UseEditCursorFmt::template Part<O> {
       using Base=typename UseEditCursorFmt::template Part<O>;
