@@ -13,7 +13,6 @@
 #include "oneMenu/menu/body/staticBody.h"
 #include "oneMenu/menu/out.h"
 #include "oneMenu/menu/item.h"
-#include "oneMenu/menu/sys/fields.h"
 #include "oneMenu/menu/menu.h"
 #include "oneMenu/menu/nav.h"
 
@@ -24,6 +23,6 @@ namespace oneMenu {
     {return {std::forward<T>(t),std::forward<B>(b),std::forward<PP>(pp)...};}
 
   template<typename... OO,typename T,typename B,typename... PP> 
-  constexpr PadMenu<T,B,PadDraw,OO...> padDef(T&& t,B&& b,PP&&... pp)
+  constexpr PadMenu<T,B,OO...> padDef(T&& t,B&& b,PP&&... pp)
     {return {std::forward<T>(t),std::forward<B>(b),std::forward<PP>(pp)...};}
 };

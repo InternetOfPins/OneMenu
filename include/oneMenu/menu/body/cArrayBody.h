@@ -3,12 +3,12 @@
 #include "oneMenu/menu/sys/base.h"
 
 namespace oneMenu {
-  template<typename T,T data[],Sz _sz>
+
+  template<typename T, T data[], Sz _sz>
   struct CArrayBody {
-    template<typename> static constexpr const bool has{false};
     static constexpr Depth depth() {return 1;}
-    static constexpr const Sz size() {return _sz;}
-    static constexpr const Sz size(Sz i) {assert(i<_sz);return data[i];}
+    static constexpr Sz size() noexcept {return _sz;}
+    static constexpr Sz size(Sz i) {assert(i<_sz);return data[i].size();}
 
     bool changed() {
       bool c{false};
@@ -16,30 +16,34 @@ namespace oneMenu {
       return c;
     }
 
-    template<bool isKbd,typename Nav> 
-    bool nav(Nav& n,const CKE& cke,Path path,Sz i) 
-      {return data[i].template nav<isKbd>(n,cke,path);}
+    template<typename Out>
+    void printTo(Out& out) const noexcept {
+      for(Sz i=0;i<_sz;i++) data[i].printTo(out);
+    }
 
-    template<typename Out> bool printBody(Out& out,Ctx& ctx) {
-      for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(data[ctx.idx],ctx);
+    template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
+      for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(data[i],ctx);
       return false;
     }
 
     template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
       {return data[i].printMenu(out,ctx);}
 
+    template<typename Out> bool printItem(Out& out,Ctx& ctx,Sz i)
+      {return data[i].printItem(out,ctx);}
+    template<typename Out> bool printItem(Out& out,Sz i=0)
+      {return data[i].printItem(out);}
 
-  // //Id, this is compile-time search/reference, but NOT here, all items are equal here --
-  //   template<int> using HasId=std::integral_constant<bool,false>;
-  //   template<int> using WithId=std::integral_constant<bool,false>;
+    template<bool isKbd,typename Nav>
+    bool nav(Nav& n,const CKE& cke,Path path,Sz i)
+      {return data[i].template nav<isKbd>(n,cke,path);}
   };
 
-  template<typename T,T* data[],Sz _sz>
+  template<typename T, T* data[], Sz _sz>
   struct CPtrArrayBody {
-    template<typename> static constexpr const bool has{false};
     static constexpr Depth depth() {return 1;}
-    static constexpr const Sz size() {return _sz;}
-    static constexpr const Sz size(Sz i) {assert(i<_sz);return data[i]->size();}
+    static constexpr Sz size() noexcept {return _sz;}
+    static constexpr Sz size(Sz i) {assert(i<_sz);return data[i]->size();}
 
     bool changed() {
       bool c{false};
@@ -47,21 +51,27 @@ namespace oneMenu {
       return c;
     }
 
-    template<bool isKbd,typename Nav> 
-    bool nav(Nav& n,const CKE& cke,Path path,Sz i) 
-      {return data[i]->template nav<isKbd>(n,cke,path);}
+    template<typename Out>
+    void printTo(Out& out) const noexcept {
+      for(Sz i=0;i<_sz;i++) data[i]->printTo(out);
+    }
 
-    template<typename Out> bool printBody(Out& out,Ctx& ctx) {
-      for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(*data[ctx.idx],ctx);
+    template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
+      for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(*data[i],ctx);
       return false;
     }
 
     template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
       {return data[i]->printMenu(out,ctx);}
 
+    template<typename Out> bool printItem(Out& out,Ctx& ctx,Sz i)
+      {return data[i]->printItem(out,ctx);}
+    template<typename Out> bool printItem(Out& out,Sz i=0)
+      {return data[i]->printItem(out);}
 
-  // //Id, this is compile-time search/reference, but NOT here, all items are equal here --
-  //   template<int> using HasId=std::integral_constant<bool,false>;
-  //   template<int> using WithId=std::integral_constant<bool,false>;
+    template<bool isKbd,typename Nav>
+    bool nav(Nav& n,const CKE& cke,Path path,Sz i)
+      {return data[i]->template nav<isKbd>(n,cke,path);}
   };
-};//namespace oneMenu 
+
+};//namespace oneMenu

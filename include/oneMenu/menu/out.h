@@ -192,6 +192,7 @@ namespace oneMenu {
         lockMode(LockMode::Update);
         return {Base::posX()-o.x,Base::posY()-o.y};
       }
+      void resume() {m_lock_mode=LockMode::None;Base::resume();}
       bool unlocked() const {return lockMode()==LockMode::None;}
       bool updating() const {return lockMode()==LockMode::Update;}
       bool locked() const {return !unlocked();}
@@ -398,7 +399,7 @@ namespace oneMenu {
       void setColors(Cor f,Cor b) {m_fg=f;m_bg=b;m_set=true;Base::setColors(f,b);}
       void setColors(const Colors<Cor>& o) {m_fg=o.fg;m_bg=o.bg;m_set=true;Base::setColors(o.fg,o.bg);}
       Colors<Cor> getColors() const {return {m_fg,m_bg};}
-      void resume() {if(m_set) Base::setColors(m_fg,m_bg);Base::resume();}
+      void resume() {Base::resume();if(m_set) Base::setColors(m_fg,m_bg);}
       private:
         Cor m_fg{};
         Cor m_bg{};
@@ -437,8 +438,8 @@ namespace oneMenu {
       // void setPos(Sz x,Sz y) {m_at.x=x;m_at.y=y;Base::setPos(x,y);}
       void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
       void resume() {
-        // dout<<xy<0,1><<"Cursor::resume "<<cnt<>++<<padWith<5><<flush;
-        Base::setPos(pos());Base::resume();
+        Base::resume();
+        setPos({0,0});
       }
       Pos area() const {return {fieldWidth(),m_at.y};}
       void clear() {
@@ -517,7 +518,7 @@ namespace oneMenu {
         m_changed=true;
         if(scrl==Scroll::yes) 
           while(Base::free().y<=0) scroll();
-        buffer[pos().y*width()+pos().x]=o;
+        buffer[Base::m_at.y*width()+Base::m_at.x]=o;
         Base::put(o);
       }
       bool changed() const {return m_changed;}

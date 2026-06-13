@@ -3,33 +3,38 @@
 #include "oneMenu/menu/sys/base.h"
 
 namespace oneMenu {
+
   template<typename T>
   struct StdBody:T {
-    template<typename> static constexpr const bool has{false};
     static constexpr Depth depth() {return 1;}
-    constexpr Sz size() const {return T::size();}
-    constexpr Sz size(Sz i) const {return T::operator[](i).size();}
+    Sz size() const {return T::size();}
+    Sz size(Sz i) const {return T::operator[](i)->size();}
 
     bool changed() {
       bool c{false};
-      for(auto i=T::begin();i<T::end();i++) c=c||(**i).changed();
+      for(Sz i=0;i<T::size();i++) c=c||T::operator[](i)->changed();
       return c;
     }
-    template<bool isKbd,typename Nav> 
-    bool nav(Nav& n,const CKE& cke,Path path,Sz i) 
-      {return i<T::size()&&T::operator[](i)->template nav<isKbd>(n,cke,path);}
 
-    template<typename Out> bool printBody(Out& out,Ctx& ctx) {
-      for(auto i=T::begin();i<T::end()&&out.free().y;i++) out.printItem(**i,ctx);
+    template<typename Out>
+    void printTo(Out&) const noexcept {}
+
+    template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
+      for(Sz i=0;i<T::size()&&out.free().y;i++) out.printItem(*T::operator[](i),ctx);
       return false;
     }
 
     template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
       {return T::operator[](i)->printMenu(out,ctx);}
 
-  // //Id, this is compile-time search/reference, but NOT here, all items are virtual here --
-  //   template<int> using HasId=std::integral_constant<bool,false>;
-  //   template<int> using WithId=std::integral_constant<bool,false>;
+    template<typename Out> bool printItem(Out& out,Ctx& ctx,Sz i)
+      {return i<T::size()&&T::operator[](i)->printItem(out,ctx);}
+    template<typename Out> bool printItem(Out& out,Sz i=0)
+      {return i<T::size()&&T::operator[](i)->printItem(out);}
+
+    template<bool isKbd,typename Nav>
+    bool nav(Nav& n,const CKE& cke,Path path,Sz i)
+      {return i<T::size()&&T::operator[](i)->template nav<isKbd>(n,cke,path);}
   };
 
 };//namespace oneMenu

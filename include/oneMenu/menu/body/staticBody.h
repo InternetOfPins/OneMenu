@@ -20,6 +20,7 @@ namespace oneMenu {
     template<typename Out> static constexpr bool printItem(Out&,Sz=0) noexcept {return false;}
     template<bool isKbd,typename Nav>
     static constexpr bool nav(Nav&,const CKE&,Path,Sz=0) noexcept {return false;}
+    static constexpr bool changed() noexcept {return false;}
   };
 
   template<typename O, typename... OO>
@@ -63,10 +64,27 @@ namespace oneMenu {
   bool nav(Nav& n,const CKE& cke,Path path,Sz i)
     {return i?((Tail&)tail).template nav<isKbd>(n,cke,path,i-1):head.template nav<isKbd>(n,cke,path);}
 
+  bool changed() {return head.changed()||((Tail&)tail).changed();}
+
   };
 
   template<typename... OO>
   constexpr StaticBody<OO...> staticBody(OO&&... oo)
     {return StaticBody<OO...>{std::forward<OO>(oo)...};}
+
+  template<typename Q, typename Body>
+  auto& findBody(Body& body) {
+    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+    else return findBody<Q>(body.tail);
+  }
+  template<typename Q, typename Body>
+  const auto& findBody(const Body& body) {
+    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+    else return findBody<Q>(body.tail);
+  }
+  template<typename Q>
+  auto& findBody(StaticBody<>&) {
+    static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
+  }
 
 } // namespace oneMenu
