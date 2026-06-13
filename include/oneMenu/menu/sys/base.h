@@ -42,12 +42,9 @@
 #include "oneMenu/menu/sys/enums.h"
 
 using hapi::Nil;
+using hapi::Chain;
 
 namespace oneMenu {
-  using hapi::Chain;
-  // using hapi::query;
-
-  // using oneItem::ItemDef;
 
   using oneData::DefaultDataDef;
   using oneData::CText;
@@ -56,8 +53,8 @@ namespace oneMenu {
   using oneData::NumRange;
   using oneData::StaticNumRange;
 
-  using oneOutput::Pos;
-  using oneOutput::Area;
+  // using oneOutput::Pos;
+  // using oneOutput::Area;
 
   using Sz=int;//must be signed
   #ifdef __AVR__
@@ -80,9 +77,9 @@ namespace oneMenu {
   struct IOut;
   struct INav;
 
-  // struct XY{Sz x;Sz y;};
-  // using Pos=XY;
-  // using Area=XY;
+  struct XY{Sz x;Sz y;};
+  using Pos=XY;
+  using Area=XY;
   
   struct CKE {
     Cmd cmd;

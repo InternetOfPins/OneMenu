@@ -12,6 +12,9 @@
 #include <oneMenu/menu/sys/base.h>
 
 namespace oneMenu {
+
+  /// @brief extending OneOutput API
+  /// @tparam Cfg 
   template<typename Cfg=hapi::Nil>
   struct OutAPI:oneOutput::OutAPI<Cfg> {
     using Base=oneOutput::OutAPI<Cfg>;
@@ -20,8 +23,8 @@ namespace oneMenu {
     template<typename Item> static constexpr bool printItem(Item& item,Ctx& ctx) {return false;}
     template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
     static constexpr Pos pos() {return {0,0};}
-    using Base::setPos;
-    static constexpr void setPos(Sz,Sz) {}
+    // using Base::setPos;
+    // static constexpr void setPos(Sz,Sz) {}
     using Base::put;
     static constexpr void put(const char*,Sz) {}
   };
@@ -57,7 +60,7 @@ namespace oneMenu {
     virtual void resume()=0;
     virtual void fmtStart(Fmt,const Ctx&)=0;
     virtual void fmtStop(Fmt,const Ctx&)=0;
-    virtual void setPos(Pos)=0;
+    virtual void setPos(const Pos&)=0;
     virtual void put(const int)=0;
     virtual void put(const double)=0;
     virtual void put(const char)=0;
@@ -120,7 +123,7 @@ namespace oneMenu {
     }
     // virtual Sz posX() const override {return Base::posX();}
     // virtual Sz posY() const override {return Base::posY();}
-    virtual void setPos(Pos p) override {Base::setPos(p);}
+    virtual void setPos(const Pos& p) override {Base::setPos(p);}
     virtual void put(const int n) override {Base::put(n);}
     virtual void put(const double n) override {Base::put(n);}
     virtual void put(const char c) override {Base::put(c);}
@@ -431,9 +434,12 @@ namespace oneMenu {
       Pos pos() const {return m_at;}
       // Sz posX() const {return m_at.x;}
       // Sz posY() const {return m_at.y;}
-      void setPos(Sz x,Sz y) {m_at.x=x;m_at.y=y;Base::setPos(x,y);}
-      void setPos(const Pos& o) {setPos(o.x,o.y);}
-      void resume() {Base::setPos(pos());Base::resume();}
+      // void setPos(Sz x,Sz y) {m_at.x=x;m_at.y=y;Base::setPos(x,y);}
+      void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
+      void resume() {
+        // dout<<xy<0,1><<"Cursor::resume "<<cnt<>++<<padWith<5><<flush;
+        Base::setPos(pos());Base::resume();
+      }
       Pos area() const {return {fieldWidth(),m_at.y};}
       void clear() {
         m_at.x=0;

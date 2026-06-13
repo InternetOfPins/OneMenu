@@ -24,7 +24,8 @@
     "HAPI":"https://github.com/InternetOfPins/HAPI.git@^0.3.26",
     "OneData":"https://github.com/InternetOfPins/OneData.git@^0.1.10",
     "OneItem":"https://github.com/InternetOfPins/OneItem.git@^0.0.3",
-    "OneOutput":"https://github.com/InternetOfPins/OneOutput.git@^0.0.4"
+    "OneOutput":"https://github.com/InternetOfPins/OneOutput.git@^0.0.4",
+    "OneParse":"https://github.com/InternetOfPins/OneParse.git"
   },
   "frameworks": "*",
   "platforms": "*"
