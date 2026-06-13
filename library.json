@@ -1,6 +1,6 @@
 {
   "name": "ArduinoMenu Library",
-  "version": "5.0.3",
+  "version": "0.1.0",
   "description": "generic menu UI system",
   "keywords": "menu, UI, modular, API",
   "repository":
