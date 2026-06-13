@@ -5,7 +5,7 @@
 #include "oneMenu/menu/out.h"
 
 template<typename Dev, Dev& dev>
-struct ArduinoSerialOut {
+struct ArduinoSerialOut : aRawDevice {
   template<typename O>
   struct _Part:O {
     using Base=O;
