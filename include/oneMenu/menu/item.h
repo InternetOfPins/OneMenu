@@ -417,7 +417,6 @@ namespace oneMenu {
           alt.resume();
           if(clr==Clear::yes) alt.clear();
           Base::printItem(alt,ctx);
-          out.resume();
           O::printItem(out,ctx);
         }
       };
