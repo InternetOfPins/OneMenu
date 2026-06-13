@@ -407,6 +407,9 @@ namespace oneMenu {
           template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {}
         };
       };
+      template<typename Out>
+      static void reanchor(Out& out) {out.setPos(out.getPos());}
+
       template<typename O>
       struct Part:Chain<OO...,End>::template Part<O> {
         using Base=typename Chain<OO...,End>::template Part<O>;
@@ -417,6 +420,7 @@ namespace oneMenu {
           alt.resume();
           if(clr==Clear::yes) alt.clear();
           Base::printItem(alt,ctx);
+          ToOut::reanchor(out);
           O::printItem(out,ctx);
         }
       };

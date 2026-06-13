@@ -61,6 +61,7 @@ namespace oneMenu {
     virtual void fmtStart(Fmt,const Ctx&)=0;
     virtual void fmtStop(Fmt,const Ctx&)=0;
     virtual void setPos(const Pos&)=0;
+    virtual Pos getPos() const=0;
     virtual void put(const int)=0;
     virtual void put(const double)=0;
     virtual void put(const char)=0;
@@ -124,6 +125,7 @@ namespace oneMenu {
     // virtual Sz posX() const override {return Base::posX();}
     // virtual Sz posY() const override {return Base::posY();}
     virtual void setPos(const Pos& p) override {Base::setPos(p);}
+    virtual Pos getPos() const override {return Base::getPos();}
     virtual void put(const int n) override {Base::put(n);}
     virtual void put(const double n) override {Base::put(n);}
     virtual void put(const char c) override {Base::put(c);}
@@ -433,6 +435,7 @@ namespace oneMenu {
       void clearFree() {do clearLine(); while(free().y);}
       Sz fieldWidth() const {return m_fieldWidth;}
       Pos pos() const {return m_at;}
+      Pos getPos() const {return m_at;}
       // Sz posX() const {return m_at.x;}
       // Sz posY() const {return m_at.y;}
       // void setPos(Sz x,Sz y) {m_at.x=x;m_at.y=y;Base::setPos(x,y);}
