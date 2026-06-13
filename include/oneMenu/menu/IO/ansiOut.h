@@ -4,8 +4,6 @@
  * @file ansiOut.h
  * @author Rui Azevedo (ruihfazevedo@gamil.com)
  * @brief ANSI output driver
- * @version 5
- * @date 2024-11-13 ~ 2026-03-11 ~ 2026-03-31
  * 
  */
 
@@ -16,23 +14,27 @@
 namespace oneMenu {
   /// @brief sends ANSI codes to the output
   struct ANSIOut {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Requires<RawDevice, After>, "ANSIOut: Raw (or aRawDevice) must be placed below ANSIOut — ANSIOut sends escape codes directly via _put()");
+      return true;
+    }
     template<typename O>
     struct _Part:PartialDraw::Part<O> {
-      // static_assert(O::template Requires<RawDevice>::value,"`ANSIOut` needs a `RawDevice` following");
       using HasANSI=std::true_type;
       using Base=typename PartialDraw::template Part<O>;
       using Base::Base;
-      void setPos(Sz x,Sz y) {xy(Base::orgX()+x,Base::orgY()+y);}
-      void setPos(const Pos& o) {setPos(o.x,o.y);}
+      // void setPos(Sz x,Sz y) {xy(Base::orgX()+x,Base::orgY()+y);}
+      void setPos(const Pos& o) {xy(Base::orgX()+o.x,Base::orgY()+o.y);}
       
       void nl() {
         O::nl();
-        setPos(0,O::obj().pos().y);
+        setPos({0,O::obj().pos().y});
       }
 
       void clear() {
         fill();
-        setPos(0,0);
+        setPos({0,0});
       }
 
       void xy(Sz x,Sz y) {
@@ -57,7 +59,7 @@ namespace oneMenu {
       void setForegroundColor(int color) {setAttribute(color + 30);}
       void fill(int x1, int y1, int x2, int y2,char ch=' ') {
         for (int y = y1; y < y2; y++) {
-          setPos(x1,y);
+          setPos({x1,y});
           for (int x = x1; x < x2; x++) Base::_put(ch);
         }
       }

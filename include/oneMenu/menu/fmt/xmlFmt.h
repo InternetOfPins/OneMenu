@@ -13,7 +13,12 @@
 #include "oneMenu/menu/sys/formats.h"
 
 namespace oneMenu  {
-  struct XmlFmt {
+  struct XmlFmt : aFormat {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsPrinter, After>, "XmlFmt: printer layers must be placed above XmlFmt");
+      return true;
+    }
     template<typename O>
     struct Part:Formats::template Part<O> {
       using Base=typename Formats::template Part<O>;

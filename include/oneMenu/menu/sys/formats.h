@@ -16,7 +16,7 @@ namespace oneMenu {
     };
   };
 
-  struct ClearFreeFmt {
+  struct ClearFreeFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Requires<IsCursor, After>, "ClearFreeFmt: Cursor must be placed below ClearFreeFmt — clearFree is a no-op without a real tracked cursor");
@@ -42,7 +42,12 @@ namespace oneMenu {
 
   /// @brief restores (nav|text edit) cursor position at printing end, 
   /// base chain class F must have `DeviceCursor`
-  struct UseEditCursorFmt {
+  struct UseEditCursorFmt : aFormat {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsPrinter, After>, "UseEditCursorFmt: printer layers must be placed above UseEditCursorFmt");
+      return true;
+    }
     template<typename F>
     struct Part:Formats::template Part<F> {
       using Base=typename Formats::template Part<F>;

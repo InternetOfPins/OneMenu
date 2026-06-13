@@ -60,7 +60,11 @@ namespace oneMenu {
             }
           }
           return n.doNav(cke,ss()+1,false);
-        } else dout<<xy<0,1><<colors<RED,BLACK><<"TextField::nav "<<path<<" cmd:"<<cke.cmd<<" |"<<cnt<>++<<padWith<10><<flush;
+        } else {
+          #ifdef MENU_DEBUG
+          dout<<xy<0,1><<colors<RED,BLACK><<"TextField::nav "<<path<<" cmd:"<<cke.cmd<<" |"<<cnt<>++<<padWith<10><<flush;
+          #endif
+        }
         return Base::template nav<isKbd>(n,cke,path);
       }
       protected: Sz ss() const {return strnlen(text,sz-1);}

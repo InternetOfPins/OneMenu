@@ -91,6 +91,11 @@ namespace oneMenu {
 
   /// @brief print scroll menu body
   struct ScrollBodyPrinter : aPrinter {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Requires<IsCursor, After>, "ScrollBodyPrinter: Cursor must be placed below ScrollBodyPrinter — scroll measurement needs tracked position");
+      return true;
+    }
     template<typename P>
     struct Part:BodyPrinter::Part<P> {
       using IsPrinter=std::true_type;
@@ -118,12 +123,12 @@ namespace oneMenu {
           Sz ci=ctx.idx;
           ctx.idx=0;
           if(ctx.sel(ctx.pAt)<ci&&(!(ctx.sel(ctx.pAt)==(ci-1)&&f<0))) break;
-          setPos(x,y);
+          setPos(Pos{x,y});
           ctx.top(ctx.top()+1);//--scroll up
           om=LockMode::None;//scroll => full redraw
         };
         lockMode(om);
-        setPos(x,y);
+        setPos({x,y});
         bool r=Base::printMenu(i,ctx);
         return r;
       }
@@ -142,6 +147,11 @@ namespace oneMenu {
   /// also checks LockMode and act appropriately
   template<typename... OO>
   struct ItemPrinter : aPrinter {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Requires<IsCursor, After>, "ItemPrinter: Cursor must be placed below ItemPrinter — partial-update repositioning needs tracked position");
+      return true;
+    }
     template<typename O>
     struct Part:Chain<OO...>::template Part<O> {
       using IsPrinter=std::true_type;
@@ -157,7 +167,7 @@ namespace oneMenu {
           &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel())))
         ) {
           lockMode(LockMode::None);
-          setPos(pos().x,pos().y);
+          setPos({                   });
         }
         ctx.enabled =i.enabled();
         // ctx.padIdx=ctx.idx;//if any pad then this is the parent
