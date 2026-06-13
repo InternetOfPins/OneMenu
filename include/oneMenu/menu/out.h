@@ -298,16 +298,18 @@ namespace oneMenu {
       #ifndef __AVR__
         template<typename P>
         void put(const P o,const char*fmt) {
+          static_assert(std::is_arithmetic_v<P>,
+            "DataParser::put<P>: P must be arithmetic — verify each typed overload calls put<P> with its own type, not a narrower one");
           char buf[sz];
           std::snprintf(buf,sz,fmt,o);
           put(buf,sz);
         }
         void put(const char o,const char* fmt) {put<char>(o,fmt);}
-        
+
         void put(const int o,const char* fmt="%i") {put<int>(o,fmt);}
         void put(const unsigned int o,const char* fmt="%u") {put<unsigned int>(o,fmt);}
-        void put(const long o,const char* fmt="%li") {put<int>(o,fmt);}
-        void put(const unsigned long o,const char* fmt="%lu") {put<unsigned int>(o,fmt);}
+        void put(const long o,const char* fmt="%li") {put<long>(o,fmt);}
+        void put(const unsigned long o,const char* fmt="%lu") {put<unsigned long>(o,fmt);}
       #endif
       #ifdef ARDUINO
         // void put(const double o) {put(String(o, 5).c_str(),"%s");}
@@ -418,8 +420,8 @@ namespace oneMenu {
   struct Cursor : aCursor {
     template<typename Before, typename After>
     static constexpr bool rules() {
-      static_assert(Excludes<IsDataParser,                         After>, "Cursor: DataParser<sz> must be placed above Cursor — position tracking only works after character parsing");
-      static_assert(Requires<IsArea,                                After>, "Cursor: StaticArea<w,h> must be placed below Cursor — area dimensions required for boundary tracking");
+      static_assert(Excludes<IsDataParser, After>, "Cursor: DataParser<sz> must be placed above Cursor — position tracking only works after character parsing");
+      static_assert(Requires<IsArea, After>, "Cursor: StaticArea<w,h> must be placed below Cursor — area dimensions required for boundary tracking");
       return true;
     }
     template<typename O>
@@ -433,9 +435,7 @@ namespace oneMenu {
       void clearFree() {do clearLine(); while(free().y);}
       Sz fieldWidth() const {return m_fieldWidth;}
       Pos pos() const {return m_at;}
-      // Sz posX() const {return m_at.x;}
-      // Sz posY() const {return m_at.y;}
-      // void setPos(Sz x,Sz y) {m_at.x=x;m_at.y=y;Base::setPos(x,y);}
+      Pos getPos() const {return m_at;}
       void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
       void resume() {
         Base::resume();
@@ -455,14 +455,14 @@ namespace oneMenu {
         Base::nl();
       }
       void put(const char o) {
-        // if(o=='\n') nl();
-        // else {
-          m_at.x++;
-          Base::put(o);
-        // }
+        m_at.x++;
+        Base::put(o);
       }
-      // Sz freeX() const {return width()-posX();}
-      // Sz freeY() const {return height()-posY();}
+      template<typename T>
+      void put(const T) {
+        static_assert(std::is_same_v<T,void>,
+          "Cursor::put<T>: non-char put reached Cursor — DataParser must be placed above Cursor to convert all types to chars first");
+      }
       Area free() const {return {width()-m_at.x,height()-m_at.y};}
     protected: 
       Pos m_at{0,0};
