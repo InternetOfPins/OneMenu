@@ -24,11 +24,11 @@ namespace oneMenu {
   };
 
   template<typename O, typename... OO>
-  struct StaticBody<O, OO...> : Chain<O, OO...> {
+  struct StaticBody<O, OO...> {
     static constexpr Sz size() noexcept {return 1+sizeof...(OO);}
-    static constexpr Depth depth() {return staticMax<Head::depth(),Tail::depth()>();}
     using Head = O;
     using Tail = StaticBody<OO...>;
+    static constexpr Depth depth() {return staticMax<Head::depth(),Tail::depth()>();}
     
     Head head;
     Tail tail;
