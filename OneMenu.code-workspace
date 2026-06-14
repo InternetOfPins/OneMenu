@@ -9,16 +9,7 @@
 			"path": "../HAPI"
 		},
 		{
-			"name": "unitTests",
-			"path": ".RnD/unitTests"
-		},
-		{
-			"name": "neurMenu",
-			"path": ".RnD/neurMenu"
-		},
-		{
-			"name": "quickMenu",
-			"path": ".RnD/quickMenu"
+			"path": "../RnD/hapi2"
 		}
 	],
 	"settings": {}

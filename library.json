@@ -1,12 +1,12 @@
 {
-  "name": "ArduinoMenu Library",
+  "name": "OneMenu",
   "version": "0.1.1",
-  "description": "generic menu UI system",
+  "description": "HAPI menu system",
   "keywords": "menu, UI, modular, API",
   "repository":
   {
     "type": "git",
-    "url": "https://github.com/neu-rah/ArduinoMenu.git"
+    "url": "https://github.com/InternetOfPins/OneMenu.git"
   },
   "authors":
   [
@@ -18,7 +18,7 @@
     }
   ],
   "license": "MIT",
-  "homepage": "https://github.com/neu-rah/ArduinoMenu",
+  "homepage": "https://github.com/InternetOfPins/OneMenu",
   "dependencies": {
     "tinyTimeUtils":"https://github.com/neu-rah/tinyTimeUtils.git",
     "HAPI":">=0.4.1",

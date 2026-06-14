@@ -29,7 +29,7 @@ namespace oneMenu {
 
   // menu ------------------------------------------------------------------------------------
   template<typename T,typename B,typename... OO>
-  struct Menu : hapi::Hapi<Menu<T,B,OO...>> {
+  struct Menu /*: hapi::Hapi<Menu<T,B,OO...>>*/ {
     using Types=hapi::Chain<OO...>; // needed for hapi::query traversal into this component
     template<typename O>
     struct Part : hapi::Chain<OO...>::template Part<O> {
@@ -65,9 +65,7 @@ namespace oneMenu {
       template<typename Out>
       void print(Out& out) const {
         title.print(out);
-        if(Base::isPad()) {
-          body.print(out);
-        }
+        if constexpr(Base::isPad()) body.print(out);
       }
       template<typename Out> void print(Out& out,Ctx&) {print(out);}
       Sz size() const {return body.size();}
