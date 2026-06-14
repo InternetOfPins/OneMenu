@@ -53,6 +53,14 @@ namespace oneMenu {
           return hapi::template find<Q>(*this);
         else { using BQ = BodyQ<Q>; return findBody(BQ{}, body); }
       }
+      template<typename Q> auto& find(Q) {
+        static_assert(hapi::is_predicate<Q>::value,"find(Q{}): Q must be a hapi predicate");
+        return find<Q>();
+      }
+      template<typename Q> const auto& find(Q) const {
+        static_assert(hapi::is_predicate<Q>::value,"find(Q{}): Q must be a hapi predicate");
+        return find<Q>();
+      }
 
       template<typename Out>
       void print(Out& out) const {

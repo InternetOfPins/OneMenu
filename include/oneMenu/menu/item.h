@@ -435,8 +435,9 @@ namespace oneMenu {
   };
 
   // compile-time ids --------------
-    template<int id> struct Id {template<typename O> using Part=O;};
-    
+  template<int id> struct Id {template<typename O> using Part=O;};
+  template<auto V> inline constexpr hapi::SameAs<Id<V>> byId{};
+
 };//namespace oneMenu
 
 //rules ItemDef query specialization --
