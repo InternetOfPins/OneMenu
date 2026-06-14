@@ -43,15 +43,6 @@ namespace oneMenu {
     template<int> using WithId=ItemAPI<hapi::CRTP<ItemAPI<Nil>>>;
   };
 
-  // namespace detail {
-  //   template<typename B, typename Out, typename=void>
-  //   struct has_printTo_ctx : std::false_type {};
-  //   template<typename B, typename Out>
-  //   struct has_printTo_ctx<B,Out,std::void_t<
-  //     decltype(std::declval<B&>().printTo(std::declval<Out&>(),std::declval<Ctx&>()))
-  //   >> : std::true_type {};
-  // }
-
   template<typename... OO>
   struct ItemDef:APIOf<ItemAPI<>,OO...>{
     using Base=APIOf<ItemAPI<>,OO...>;

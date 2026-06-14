@@ -1,11 +1,24 @@
 {
 	"folders": [
 		{
+			"name": "OneMenu",
 			"path": "."
 		},
 		{
+			"name": "HAPI",
+			"path": "../HAPI"
+		},
+		{
+			"name": "unitTests",
+			"path": ".RnD/unitTests"
+		},
+		{
 			"name": "neurMenu",
-			"path": "RnD/neurMenu"
+			"path": ".RnD/neurMenu"
+		},
+		{
+			"name": "quickMenu",
+			"path": ".RnD/quickMenu"
 		}
 	],
 	"settings": {}

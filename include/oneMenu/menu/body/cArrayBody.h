@@ -17,8 +17,8 @@ namespace oneMenu {
     }
 
     template<typename Out>
-    void printTo(Out& out) const noexcept {
-      for(Sz i=0;i<_sz;i++) data[i].printTo(out);
+    void print(Out& out) const noexcept {
+      for(Sz i=0;i<_sz;i++) data[i].print(out);
     }
 
     template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
@@ -52,8 +52,8 @@ namespace oneMenu {
     }
 
     template<typename Out>
-    void printTo(Out& out) const noexcept {
-      for(Sz i=0;i<_sz;i++) data[i]->printTo(out);
+    void print(Out& out) const noexcept {
+      for(Sz i=0;i<_sz;i++) data[i]->print(out);
     }
 
     template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {

@@ -17,7 +17,7 @@ namespace oneMenu {
     }
 
     template<typename Out>
-    void printTo(Out&) const noexcept {}
+    void print(Out&) const noexcept {}
 
     template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
       for(Sz i=0;i<T::size()&&out.free().y;i++) out.printItem(*T::operator[](i),ctx);

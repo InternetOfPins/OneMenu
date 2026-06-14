@@ -464,9 +464,9 @@ namespace oneMenu {
           "Cursor::put<T>: non-char put reached Cursor — DataParser must be placed above Cursor to convert all types to chars first");
       }
       Area free() const {return {width()-m_at.x,height()-m_at.y};}
-    protected: 
+    protected:
       Pos m_at{0,0};
-      Sz m_fieldWidth;
+      Sz m_fieldWidth{0};
     };
   };
 

@@ -10,6 +10,9 @@
 // #include "tinyTimeUtils.h"
 
 namespace oneMenu {
+  // Tag for passing Q as a value to avoid <Q> function-call template syntax (C++17 ambiguity workaround)
+  template<typename Q> struct BodyQ {};
+
   //TODO: make this just a query target, it will give the boolean we need, we can generalize this type of tags here
   struct WrapNav {
     template<typename I>
@@ -53,6 +56,18 @@ namespace oneMenu {
     Body body;
     MenuPart(Title&& t,Body&& b):title{std::move(t)},body{std::move(b)} {}
 
+    // Shadows Hapi::Part::find<Q>() — searches chain first, then body
+    template<typename Q> auto& find() {
+      if constexpr (hapi::query<Q, Types>)
+        return hapi::template find<Q>(*this);
+      else { using BQ = BodyQ<Q>; return findBody(BQ{}, body); }
+    }
+    template<typename Q> const auto& find() const {
+      if constexpr (hapi::query<Q, Types>)
+        return hapi::template find<Q>(*this);
+      else { using BQ = BodyQ<Q>; return findBody(BQ{}, body); }
+    }
+
     // template<typename Out> void print(Out& out) const {
     //   static_assert(detail::has_print<Title,Out>::value,
     //     "Title::print(Out&) missing");
@@ -72,11 +87,12 @@ namespace oneMenu {
     //   return printBody(out,ctx);
     // }
     template<typename Out>
-    void print(Out& out) {
+    void print(Out& out) const {
       title.print(out);
       if(Base::isPad()) {//<----- this is a pad... (second pass) lets print the body inplace, will need a new ctx thou, the original will be messed up
         // Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+(Depth)1),0,true,0,ctx.idx};
-        {Ctx tmp{{0}};body.printBody(out,tmp);}
+        // {Ctx tmp{{0}};body.printBody(out,tmp);}
+        body.print(out);
       }
     }
     template<typename Out> void print(Out& out,Ctx&) {print(out);}
@@ -137,5 +153,22 @@ namespace oneMenu {
   template <typename T, typename B,typename... OO> using PadMenu=ItemDef<Menu<T,B,PadDraw,OO...>>;
   template <typename T, typename B,typename... OO> using MenuDef=ItemDef<Menu<T,B,OO...>>;
   template <typename T, typename B,typename... OO> using IMenuDef=IItemDef<Menu<T,B,OO...>>;
+
+  // find<Q>(menu): more specialized than hapi::find — wins via partial ordering; tries chain then body.
+  // Uses BodyQ<Q> tag dispatch to avoid C++17 template-arg-as-less-than ambiguity.
+  template<typename Q, typename T, typename B, typename... MM>
+  auto& find(ItemDef<Menu<T,B,MM...>>& node) {
+    using Node = ItemDef<Menu<T,B,MM...>>;
+    if constexpr (hapi::query<Q, typename Node::Types::Tail>)
+      return hapi::find<Q>(node);
+    else { using BQ = BodyQ<Q>; return findBody(BQ{}, node.body); }
+  }
+  template<typename Q, typename T, typename B, typename... MM>
+  const auto& find(const ItemDef<Menu<T,B,MM...>>& node) {
+    using Node = ItemDef<Menu<T,B,MM...>>;
+    if constexpr (hapi::query<Q, typename Node::Types::Tail>)
+      return hapi::find<Q>(node);
+    else { using BQ = BodyQ<Q>; return findBody(BQ{}, node.body); }
+  }
 
 };//oneMenu

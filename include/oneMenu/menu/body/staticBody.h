@@ -13,7 +13,7 @@ namespace oneMenu {
   template<> struct StaticBody<> {
     static constexpr Sz size() noexcept {return 0;}
     static constexpr Depth depth() noexcept {return 0;}
-    template<typename Out> static constexpr void printTo(Out&) noexcept {}
+    template<typename Out> static constexpr void print(Out&) noexcept {}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Ctx&,Sz=0) noexcept {return false;}
@@ -42,9 +42,9 @@ namespace oneMenu {
       : head{}, tail{std::forward<II>(oo)...} {}
 
     template<typename Out>
-    constexpr void printTo(Out& out) const noexcept {
-      head.printTo(out);
-      tail.printTo(out);
+    constexpr void print(Out& out) const noexcept {
+      head.print(out);
+      tail.print(out);
     }
 
   template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
@@ -84,6 +84,29 @@ namespace oneMenu {
   }
   template<typename Q>
   auto& findBody(StaticBody<>&) {
+    static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
+  }
+
+  // Tag-dispatched overloads: findBody(BodyQ<Q>{}, body)
+  // Used from contexts where findBody<Q>(body) cannot be parsed (C++17 template arg ambiguity).
+  // BodyQ<Q> is defined in menu.h (included before staticBody.h via fields.h).
+
+  template<typename Q, typename Body>
+  auto& findBody(BodyQ<Q>, Body& body) {
+    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+    else return findBody(BodyQ<Q>{}, body.tail);
+  }
+  template<typename Q, typename Body>
+  const auto& findBody(BodyQ<Q>, const Body& body) {
+    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+    else return findBody(BodyQ<Q>{}, body.tail);
+  }
+  template<typename Q>
+  auto& findBody(BodyQ<Q>, StaticBody<>&) {
+    static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
+  }
+  template<typename Q>
+  const auto& findBody(BodyQ<Q>, const StaticBody<>&) {
     static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
   }
 
