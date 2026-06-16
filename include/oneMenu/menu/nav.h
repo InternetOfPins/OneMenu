@@ -69,7 +69,7 @@ namespace oneMenu {
       Depth level() const {return m_level;}
       Sz sel() const {return m_path[m_level];}
 
-      void navMode(NavMode m) {m_navMode.set(std::move(m));}
+      void navMode(NavMode m) {m_navMode.set(m);}
       const NavMode navMode() const {return m_navMode.get();}
 
       void sync() {
@@ -123,7 +123,7 @@ namespace oneMenu {
 
       bool doNav(CKE cke,Sz len,bool w) {
         // dout<<colors<GREEN,BLACK><<" len:"<<len<<" wraps:"<<w;
-        DataDef<NumRange<Sz>,Data<Sz&>> at(0,len-1,w,m_path.data[(int)level()]);
+        DataDef<NumRange<Sz>,oneData::Data<Sz&>> at(0,len-1,w,m_path.data[(int)level()]);
         switch(cke.cmd) {
           case Cmd::Up: at.up();break;
           case Cmd::Down: at.down();break;
@@ -166,9 +166,9 @@ namespace oneMenu {
     protected: 
       Sz m_prevSel{};
       PathData<depth()+1> m_path{};//TODO: why do we need +1? check depth calc!
-      DataDef<Watch<Data<Depth>>> m_level{0};
+      DataDef<Watch<oneData::Data<Depth>>> m_level{0};
       Depth m_print_level{0};
-      DataDef<Watch<Data<NavMode>>> m_navMode{NavMode::Nav};
+      DataDef<Watch<oneData::Data<NavMode>>> m_navMode{NavMode::Nav};
     };
   };
 

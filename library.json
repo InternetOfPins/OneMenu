@@ -3,6 +3,9 @@
   "version": "0.1.1",
   "description": "HAPI menu system",
   "keywords": "menu, UI, modular, API",
+  "build": {
+    "srcFilter": ["-<*>"]
+  },
   "repository":
   {
     "type": "git",

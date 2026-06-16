@@ -18,7 +18,7 @@
 
 #ifdef __AVR__
   #include <assert.h>
-  #include "menu/sys/platform/avr/avr_std.h"
+  // #include "oneMenu/menu/sys/platform/avr/avr_std.h"
 #else
   #include <iostream>
   #include <cstdint>
@@ -46,7 +46,7 @@ using hapi::Chain;
 
 namespace oneMenu {
 
-  using oneData::DefaultDataDef;
+  // using oneData::DefaultDataDef;
   using oneData::CText;
   using oneData::Default;
   using oneData::Watch;

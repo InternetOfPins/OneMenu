@@ -251,8 +251,8 @@ namespace oneMenu {
   struct RecallNavPos {
     /// @brief provide a default value to a index Recall
     /// @tparam val Sz index
-    template<Sz val>
-    using Default=Chain<Default<Data<Sz>,val>>;
+    // template<Sz val>
+    // using Default=Chain<Default<Data<Sz>,val>>;
     template<typename I>
     struct Part:I {
       using Base=I;

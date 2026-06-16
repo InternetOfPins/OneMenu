@@ -1,6 +1,6 @@
 #pragma once
 
-#include "menu/in.h"
+#include "oneMenu/menu/in.h"
 
 template<typename Dev,Dev& dev>
 struct ArduinoSerialIn {

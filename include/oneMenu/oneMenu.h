@@ -8,6 +8,7 @@
 #pragma once
 
 #include "oneMenu/menu/sys/base.h"
+#include "oneMenu/menu/sys/data.h"
 #include "oneMenu/menu/sys/fields.h"
 #include "oneMenu/menu/sys/formats.h"
 #include "oneMenu/menu/body/staticBody.h"
