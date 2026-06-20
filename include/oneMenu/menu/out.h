@@ -98,6 +98,7 @@ namespace oneMenu {
         case Fmt::EditCursor: Base::template fmtStart<Fmt::EditCursor>(ctx);break;
         case Fmt::Data: Base::template fmtStart<Fmt::Data>(ctx);break;
         case Fmt::Unit: Base::template fmtStart<Fmt::Unit>(ctx);break;
+        case Fmt::Footer: Base::template fmtStart<Fmt::Footer>(ctx);break;
       }
       // Base::template fmtStart<tag>(ctx);
     }
@@ -118,6 +119,7 @@ namespace oneMenu {
         case Fmt::EditCursor: Base::template fmtStop<Fmt::EditCursor>(ctx);break;
         case Fmt::Data: Base::template fmtStop<Fmt::Data>(ctx);break;
         case Fmt::Unit: Base::template fmtStop<Fmt::Unit>(ctx);break;
+        case Fmt::Footer: Base::template fmtStop<Fmt::Footer>(ctx);break;
       }
       // Base::template fmtStop<tag>(ctx);
     }

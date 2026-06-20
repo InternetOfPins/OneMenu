@@ -419,18 +419,29 @@ namespace oneMenu {
           using Base=O;
           using Base::Base;
           template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {}
+          // Block print so StaticText/data components inside Put<OO...> don't leak
+          // their text back through the outer chain's print() call.
+          template<typename Out> static constexpr void print(Out& out) noexcept {}
         };
       };
       template<typename O>
       struct Part:Chain<OO...,End>::template Part<O> {
         using Base=typename Chain<OO...,End>::template Part<O>;
         using Base::Base;
+        // OO... content belongs only on alt, never on the main output's print chain.
+        template<typename Out> void print(Out& out) const {}
         template<typename Out>
         void printItem(Out& out,Ctx& ctx) {
           if(!(out.lockMode()==LockMode::None||out.lockMode()==LockMode::Update)) return;
+          LockMode lm=out.lockMode();
           alt.resume();
           if(clr==Clear::yes) alt.clear();
-          Base::printItem(alt,ctx);
+          // OO... components have print() not printItem() — use print to get their content.
+          Base::print(alt);
+          // Restore out's terminal state (colors + cursor) so the next item in out prints
+          // correctly. footer.resume() leaves the terminal in alt's ANSI state.
+          out.resume();
+          out.lockMode(lm);
         }
       };
     };
@@ -450,6 +461,11 @@ namespace oneMenu {
     struct Part:Chain<OO...,End>::template Part<O> {
       using Base=typename Chain<OO...,End>::template Part<O>;
         using Base::Base;
+      // Block OO... from the `print` chain: `print` is for inline data display
+      // (called by MenuData::printItem → Base::print). The OO... pack must NOT
+      // contribute to `print` — it must only fire via `printItem` (conditionally).
+      // Forward to O::print to keep the outer chain intact beyond this component.
+      template<typename Out> void print(Out& out) const { O::print(out); }
       template<typename Out> void printItem(Out& out,Ctx& ctx) {
         O::printItem(out,ctx);
         if(ctx) Base::printItem(out,ctx);

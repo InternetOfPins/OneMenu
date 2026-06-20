@@ -51,6 +51,7 @@ namespace oneMenu {
           default:break;
           case Fmt::View:
           case Fmt::Title:
+          case Fmt::Footer:
           case Fmt::Item:
             if(!ctx.pad) Base::nl();
         }

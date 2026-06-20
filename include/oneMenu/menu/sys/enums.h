@@ -35,7 +35,8 @@ namespace oneMenu {
   enum class Fmt:int {
     None=0<<0,View=1<<0,Title=1<<1,Menu=1<<2,Body=1<<3,Item=1<<4,
     Index=1<<5,Accel=1<<6,NavCursor=1<<7,
-    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13
+    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13,
+    Footer=1<<14
   };
 
   /// @brief lock/unlock print output

@@ -72,7 +72,9 @@ namespace oneMenu {
     };
   };
 
-  /// @brief start body printing process by redirecting to the item
+  /// @brief start body printing process by redirecting to the item.
+  /// Chains to Base::printMenu so FooterPrinter (and any other post-body printers)
+  /// in the same MenuPrinter<...> pack are reached through the normal fmt pipeline.
   struct BodyPrinter : aPrinter {
     template<typename O>
     struct Part:O {
@@ -84,7 +86,24 @@ namespace oneMenu {
         Base::template fmtStart<Fmt::Body>(ctx);
         bool r=i.printBody(O::obj(),ctx);
         Base::template fmtStop<Fmt::Body>(ctx);
-        return r;
+        return Base::printMenu(i,ctx)||r;
+      }
+    };
+  };
+
+  /// @brief footer boundary — emits fmtStart/fmtStop(Footer) so format layers
+  /// can draw a separator, colour band, or nl. No default content is printed here;
+  /// actual footer text is driven by OnFocus/Put::ToOut in individual items.
+  struct FooterPrinter : aPrinter {
+    template<typename O>
+    struct Part:O {
+      using IsPrinter=std::true_type;
+      using Base=O;
+      template<typename I>
+      bool printMenu(I& i,Ctx& ctx) {
+        Base::template fmtStart<Fmt::Footer>(ctx);
+        Base::template fmtStop<Fmt::Footer>(ctx);
+        return Base::printMenu(i,ctx)||i.changed();
       }
     };
   };
@@ -310,7 +329,8 @@ namespace oneMenu {
     ViewPrinter,// outermost format envelope
     MenuPrinter<// calls printMenu
       TitlePrinter,// just print the title
-      BodyPrinter,//stream/serial print
+      BodyPrinter,// body items; chains to FooterPrinter via Base::printMenu
+      FooterPrinter,// printed after body (menu title as breadcrumb by default)
       ItemPrinter<//calls printItem:
         IndexPrinter,// print item index 1-9
         NavCursorPrinter,// use a text cursor on selected item.
@@ -323,7 +343,8 @@ namespace oneMenu {
     ViewPrinter,// outermost format envelope
     MenuPrinter<// calls printMenu
       TitlePrinter,// just print the title
-      ScrollBodyPrinter,//scroll till focus is visible
+      ScrollBodyPrinter,// scroll till focus is visible; chains to FooterPrinter
+      FooterPrinter,// printed after body
       ItemPrinter<//calls printItem:
         IndexPrinter,// print item index 1-9
         NavCursorPrinter,// use a text cursor on selected item.
