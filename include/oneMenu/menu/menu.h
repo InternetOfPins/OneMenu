@@ -29,13 +29,16 @@ namespace oneMenu {
 
   // menu ------------------------------------------------------------------------------------
   template<typename T,typename B,typename... OO>
-  struct Menu /*: hapi::Hapi<Menu<T,B,OO...>>*/ {
-    using Types=hapi::Chain<OO...>; // needed for hapi::query traversal into this component
+  struct Menu {
+    // ItemNav injected first: handles Enter→open / Enter→close at the item boundary.
+    // User-supplied OO... can override or extend but Cmd::Enter balance lives in ItemNav.
+    using Chain_=hapi::Chain<ItemNav,OO...>;
+    using Types=Chain_; // needed for hapi::query traversal into this component
     template<typename O>
-    struct Part : hapi::Chain<OO...>::template Part<O> {
-      using Base=typename hapi::Chain<OO...>::template Part<O>;
+    struct Part : Chain_::template Part<O> {
+      using Base=typename Chain_::template Part<O>;
       using Base::Base;
-      using Types=hapi::Chain<OO...>;
+      using Types=Chain_;
       using Title=T;
       using Body=B;
       Title title;

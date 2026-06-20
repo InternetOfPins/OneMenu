@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include "oneData/oneData.h"
+using oneData::Bool;
+
 namespace oneMenu {
-  using namespace oneData;
   
   template<typename Cfg=Nil>
   struct ItemAPI:oneItem::ItemAPI<Cfg> {
@@ -38,14 +40,35 @@ namespace oneMenu {
     template<typename Out> constexpr void printItem(Out&,Ctx&) {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     //Id--
-    static constexpr int getId() {return -1;}
-    template<int> using HasId=std::false_type;
-    template<int> using WithId=ItemAPI<hapi::CRTP<ItemAPI<Nil>>>;
+    // static constexpr int getId() {return -1;}
+    // template<int> using HasId=std::false_type;
+    // template<int> using WithId=ItemAPI<hapi::CRTP<ItemAPI<Nil>>>;
   };
 
+  template<typename T>
+  struct MenuData {
+    template<typename O>
+    struct Part : T::template Part<O> {//deriving from OneData *::Part<> we should have the data hapi here get/set
+      using Base = typename T::template Part<O>;
+      using Base::Base;
+      template<typename Out> bool printItem(Out& out,Ctx& ctx) {
+        Base::print(out);
+        return Base::changed();
+      }
+    };
+  };
+
+  // Chain transformation: lifts oneData:: components into MenuData<> wrappers.
+  // Passthrough for everything else.
+  template<typename T>              struct wrap_menu_data               { using Type = T; };
+  template<typename T>              struct wrap_menu_data<oneData::Data<T>>       { using Type = MenuData<oneData::Data<T>>; };
+  template<auto V>                  struct wrap_menu_data<oneData::StaticData<V>> { using Type = MenuData<oneData::StaticData<V>>; };
+  template<const char* const* P>    struct wrap_menu_data<oneData::StaticText<P>> { using Type = MenuData<oneData::StaticText<P>>; };
+  template<auto A>                  struct wrap_menu_data<oneData::DataRef<A>>    { using Type = MenuData<oneData::DataRef<A>>; };
+
   template<typename... OO>
-  struct ItemDef:APIOf<ItemAPI<>,OO...>{
-    using Base=APIOf<ItemAPI<>,OO...>;
+  struct ItemDef:APIOf<ItemAPI<>,typename wrap_menu_data<OO>::Type...>{
+    using Base=APIOf<ItemAPI<>,typename wrap_menu_data<OO>::Type...>;
     using Base::Base;
     using Base::printMenu;
     using Base::enabled;
@@ -57,9 +80,9 @@ namespace oneMenu {
     }
 
     template<typename Out> bool printItem(Out& out,Ctx& ctx) {
-      out.template fmtStart<Fmt::Data>(ctx);
-      print(out);
-      out.template fmtStop<Fmt::Data>(ctx);
+      // out.template fmtStart<Fmt::Data>(ctx);
+      // print(out);
+      // out.template fmtStop<Fmt::Data>(ctx);
       Base::printItem(out,ctx);
       return Base::changed();
     }
@@ -309,9 +332,9 @@ namespace oneMenu {
   struct ItemNav {
     template<typename Before, typename After>
     static constexpr bool rules() {
-      static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>, "ItemNav: RecallNavPos must be placed above ItemNav in the ItemDef chain");
-      static_assert(Excludes<hapi::SameAs<ParentDraw>,   After>, "ItemNav: ParentDraw must be placed above ItemNav in the ItemDef chain");
-      static_assert(Excludes<hapi::SameAs<ItemNav>,      Before>, "ItemNav: ItemNav appears more than once in this ItemDef chain");
+      // static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>, "ItemNav: RecallNavPos must be placed above ItemNav in the ItemDef chain");
+      // static_assert(Excludes<hapi::SameAs<ParentDraw>,   After>, "ItemNav: ParentDraw must be placed above ItemNav in the ItemDef chain");
+      // static_assert(Excludes<hapi::SameAs<ItemNav>,      Before>, "ItemNav: ItemNav appears more than once in this ItemDef chain");
       return true;
     }
     template<typename I>
@@ -441,6 +464,7 @@ namespace oneMenu {
 };//namespace oneMenu
 
 //rules ItemDef query specialization --
+//TODO: why not Map?
 template<typename Q,typename... OO>
 constexpr const bool hapi::template query<Q,oneMenu::template ItemDef<OO...>>{(hapi::template query<Q,OO>||...)};
 

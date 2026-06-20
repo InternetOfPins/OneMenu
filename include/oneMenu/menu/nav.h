@@ -121,14 +121,19 @@ namespace oneMenu {
         return r;
       }
 
+      // aux function for items to call and complete a navigation request with default actions
+      // Data<Sz&> would dangle: Data constructor takes by-value, binds reference to local.
+      // Use Data<Sz> (owned copy) + writeback through the actual sel reference.
       bool doNav(CKE cke,Sz len,bool w) {
         // dout<<colors<GREEN,BLACK><<" len:"<<len<<" wraps:"<<w;
-        DataDef<NumRange<Sz>,oneData::Data<Sz&>> at(0,len-1,w,m_path.data[(int)level()]);
+        Sz& sel=m_path.data[(int)level()];
+        oneData::DataDef<NumRange<Sz>,oneData::Data<Sz>> at(0,len-1,w,sel);
         switch(cke.cmd) {
-          case Cmd::Up: at.up();break;
-          case Cmd::Down: at.down();break;
-          default:return false;//break;
+          case Cmd::Up:   at.up();   break;
+          case Cmd::Down: at.down(); break;
+          default: return false;
         }
+        sel=at.get();
         return true;
       }
 
@@ -166,9 +171,9 @@ namespace oneMenu {
     protected: 
       Sz m_prevSel{};
       PathData<depth()+1> m_path{};//TODO: why do we need +1? check depth calc!
-      DataDef<Watch<oneData::Data<Depth>>> m_level{0};
+      oneData::DataDef<Watch<oneData::Data<Depth>>> m_level{0};
       Depth m_print_level{0};
-      DataDef<Watch<oneData::Data<NavMode>>> m_navMode{NavMode::Nav};
+      oneData::DataDef<Watch<oneData::Data<NavMode>>> m_navMode{NavMode::Nav};
     };
   };
 
