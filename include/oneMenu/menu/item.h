@@ -53,6 +53,7 @@ namespace oneMenu {
       using Base::Base;
       template<typename Out> bool printItem(Out& out,Ctx& ctx) {
         Base::print(out);
+        Base::printItem(out,ctx);
         return Base::changed();
       }
     };
@@ -319,11 +320,10 @@ namespace oneMenu {
       using I::I;
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
-        if(cke.cmd==Cmd::Enter) {
-          // dout<<xy<0,1><<colors<BLUE,BLACK><<"ParentDraw::Nav(Cmd::Enter) |"<<cnt<>++<<padWith<10><<flush;
-          return path.len>0?n.close():n.padOpen();
-        }
-        return  I::template nav<isKbd>(n,cke,path);
+        bool r=I::template nav<isKbd>(n,cke,path);
+        if(!r&&cke.cmd==Cmd::Enter)
+          r=path.len>0?n.close():n.padOpen();
+        return r;
       }
     };
   };
@@ -332,9 +332,6 @@ namespace oneMenu {
   struct ItemNav {
     template<typename Before, typename After>
     static constexpr bool rules() {
-      // static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>, "ItemNav: RecallNavPos must be placed above ItemNav in the ItemDef chain");
-      // static_assert(Excludes<hapi::SameAs<ParentDraw>,   After>, "ItemNav: ParentDraw must be placed above ItemNav in the ItemDef chain");
-      // static_assert(Excludes<hapi::SameAs<ItemNav>,      Before>, "ItemNav: ItemNav appears more than once in this ItemDef chain");
       return true;
     }
     template<typename I>
@@ -343,12 +340,14 @@ namespace oneMenu {
       using Base::Base;
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path path) {
-        if(cke.cmd==Cmd::Enter) {
-          // dout<<xy<0,2><<colors<BLUE,BLACK><<"ItemNav::Nav(Cmd::Enter) |"<<cnt<>++<<padWith<10><<flush;
-          if(path.len==0) return n.open();
-          else if(path.len==1) return n.close();
+        // Call base first — deeper component (ParentDraw etc.) gets priority.
+        // ItemNav only acts when nothing deeper consumed Cmd::Enter.
+        bool r=Base::template nav<isKbd>(n,cke,path);
+        if(!r&&cke.cmd==Cmd::Enter) {
+          if(path.len==0) r=n.open();
+          else if(path.len==1) r=n.close();
         }
-        return Base::template nav<isKbd>(n,cke,path);
+        return r;
       }
     };
   };

@@ -30,9 +30,7 @@ namespace oneMenu {
   // menu ------------------------------------------------------------------------------------
   template<typename T,typename B,typename... OO>
   struct Menu {
-    // ItemNav injected first: handles Enter→open / Enter→close at the item boundary.
-    // User-supplied OO... can override or extend but Cmd::Enter balance lives in ItemNav.
-    using Chain_=hapi::Chain<ItemNav,OO...>;
+    using Chain_=hapi::Chain<OO...>;
     using Types=Chain_; // needed for hapi::query traversal into this component
     template<typename O>
     struct Part : Chain_::template Part<O> {
@@ -89,16 +87,29 @@ namespace oneMenu {
       bool printBody(Out& out,Ctx& ctx) {return body.printBody(out,ctx);}
 
       template<typename Out>
-      bool printItem(Out& out,Ctx& ctx) {return title.printItem(out,ctx);}
+      bool printItem(Out& out,Ctx& ctx) {
+        bool r=title.printItem(out,ctx);
+        if constexpr(Base::isPad()) {
+          // Inline body display: one level deeper so focus-check uses the pad's selection.
+          // pad=true suppresses newlines between items (TextFmt::fmtStop skips nl when pad).
+          Ctx inner{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,
+                    (Depth)(ctx.at+1),ctx.prev,true,0,ctx.pIdx};
+          body.printInline(out,inner);
+        }
+        return r;
+      }
 
       static constexpr Depth depth() {return Body::depth()+1;}
 
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,Path p) {
         if(p.len>0)
-          return body.template nav<isKbd>(n,cke,p.next(),p.sel())
+          // Only deliver to focused item (p.len==1) on Enter; movement goes to doNav directly.
+          // Preemptive: prevents focused-but-closed items from consuming Up/Down at the wrong level.
+          return (p.len>1||cke.cmd==Cmd::Enter?body.template nav<isKbd>(n,cke,p.next(),p.sel()):false)
           ||Base::template nav<isKbd>(n,cke,p)
-          ||(p.len==1&&n.doNav(cke,size(),Base::wraps()));
+          ||(p.len==1&&(n.doNav(cke,size(),Base::wraps())||(cke.cmd==Cmd::Enter&&n.close())));
+        if(cke.cmd==Cmd::Enter) return Base::isPad()?n.padOpen():n.open();
         return Base::template nav<isKbd>(n,cke,p);
       }
     };
