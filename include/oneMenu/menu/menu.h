@@ -74,7 +74,7 @@ namespace oneMenu {
       template<typename Out>
       bool printMenu(Out& out,Ctx& ctx) {
         if(ctx.pAt>ctx.at){
-          Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+1),0,ctx.pad,0,ctx.idx};
+          Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+1),ctx.prev,ctx.pad,0,ctx.idx};
           Sz s=ctx.sel();
           return body.printMenu(out,tmp,s);
         }
