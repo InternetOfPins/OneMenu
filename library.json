@@ -1,6 +1,6 @@
 {
   "name": "OneMenu",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "HAPI menu system",
   "keywords": "menu, UI, modular, API",
   "build": {
