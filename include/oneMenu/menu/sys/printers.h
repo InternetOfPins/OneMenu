@@ -182,7 +182,8 @@ namespace oneMenu {
       using Base::pos;
       template<typename I>
       bool printItem(I& i,Ctx& ctx) {
-        if(lockMode()==LockMode::Update
+        LockMode om=lockMode();
+        if(om==LockMode::Update
           &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel())))
         ) lockMode(LockMode::None);
         ctx.enabled =i.enabled();
@@ -191,6 +192,7 @@ namespace oneMenu {
         Base::template fmtStop<Fmt::Item>(ctx);
         ctx.idx++;
         if(lockMode()==LockMode::Sync) i.sync();
+        else if(om==LockMode::Update&&lockMode()==LockMode::None) lockMode(LockMode::Update);
         return r;
       }
     };

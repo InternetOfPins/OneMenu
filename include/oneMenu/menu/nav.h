@@ -95,11 +95,21 @@ namespace oneMenu {
 
       template<typename Out>
       bool changed(Out& out) {
-        if(changed()) return true;
+        if(m_level.changed()) {
+          out.lockMode(LockMode::None);
+          out.clear();           // resets m_at to {0,0} + hardware clear
+          return true;
+        }
+        if(m_navMode.changed()||m_prevSel!=sel()) {
+          out.resume();          // resets m_at to {orgX,orgY} + device state (invert, cursor)
+          out.lockMode(LockMode::Update); // resume forces None; set Update after
+          return true;
+        }
         LockMode om=out.lockMode();
         out.lockMode(LockMode::Changed);
-        bool r=printTo(out);
-        out.lockMode(om);
+        bool r=printTo(out);    // probe: Gate suppresses all hardware, m_at drift is harmless
+        if(r) out.resume();     // data changed: reset for full redraw; resume sets None
+        else out.lockMode(om);
         return r;
       }
 

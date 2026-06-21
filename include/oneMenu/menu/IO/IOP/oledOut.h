@@ -21,7 +21,7 @@ namespace oneMenu {
       static void put(const char* s, Sz n)  { for(Sz i=0;i<n&&s[i];i++) Oled::print(s[i]); }
       static void nl()                      { Oled::print('\n'); O::nl(); }
       static void setPos(const Pos& p)      { Oled::setCursor(p.x, p.y); }
-      static void clear()                   { Oled::clear(); O::clear(); }
+      static void clear()                   { Oled::clear(); Oled::setCursor(0,0); O::clear(); }
       static void resume()                  { Oled::setInverted(false); Oled::setCursor(0, 0); O::resume(); }
       static void setInverted(bool v)       { Oled::setInverted(v); }
       template<typename Cor>
