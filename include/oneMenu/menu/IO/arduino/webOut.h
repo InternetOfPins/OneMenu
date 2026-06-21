@@ -1,29 +1,35 @@
 #pragma once
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <WebServer.h>
 #include "oneMenu/menu/out.h"
 #include "oneMenu/menu/fmt/xmlFmt.h"
 #include "oneMenu/menu/sys/printers.h"
 
 namespace oneMenu {
 
-  // WebOut: raw output device that buffers to a static Arduino String.
-  // Used with XmlFmt to serve menu state as XML over HTTP.
-  // One shared buffer — only one WebDisplay instance expected.
+  // WebOut: raw output device that streams directly to a WebServer via sendContent().
+  // No host-side buffer — each put() sends immediately; TCP Nagle coalesces small writes.
+  // Call WebOut::begin(server) once before serving requests.
   struct WebOut : aRawDevice {
-    static String& buf() { static String s; return s; }
+    inline static WebServer* _server = nullptr;
+    static void begin(WebServer& srv) { _server = &srv; }
 
     template<typename O>
     struct _Part : O {
-      static void put(char c)              { WebOut::buf() += c; }
-      static void put(const char* s)       { WebOut::buf() += s; }
-      static void put(const char* s, Sz n) {
-        for(Sz i = 0; i < n && s[i]; i++) WebOut::buf() += s[i];
+      static void put(char c) {
+        if(_server) { char b[2] = {c, '\0'}; _server->sendContent(b); }
       }
-      static void nl()                     { WebOut::buf() += '\n'; O::nl(); }
+      static void put(const char* s) {
+        if(_server) _server->sendContent(s);
+      }
+      static void put(const char* s, Sz n) {
+        if(_server) { for(Sz i = 0; i < n && s[i]; i++) put(s[i]); }
+      }
+      static void nl()                     { put('\n'); O::nl(); }
       static constexpr void setPos(const Pos&) {}
-      static void clear()                  { WebOut::buf() = ""; O::clear(); }
-      static void resume()                 { WebOut::buf() = ""; O::resume(); }
+      static void clear()                  { O::clear(); }
+      static void resume()                 { O::resume(); }
       static constexpr void flush()        {}
       static constexpr Sz charWidth()      { return 1; }
       static constexpr Sz lineSpacing()    { return 1; }
