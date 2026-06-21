@@ -18,7 +18,7 @@ namespace oneMenu {
   //
   // Radius: reserved for future drawRoundRect use (API compat).
   // Spacing: extra blank pages between items (0 = packed).
-  template<Sz Radius=2, Sz Spacing=0>
+  template<Sz Radius=2, Sz Spacing=0, bool BigTitle=false>
   struct GfxFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -46,7 +46,12 @@ namespace oneMenu {
       std::enable_if_t<tag&Fmt::Title>
       fmtStart(const Ctx& ctx) {
         m_itemPos = Base::obj().getPos();
-        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 1);
+        if constexpr(BigTitle) {
+          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 2);
+          Base::setBigFont(true);
+        } else {
+          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 1);
+        }
         Base::setPos({Base::orgX(), m_itemPos.y});
         Base::template fmtStart<tag>(ctx);
       }
@@ -62,7 +67,17 @@ namespace oneMenu {
       }
 
       template<Fmt tag>
-      std::enable_if_t<tag&(Fmt::Title|Fmt::Footer)>
+      std::enable_if_t<tag&Fmt::Title>
+      fmtStop(const Ctx& ctx) {
+        if constexpr(BigTitle) Base::setBigFont(false);
+        if(!ctx.pad) {
+          Base::obj().nl();
+          if constexpr(BigTitle) Base::obj().nl(); // extra page for 2-page big title
+        }
+      }
+
+      template<Fmt tag>
+      std::enable_if_t<tag&Fmt::Footer>
       fmtStop(const Ctx& ctx) {
         if(!ctx.pad) Base::obj().nl();
       }
