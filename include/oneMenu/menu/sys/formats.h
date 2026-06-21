@@ -28,6 +28,7 @@ namespace oneMenu {
       using Base::fmtStart;
       using Base::fmtStop;
       using Base::clear;
+      using Base::clearToEOL;
       using Base::clearLine;
       using Base::clearFree;
       using Base::setColors;
@@ -40,8 +41,8 @@ namespace oneMenu {
       template<Fmt tag>
       std::enable_if_t<tag&(Fmt::Title|Fmt::Item)>
       fmtStop(const Ctx& ctx) {
+        if(!ctx.pad) clearToEOL();       // erase trailing pixels before base nl
         Base::template fmtStop<tag>(ctx);
-        if(!ctx.pad) clearLine();
       }
     };
   };

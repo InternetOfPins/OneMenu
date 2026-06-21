@@ -70,7 +70,7 @@ namespace oneMenu {
     virtual void put(const char* const*& str)=0;
 
     template<Fmt tag> void fmtStart(const Ctx& ctx) {fmtStart(tag,ctx);}
-    template<Fmt tag> void fmtStop(const Ctx& ctx) {fmtStart(tag,ctx);}
+    template<Fmt tag> void fmtStop(const Ctx& ctx) {fmtStop(tag,ctx);}
   };
 
   template<typename... OO>
@@ -444,16 +444,19 @@ namespace oneMenu {
         if constexpr(Adv != nullptr) return Adv(c);
         else return CharW;
       }
-      // clearLine: number of fill spaces = remaining pixels / advance-per-space
-      void clearLine() {Base::padWith(free().x/glyphWidth(' '));nl();}
-      void clearFree() {do clearLine(); while(free().y);}
+      // clearToEOL: pad remainder of current row with spaces (no newline)
+      // clearLine:  clearToEOL + nl — for clearing whole blank rows
+      void clearToEOL() {Base::padWith(free().x/glyphWidth(' '));}
+      void clearLine()  {clearToEOL(); nl();}
+      void clearFree()  {do clearLine(); while(free().y);}
       Sz fieldWidth() const {return m_fieldWidth;}
       Pos pos() const {return m_at;}
       Pos getPos() const {return m_at;}
       void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
       void resume() {
+        m_at = {Base::orgX(), Base::orgY()};
+        m_fieldWidth = 0;
         Base::resume();
-        setPos(m_at);
       }
       Pos area() const {return {fieldWidth(),m_at.y};}
       void clear() {
