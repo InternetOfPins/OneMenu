@@ -13,8 +13,8 @@ namespace oneMenu {
   template<typename Oled>
   struct OledOut : aRawDevice {
     template<typename O>
-    struct _Part : PartialDraw::template Part<O> {
-      using Base             = typename PartialDraw::template Part<O>;
+    struct _Part : O {
+      using Base             = O;
       using HasFillRect      = std::true_type;
       using HasDrawRoundRect = std::true_type;
       static void put(char c)               { Oled::print(c); }
