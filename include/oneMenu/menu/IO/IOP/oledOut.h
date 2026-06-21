@@ -1,5 +1,4 @@
 #pragma once
-#ifdef ARDUINO
 #include "oneMenu/menu/out.h"
 #include "oneMenu/menu/fmt/gfxFmt.h"
 
@@ -58,4 +57,3 @@ namespace oneMenu {
   >;
 
 } // namespace oneMenu
-#endif
