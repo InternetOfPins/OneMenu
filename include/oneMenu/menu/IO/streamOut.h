@@ -7,7 +7,7 @@ namespace oneMenu {
   template<typename Out,Out& out>
   struct StreamOut : aRawDevice {
     template<typename O>
-    struct RawPart:oneOutput::StreamOut<Out,out>::Part<O> {
+    struct RawPart:oneOutput::StreamOut<Out,out>::template Part<O> {
       using Base=typename oneOutput::StreamOut<Out,out>::template Part<O>;
       using Base::put;
       static constexpr const Out& device{out};
