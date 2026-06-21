@@ -5,17 +5,19 @@
 namespace oneMenu {
 
   // GfxFmt<Radius, Spacing>
-  // Format for GFX-capable devices (HasFillRect + HasDrawRoundRect). No TextFmt needed.
+  // Format for GFX-capable devices (HasFillRect). Works in device-native coords
+  // (pixels horizontally, pages vertically for SSD1306).
   //
-  // Per item fmtStart: fillRect clears the row; if selected, drawRoundRect drawn BEFORE text
-  //   (text overwrites the left portion of the border — right side beyond text remains visible)
-  // Per item fmtStop:  nl() + Spacing extra nl() for line gap
-  // Per title fmtStart: fillRect clears the title row
-  // After view fmtStop: fillRect clears remaining rows below last item
-  // NavCursor: suppressed (rounded rect IS the selection indicator)
+  // Selection indicator: inverted video — fillRect(0x00 → 0xFF via _inv) + XOR'd font bytes.
+  // NavCursor: fully suppressed — no space, no '>' character. Inverted video IS the indicator.
   //
-  // Radius: corner radius for selection border (0 = square rect)
-  // Spacing: extra blank rows between items (0 = packed)
+  // Per item fmtStart: setInverted(true) if selected, then fillRect clears/fills the row.
+  // Per item fmtStop:  setInverted(false), nl(), optional Spacing blank page (cleared).
+  // Per title fmtStart: fillRect clears the title row.
+  // After view fmtStop: fillRect clears remaining rows below last item.
+  //
+  // Radius: reserved for future drawRoundRect use (API compat).
+  // Spacing: extra blank pages between items (0 = packed).
   template<Sz Radius=2, Sz Spacing=0>
   struct GfxFmt : aFormat {
     template<typename Before, typename After>
@@ -32,10 +34,10 @@ namespace oneMenu {
 
       Pos m_itemPos{0,0};
 
-      // suppress text NavCursor — rounded rect is the selection indicator
+      // fully suppress NavCursor — no space, no '>' — inverted video is the indicator
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::NavCursor>
-      fmtStart(const Ctx&) { Base::put(' '); }
+      fmtStart(const Ctx&) {}
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::NavCursor>
       fmtStop(const Ctx&)  {}
@@ -45,7 +47,7 @@ namespace oneMenu {
       fmtStart(const Ctx& ctx) {
         m_itemPos = Base::obj().getPos();
         Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 1);
-        Base::setPos({Base::orgX(), m_itemPos.y});  // fillRect leaves _col=w*6, reset to row start
+        Base::setPos({Base::orgX(), m_itemPos.y});
         Base::template fmtStart<tag>(ctx);
       }
 
