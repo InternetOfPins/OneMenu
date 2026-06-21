@@ -182,14 +182,8 @@ namespace oneMenu {
       using Base::pos;
       template<typename I>
       bool printItem(I& i,Ctx& ctx) {
-        if(lockMode()==LockMode::Update
-          &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel())))
-        ) {
-          lockMode(LockMode::None);
-          // position is NOT changed here — lockMode and cursor are independent
-        }
+        if(lockMode()==LockMode::Update) lockMode(LockMode::None);
         ctx.enabled =i.enabled();
-        // ctx.padIdx=ctx.idx;//if any pad then this is the parent
         Base::template fmtStart<Fmt::Item>(ctx);
         bool r=Base::printItem(i,ctx);
         Base::template fmtStop<Fmt::Item>(ctx);

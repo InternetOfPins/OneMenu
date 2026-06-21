@@ -186,6 +186,12 @@ namespace oneMenu {
       template<typename T>
       void put(const T o) {if(unlocked()) Base::put(o);}
       void put(const char* s,Sz n) {if(unlocked()) Base::put(s,n);}
+      void setPos(const Pos& p) {if(unlocked()) Base::setPos(p);}
+      template<typename... Args>
+      void fillRect(Args... args) {if(unlocked()) Base::fillRect(args...);}
+      template<typename... Args>
+      void drawRoundRect(Args... args) {if(unlocked()) Base::drawRoundRect(args...);}
+      void setInverted(bool v) {if(unlocked()) Base::setInverted(v);}
       Pos measure() {
         lockMode(LockMode::Measure);
         return Base::pos();
