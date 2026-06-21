@@ -419,6 +419,13 @@ namespace oneMenu {
     };
   };
 
+  // CharW: advance per character in device units (1=char-based, 6=font5x8 pixels, etc.)
+  // LineH: advance per line in device units (1=char-based, 8=font5x8 pixels, etc.)
+  // Adv:   optional per-glyph advance fn (char→Sz) for proportional/variable-width fonts.
+  //        When non-null, CharW is ignored for x-advance. clearLine uses CharW as fallback
+  //        for fill-width estimation when Adv is set (space advance should be known).
+  using AdvFn = Sz(*)(char);
+  template<Sz CharW=1, Sz LineH=1, AdvFn Adv=nullptr>
   struct Cursor : aCursor {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -427,13 +434,18 @@ namespace oneMenu {
       return true;
     }
     template<typename O>
-    struct Part:O {
+    struct Part:PartialDraw::template Part<O> {
       using IsCursor=std::true_type;
-      using Base=O;
+      using Base=typename PartialDraw::template Part<O>;
       using Base::obj;
       using Base::height;
       using Base::width;
-      void clearLine() {Base::padWith(free().x);nl();}
+      static constexpr Sz glyphWidth(char c) {
+        if constexpr(Adv != nullptr) return Adv(c);
+        else return CharW;
+      }
+      // clearLine: number of fill spaces = remaining pixels / advance-per-space
+      void clearLine() {Base::padWith(free().x/glyphWidth(' '));nl();}
       void clearFree() {do clearLine(); while(free().y);}
       Sz fieldWidth() const {return m_fieldWidth;}
       Pos pos() const {return m_at;}
@@ -453,11 +465,11 @@ namespace oneMenu {
       void nl() {
         if(m_at.x>m_fieldWidth) m_fieldWidth=m_at.x;
         m_at.x=0;
-        m_at.y++;
+        m_at.y+=LineH;
         Base::nl();
       }
       void put(const char o) {
-        m_at.x++;
+        m_at.x+=glyphWidth(o);
         Base::put(o);
       }
       template<typename T>
