@@ -480,7 +480,7 @@ namespace oneMenu {
         static_assert(std::is_same_v<T,void>,
           "Cursor::put<T>: non-char put reached Cursor — DataParser must be placed above Cursor to convert all types to chars first");
       }
-      Area free() const {return {width()-m_at.x,height()-m_at.y};}
+      Area free() const {return {width()-(m_at.x-Base::orgX()),height()-(m_at.y-Base::orgY())};}
     protected:
       Pos m_at{0,0};
       Sz m_fieldWidth{0};
