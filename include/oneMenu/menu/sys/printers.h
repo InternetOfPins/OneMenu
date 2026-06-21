@@ -186,7 +186,7 @@ namespace oneMenu {
           &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel())))
         ) {
           lockMode(LockMode::None);
-          setPos({                   });
+          // position is NOT changed here — lockMode and cursor are independent
         }
         ctx.enabled =i.enabled();
         // ctx.padIdx=ctx.idx;//if any pad then this is the parent
