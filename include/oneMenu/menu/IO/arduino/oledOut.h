@@ -39,15 +39,16 @@ namespace oneMenu {
   };
 
   // Ready-made OutDef for SSD1306-style OLED.
-  // Cursor advances and default area are derived from the Oled driver's kWidth/kHeight/charWidth()/lineHeight().
-  // Extra... lets the user override position and/or area (earlier entry in HAPI chain wins):
-  //   OledDisplay<MyOled>                              — full display, default pos
-  //   OledDisplay<MyOled, 2, 0, StaticArea<128, 4>>   — top 4 pages, default pos
-  //   OledDisplay<MyOled, 2, 0, StaticPos<0,2>, StaticArea<128, 4>>  — sub-region at page 2
-  template<typename Oled, Sz Radius=2, Sz Spacing=0, typename... Extra>
+  // Cursor advances and default area are derived from the Oled driver (kWidth/kHeight/charWidth/lineHeight).
+  // Extra... overrides position and/or area (earlier entry in HAPI chain wins over the defaults):
+  //   OledDisplay<MyOled>                              — full display
+  //   OledDisplay<MyOled, StaticArea<128, 4>>          — top 4 pages
+  //   OledDisplay<MyOled, StaticPos<0,2>, StaticArea<128, 4>>  — sub-region at page 2
+  // For non-default Radius/Spacing write a custom OutDef with an explicit GfxFmt<R,S>.
+  template<typename Oled, typename... Extra>
   using OledDisplay = OutDef<
     FullPrinter,
-    GfxFmt<Radius, Spacing>,
+    GfxFmt<>,           // Radius=2, Spacing=0 by default
     DataParser<>,
     Cursor<Oled::charWidth(), Oled::lineHeight()>,
     OledOut<Oled>,
