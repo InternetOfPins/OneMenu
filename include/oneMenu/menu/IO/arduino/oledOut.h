@@ -38,18 +38,22 @@ namespace oneMenu {
     template<typename O> using Part = Raw::Part<DeviceCursor::template Part<_Part<O>>>;
   };
 
-  // Ready-made OutDef for SSD1306-style OLED (font5x8: 6px/char, 1 page/line).
-  // W and H are in device-native units: pixels wide, pages tall (128×8 = full 128×64 display).
-  // Usage: OledDisplay<MyOled> disp;  or  OledDisplay<MyOled, 128, 8, 2, 1> disp;
-  template<typename Oled, Sz W=128, Sz H=8, Sz Radius=2, Sz Spacing=0>
+  // Ready-made OutDef for SSD1306-style OLED.
+  // Cursor advances and default area are derived from the Oled driver's kWidth/kHeight/charWidth()/lineHeight().
+  // Extra... lets the user override position and/or area (earlier entry in HAPI chain wins):
+  //   OledDisplay<MyOled>                              — full display, default pos
+  //   OledDisplay<MyOled, 2, 0, StaticArea<128, 4>>   — top 4 pages, default pos
+  //   OledDisplay<MyOled, 2, 0, StaticPos<0,2>, StaticArea<128, 4>>  — sub-region at page 2
+  template<typename Oled, Sz Radius=2, Sz Spacing=0, typename... Extra>
   using OledDisplay = OutDef<
     FullPrinter,
     GfxFmt<Radius, Spacing>,
     DataParser<>,
-    Cursor<6, 1>,
+    Cursor<Oled::charWidth(), Oled::lineHeight()>,
     OledOut<Oled>,
-    StaticPos<0,0>,
-    StaticArea<W, H>
+    Extra...,
+    StaticPos<0, 0>,
+    StaticArea<Oled::kWidth, Oled::kHeight / 8>
   >;
 
 } // namespace oneMenu
