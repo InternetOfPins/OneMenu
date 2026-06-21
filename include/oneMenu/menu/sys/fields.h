@@ -116,4 +116,10 @@ namespace oneMenu {
   template<typename T,typename O,typename... OO>
   using NumFieldDef
     =ItemDef<T,AsEditMode<>,EditField,ParentDraw,O,OO...>;
+
+  // TextField<N, Mask> is self-contained (storage inside the field),
+  // so TextFieldDef needs no DataRef/Watch layer — just title + size + mask.
+  template<typename T, Sz N, typename Mask = CharMask::ASCII7>
+  using TextFieldDef
+    =ItemDef<T,AsEditMode<>,EditField,ParentDraw,TextField<N,Mask>>;
 };
