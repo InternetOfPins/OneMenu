@@ -31,7 +31,13 @@ namespace oneMenu {
       using Base::clearLine;
       using Base::clearFree;
       using Base::setColors;
-      template<Fmt tag> 
+      template<Fmt tag>
+      std::enable_if_t<tag==Fmt::View>
+      fmtStop(const Ctx& ctx) {
+        Base::template fmtStop<tag>(ctx);
+        if(!ctx.pad) clearFree();
+      }
+      template<Fmt tag>
       std::enable_if_t<tag&(Fmt::Title|Fmt::Item)>
       fmtStop(const Ctx& ctx) {
         Base::template fmtStop<tag>(ctx);
