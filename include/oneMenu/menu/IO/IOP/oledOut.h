@@ -58,4 +58,18 @@ namespace oneMenu {
     StaticArea<Oled::kWidth, Oled::kHeight / 8>
   >;
 
+  // Nokia 5110 (PCD8544) — same contract as OledDisplay, 84×48, 6 pages.
+  // Lcd: a PCD8544<Transport, Contrast> instance.
+  template<typename Lcd, typename GfxFmtT=GfxFmt<>, typename... Extra>
+  using Nokia5110Display = OutDef<
+    FullPrinter,
+    GfxFmtT,
+    DataParser<>,
+    Cursor<Lcd::charWidth(), Lcd::lineSpacing()>,
+    OledOut<Lcd>,
+    Extra...,
+    StaticPos<0, 0>,
+    StaticArea<84, 6>
+  >;
+
 } // namespace oneMenu
