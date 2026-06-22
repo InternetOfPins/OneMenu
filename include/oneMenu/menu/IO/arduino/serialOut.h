@@ -14,8 +14,9 @@ namespace oneMenu {
       using This=_Part<O>;
       using Device=This;
       template<typename T> static void put(T o) {dev.print(o);O::put(o);}
-      static void nl() {dev.println();O::nl();}
-      static constexpr void flush() {}
+      static void nl()               {dev.println();O::nl();}
+      static void setPos(const Pos&) {}  // streaming — positioning is a no-op
+      static constexpr void flush()  {}
     };
     template<typename O> using Part=Raw::Part<_Part<O>>;
   };

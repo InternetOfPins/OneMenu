@@ -17,6 +17,9 @@ namespace oneMenu {
       static constexpr Sz width()  { return LCD::cols; }
       static constexpr Sz height() { return LCD::rows; }
       static constexpr Area area() { return {LCD::cols, LCD::rows}; }
+      static constexpr Sz  orgX()  { return 0; }
+      static constexpr Sz  orgY()  { return 0; }
+      static constexpr Pos org()   { return {0, 0}; }
 
       inline static uint8_t _row = 0;
 

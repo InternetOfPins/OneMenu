@@ -23,8 +23,7 @@ namespace oneMenu {
     template<typename Item> static constexpr bool printItem(Item& item,Ctx& ctx) {return false;}
     template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
     static constexpr Pos pos() {return {0,0};}
-    // using Base::setPos;
-    // static constexpr void setPos(Sz,Sz) {}
+    static constexpr void setPos(const Pos&) {}  // terminal: absorbs oneMenu::Pos before reaching oneOutput::OutAPI
     using Base::put;
     static constexpr void put(const char*,Sz) {}
   };
