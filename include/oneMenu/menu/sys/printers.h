@@ -137,7 +137,10 @@ namespace oneMenu {
           om=LockMode::None;//scroll => full redraw
         } else for(;;) {
           lockMode(LockMode::Measure);
-          Base::printMenu(i,ctx);//body measure
+          // measure body only — fmtStop<Footer> emits nl() which would corrupt free().y
+          Base::template fmtStart<Fmt::Body>(ctx);
+          i.printBody(Base::obj(),ctx);
+          Base::template fmtStop<Fmt::Body>(ctx);
           Sz f=free().y;
           Sz ci=ctx.idx;
           ctx.idx=0;
@@ -323,31 +326,25 @@ namespace oneMenu {
   template<typename... OO> using AsUnit=AsFmt<Fmt::Unit,OO...>;
     
 
+  using ItemsPrinter=ItemPrinter<IndexPrinter,NavCursorPrinter,ItemBodyPrinter>;
+
+  // Full printers: title + body + footer
   using FullPrinter=Chain<
-    ViewPrinter,// outermost format envelope
-    MenuPrinter<// calls printMenu
-      TitlePrinter,// just print the title
-      BodyPrinter,// body items; chains to FooterPrinter via Base::printMenu
-      FooterPrinter,// printed after body (menu title as breadcrumb by default)
-      ItemPrinter<//calls printItem:
-        IndexPrinter,// print item index 1-9
-        NavCursorPrinter,// use a text cursor on selected item.
-        ItemBodyPrinter//→ printItem → Item::print
-      >
-    >
+    ViewPrinter,
+    MenuPrinter<TitlePrinter,BodyPrinter,FooterPrinter,ItemsPrinter>
+  >;
+  using ScrollPrinter=Chain<
+    ViewPrinter,
+    MenuPrinter<TitlePrinter,ScrollBodyPrinter,FooterPrinter,ItemsPrinter>
   >;
 
-  using ScrollPrinter=Chain<
-    ViewPrinter,// outermost format envelope
-    MenuPrinter<// calls printMenu
-      TitlePrinter,// just print the title
-      ScrollBodyPrinter,// scroll till focus is visible; chains to FooterPrinter
-      FooterPrinter,// printed after body
-      ItemPrinter<//calls printItem:
-        IndexPrinter,// print item index 1-9
-        NavCursorPrinter,// use a text cursor on selected item.
-        ItemBodyPrinter//→ printItem → Item::print
-      >
-    >
+  // No-title variants: body + footer only — default for small-display devices
+  using NoTitlePrinter=Chain<
+    ViewPrinter,
+    MenuPrinter<BodyPrinter,FooterPrinter,ItemsPrinter>
+  >;
+  using NoTitleScrollPrinter=Chain<
+    ViewPrinter,
+    MenuPrinter<ScrollBodyPrinter,FooterPrinter,ItemsPrinter>
   >;
 };//oneMenu

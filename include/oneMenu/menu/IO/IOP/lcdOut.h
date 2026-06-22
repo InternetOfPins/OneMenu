@@ -5,13 +5,19 @@
 
 namespace oneMenu {
 
-  // LcdOut<LCD>: raw output device for HD44780-compatible character LCDs.
-  // LCD is a pure-static IOP type (e.g. oneIO::display::I2cLcd<TwiMaster, Addr>).
-  // LCD must provide static: print(char), print(const char*), setCursor(col, row), clear().
+  // LcdDisplay<LCD>: raw output device for HD44780-compatible character LCDs.
+  // Same slot as ConsoleOut/SerialOut — place inside OutDef, swap freely.
+  // LCD must provide: print(char), print(const char*), setCursor(col,row), clear().
+  // LCD must expose static constexpr cols and rows — satisfies IsArea.
   template<typename LCD>
-  struct LcdOut : aRawDevice {
+  struct LcdDisplay : aRawDevice, anArea {
     template<typename O>
     struct _Part : O {
+      using IsArea = std::true_type;
+      static constexpr Sz width()  { return LCD::cols; }
+      static constexpr Sz height() { return LCD::rows; }
+      static constexpr Area area() { return {LCD::cols, LCD::rows}; }
+
       inline static uint8_t _row = 0;
 
       static void put(char c)              { LCD::print(c); }
@@ -28,20 +34,16 @@ namespace oneMenu {
     template<typename O> using Part = Raw::Part<_Part<O>>;
   };
 
-  // LcdDisplay<Lcd, cols, rows>: ready-made OutDef for character LCDs.
-  // Usage:
-  //   using MyLcd = oneIO::display::I2cLcd<AvrTwiMaster<>, 0x27>;
-  //   LcdDisplay<MyLcd, 20, 4> lcdDisplay;
-  //   // setup: MyLcd::begin();
-  template<typename Lcd, Sz cols, Sz rows>
-  using LcdDisplay = OutDef<
-    FullPrinter,
+  // LcdOut<Lcd, Printer>: composed OutDef for character LCDs — the central piece.
+  // Printer defaults to NoTitleScrollPrinter; use NoTitlePrinter for tiny devices.
+  template<typename Lcd, typename Printer = NoTitleScrollPrinter>
+  struct LcdOut : OutDef<
+    Printer,
     TextFmt,
     DataParser<>,
     Cursor<1, 1>,
-    LcdOut<Lcd>,
-    StaticPos<0, 0>,
-    StaticArea<cols, rows>
-  >;
+    LcdDisplay<Lcd>,
+    StaticPos<0, 0>
+  > {};
 
 } // namespace oneMenu
