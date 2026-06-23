@@ -21,6 +21,19 @@ HAPI-based composable menu system for embedded targets. Zero dynamic allocation,
 | `IO/arduino/webOut.h` | ESP32 `WebServer` — streams XML + XSLT |
 | `IO/streamOut.h` | `std::ostream` (native/Linux) |
 
+## Formats
+
+| Header | Target | Output |
+|--------|--------|--------|
+| `fmt/textFmt.h` | All | Plain text, one line per item |
+| `fmt/ansiFmt.h` | Linux/native | ANSI color, cursor positioning, partial repaint |
+| `fmt/gfxFmt.h` | OLED/pixel display | Pixel-level layout, rounded selection, big title |
+| `fmt/xmlFmt.h` | Web/serial | XML with CDATA-wrapped labels; paired with `menu.xsl` |
+| `fmt/jsonFmt.h` | Web/serial/debug | JSON object per item, all attributes as properties |
+| `fmt/htmlFmt.h` | Web | HTML fragment |
+
+Format layers slot into `OutDef<Printer, **Fmt**, DataParser<>, Cursor<>, Device, Pos, Area>`.
+
 ## Quick start
 
 ```cpp
