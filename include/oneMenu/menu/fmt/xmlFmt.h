@@ -14,16 +14,28 @@ namespace oneMenu  {
     struct Part:Formats::template Part<O> {
       using Base=typename Formats::template Part<O>;
 
-      int  indent {0};
-      int  datasec{0};
-      bool attr   {false};
+      int  indent    {0};
+      int  datasec   {0};
+      bool attr      {false};
+      bool inItem    {false};
+      bool autoCDATA {false}; // auto-started CDATA for plain item body text
 
       // Close open element tag before any inline content
       void closeAttr() { if(attr) { attr=false; Base::put('>'); } }
 
-      template<typename T> void put(T v)      { closeAttr(); Base::put(v); }
-      void put(const char* s, Sz n)           { closeAttr(); Base::put(s,n); }
-      void nl()                               { closeAttr(); Base::nl(); }
+      // put() from CRTP outer — plain item body text needs auto CDATA wrap.
+      // puts from own handlers use Base::put() directly, bypassing this.
+      template<typename T> void put(T v) {
+        if(inItem && datasec==0 && !autoCDATA) { closeAttr(); Base::put("<![CDATA["); autoCDATA=true; }
+        else closeAttr();
+        Base::put(v);
+      }
+      void put(const char* s, Sz n) {
+        if(inItem && datasec==0 && !autoCDATA) { closeAttr(); Base::put("<![CDATA["); autoCDATA=true; }
+        else closeAttr();
+        Base::put(s,n);
+      }
+      void nl() { closeAttr(); Base::nl(); }
 
       template<Fmt tag>
       static constexpr const char* tagName() {
@@ -121,6 +133,7 @@ namespace oneMenu  {
           Base::put(" path=\"");
           putItemPath(ctx);
           Base::put('"');
+          inItem=true; autoCDATA=false;
         }
         // path on labels and titles enables client-side XSLT string translation
         // without ancestor traversal: <lbl path="/1/3/">Motor Power</lbl>
@@ -151,7 +164,9 @@ namespace oneMenu  {
           }
           return;
         }
+        if(tag==Fmt::Item && autoCDATA) { Base::put("]]>"); autoCDATA=false; inItem=false; }
         closeAttr();
+        if(tag==Fmt::Item) inItem=false;
         if(tag&(Fmt::View|Fmt::Menu|Fmt::Body)) {
           indent--;
           for(int n=indent; n>0; n--) Base::put("  ");
