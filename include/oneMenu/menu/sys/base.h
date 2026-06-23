@@ -82,9 +82,10 @@ namespace oneMenu {
   using Area=XY;
   
   struct CKE {
-    Cmd cmd;
-    Key key;
-    bool ext;
+    Cmd  cmd = Cmd::None;
+    Key  key = 0;
+    bool ext = false;
+    bool kbd = false;  // true for raw keyboard key events (was isKbd template param)
   };
 
   template<typename Cor> struct Colors{Cor fg;Cor bg;};

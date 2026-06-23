@@ -39,6 +39,7 @@ namespace oneMenu {
     using Base::print;
     template<typename Out> constexpr void printItem(Out&,Ctx&) {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
+    template<typename Nav,typename P> static constexpr bool setStr(Nav&,const char*,P) {return false;}
     //Id--
     // static constexpr int getId() {return -1;}
     // template<int> using HasId=std::false_type;
@@ -78,6 +79,11 @@ namespace oneMenu {
     template<bool isKbd,typename Nav>
     bool nav(Nav& n,const CKE& cke,const Path p) {
       return enabled()?Base::template nav<isKbd>(n,cke,p):cke.cmd==Cmd::Enter;
+    }
+
+    template<typename Nav,typename P>
+    bool setStr(Nav& n,const char* s,P p) {
+      return enabled()?Base::template setStr(n,s,p):false;
     }
 
     template<typename Out> bool printItem(Out& out,Ctx& ctx) {

@@ -24,6 +24,16 @@ namespace oneMenu {
       template<Fmt tag> std::enable_if_t<tag&Fmt::NavCursor> fmtStart(const Ctx&) {}
       template<Fmt tag> std::enable_if_t<tag&Fmt::NavCursor> fmtStop(const Ctx&)  {}
 
+      // Emit the absolute path for the item being rendered as a URL query string.
+      // Caller wraps with href="/cmd?at=" ... "\"".
+      void putItemHref(const Ctx& ctx) {
+        Base::put("/cmd?at=");
+        for (int i = 0; i < ctx.at; i++) { Base::put('/'); Base::put(ctx.path.data[i]); }
+        Base::put('/');
+        Base::put(ctx.idx);
+        Base::put('/');
+      }
+
       template<Fmt tag>
       std::enable_if_t<tag==Fmt::View>
       fmtStart(const Ctx&) {
@@ -70,12 +80,15 @@ namespace oneMenu {
       std::enable_if_t<tag&Fmt::Item>
       fmtStart(const Ctx& ctx) {
         m_sel = bool(ctx);
+        Base::put("<a href=\"");
+        putItemHref(ctx);
+        Base::put("\">");
         Base::put(m_sel ? "<div class=\"i s\">" : "<div class=\"i\">");
       }
 
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::Item>
-      fmtStop(const Ctx&) { Base::put("</div>"); }
+      fmtStop(const Ctx&) { Base::put("</div></a>"); }
 
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::Footer>

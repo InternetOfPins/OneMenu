@@ -65,15 +65,14 @@ namespace oneMenu {
     template<typename In>
     struct Part : In {
       static bool available() {
-        return _btn || (_delta >= Steps) || (_delta <= -int8_t(Steps));
+        return _btn || (_delta >= Steps) || (_delta <= -int8_t(Steps)) || In::available();
       }
 
-      template<typename Nav>
-      static bool cmd(Nav& nav) {
-        if (_btn)                    { _btn = false;      return nav.enter(); }
-        if (_delta >=  int8_t(Steps)){ _delta -= Steps;   return nav.up();    }
-        if (_delta <= -int8_t(Steps)){ _delta += Steps;   return nav.down();  }
-        return In::cmd(nav);
+      static CKE cmd() {
+        if (_btn)                       { _btn = false;    return {Cmd::Enter}; }
+        if (_delta >=  int8_t(Steps))   { _delta -= Steps; return {Cmd::Up};   }
+        if (_delta <= -int8_t(Steps))   { _delta += Steps; return {Cmd::Down}; }
+        return In::cmd();
       }
     };
   };

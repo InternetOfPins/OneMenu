@@ -21,6 +21,8 @@ namespace oneMenu {
     template<typename Out> static constexpr bool printInline(Out&,Ctx&) noexcept {return false;}
     template<bool isKbd,typename Nav>
     static constexpr bool nav(Nav&,const CKE&,Path,Sz=0) noexcept {return false;}
+    template<typename Nav,typename P>
+    static constexpr bool setStr(Nav&,const char*,P,Sz=0) noexcept {return false;}
     static constexpr bool changed() noexcept {return false;}
   };
 
@@ -71,6 +73,10 @@ namespace oneMenu {
   template<bool isKbd,typename Nav>
   bool nav(Nav& n,const CKE& cke,Path path,Sz i)
     {return i?((Tail&)tail).template nav<isKbd>(n,cke,path,i-1):head.template nav<isKbd>(n,cke,path);}
+
+  template<typename Nav,typename P>
+  bool setStr(Nav& n,const char* s,P p,Sz i)
+    {return i?((Tail&)tail).setStr(n,s,p,i-1):head.setStr(n,s,p);}
 
   bool changed() {return head.changed()||((Tail&)tail).changed();}
 

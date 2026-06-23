@@ -5,23 +5,35 @@
 #include "oneMenu/menu/sys/printers.h"
 #include "oneMenu/menu/item.h"
 #include "oneMenu/menu/sys/charMask.h"
+#include <oneData/oneData.h>
 
 namespace oneMenu {
   template<Sz sz,typename Mask=CharMask::ASCII7>
   struct TextField {
     template<typename I>
-    struct PartEnd:I {
-      using Base=I;
-      char text[sz+1]{"Rui Azevedo"};
+    struct PartEnd : oneData::Data<char[sz+1]>::template Part<I> {
+      using Base    = typename oneData::Data<char[sz+1]>::template Part<I>;
+      using Base::Base;
+      using Base::get;
+      using Base::set;   // set(const char*) — for web / async value injection
+
+      template<typename Nav,typename P>
+      bool setStr(Nav&,const char* s,P p) {
+        if(p.len==0) { set(s); return true; }
+        return false;
+      }
+
       char chk{0};
       bool edited{false};
-      // constexpr Part():text{0} {}
+
       static constexpr Sz size() {return sz;}
       static constexpr Sz depth() {return 2;}
       bool changed() const {return edited;}
       void sync() {edited=false;}
+
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
+        const char* text = get();
         Sz i=ctx.sel();
         if (ctx) {
           out.put(&text[0],i);
@@ -39,21 +51,22 @@ namespace oneMenu {
 
       template<bool isKbd,typename Nav>
       std::enable_if_t<isKbd,bool> nav(Nav& n,const CKE& cke,const Path& path) {
+        char* text = get();
         if(n.navMode()==NavMode::Edit) {
           if(cke.cmd==Cmd::Key) {
             if(cke.key==8||cke.key==127) {//backspace
-              if(path.sel()>0) for(int n=path.sel();n<=sz;n++) text[n-1]=text[n];
+              if(path.sel()>0) for(int k=path.sel();k<=sz;k++) text[k-1]=text[k];
               edited=true;
               return n.doNav({Cmd::Down},ss(),false);
             } else if(cke.ext) {//extended keys
-              if(cke.key==0x33) for(int n=path.sel();n<sz;n++) text[n]=text[n+1];//delete
+              if(cke.key==0x33) for(int k=path.sel();k<sz;k++) text[k]=text[k+1];//delete
               else if(cke.key==0x48) n.go(0);//home
               else if(cke.key==0x46) n.go(ss());//end
               else return true;
               edited=true;
               return true;
             } else if(Mask::chk(cke.key)) {//write char
-              for(int n=sz-1;n>path.sel();n--) text[n]=text[n-1];
+              for(int k=sz-1;k>path.sel();k--) text[k]=text[k-1];
               text[path.sel()]=cke.key;
               edited=true;
               return n.doNav({Cmd::Up},ss()+1,false);
@@ -63,7 +76,7 @@ namespace oneMenu {
         }
         return Base::template nav<isKbd>(n,cke,path);
       }
-      protected: Sz ss() const {return strnlen(text,sz-1);}
+      protected: Sz ss() const {return strnlen(get(),sz-1);}
     };
     template<typename I> using Part=PadDraw::template Part<PartEnd<I>>;
   };

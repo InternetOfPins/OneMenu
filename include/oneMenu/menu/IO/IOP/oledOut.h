@@ -23,7 +23,7 @@ namespace oneMenu {
       static void setPos(const Pos& p)      { Oled::setCursor(p.x, p.y); }
       static void setBigFont(bool v)        { Oled::setBigFont(v); }
       static void clear()                   { Oled::clear(); Oled::setCursor(0,0); O::clear(); }
-      static void resume()                  { Oled::setInverted(false); Oled::setCursor(0, 0); O::resume(); }
+      // static void resume()                  { Oled::setInverted(false); Oled::setCursor(0, 0); O::resume(); }
       static void setInverted(bool v)       { Oled::setInverted(v); }
       template<typename Cor>
       static void setColors(Cor, Cor)       {}

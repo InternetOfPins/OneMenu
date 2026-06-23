@@ -20,7 +20,7 @@ namespace oneMenu {
   enum class Pad {no,yes};
   enum class NavMode {Nav,Edit,Tune};
 
-  enum class Cmd {Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
+  enum class Cmd {None=0,Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
 
   template<typename T> inline constexpr int operator|(T   a,T   b){return (int)a|(int)b;}
   template<typename T> inline constexpr int operator|(int a,T   b){return (int)a|(int)b;}
@@ -35,8 +35,8 @@ namespace oneMenu {
   enum class Fmt:int {
     None=0<<0,View=1<<0,Title=1<<1,Menu=1<<2,Body=1<<3,Item=1<<4,
     Index=1<<5,Accel=1<<6,NavCursor=1<<7,
-    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13,
-    Footer=1<<14
+    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13/*,
+    Footer=1<<14*/
   };
 
   /// @brief lock/unlock print output

@@ -6,73 +6,100 @@
  * @brief PC keyboard extended codes parser
  * @version 5
  * @date 2024-11-13
- * 
+ *
+ * Translates ANSI/VT100 escape sequences and raw chars to CKE values.
+ * No nav reference is needed — callers receive the CKE and dispatch locally.
+ * The rare ESC+char double-command is handled via a one-slot _pending queue;
+ * available() exposes it so outer drivers drain before reading new input.
  */
 
 #include "oneMenu/menu/in.h"
 #include <tinyTimeUtils.h>
 
 namespace oneMenu {
-  /// @brief handles PC keyboard extended codes (arrow keys) and translates them to menu commands
+
   struct PCKbd {
     template<typename O>
-    struct Part:O {
-      template<typename Nav>//needed to cleanup delayed values
-      static inline bool cmd(Nav& nav) {return parseKey(nav,0);}
-      template<typename Nav>
-      static bool parseKey(Nav& nav,Key k) {
-        static Key esc=0;
-        static Key term=0;
-        static TinyTimeUtils::Timeout<30> escTimer;
-        if (esc==1 && escTimer&&!k) {
-          esc = 0;
-          return nav.template doCmd<true>(Cmd::Esc,0,false);
+    struct Part : O {
+
+      inline static CKE _pending{};  // Cmd::None = nothing queued
+
+      static bool available() { return _pending.cmd != Cmd::None || O::available(); }
+
+      // Poll with no new key — used for ESC timeout and draining _pending.
+      static CKE cmd() {
+        if (_pending.cmd != Cmd::None) {
+          CKE r = _pending;
+          _pending.cmd = Cmd::None;
+          return r;
         }
-        if(k==term||!k) return false;
-        if (esc==1) {
+        return parseKey(Key(0));
+      }
+
+      static CKE parseKey(Key k) {
+        static Key esc  = 0;
+        static Key term = 0;
+        static TinyTimeUtils::Timeout<30> escTimer;
+
+        // ESC timeout: ESC was received but no bracket followed within 30ms.
+        if (esc == 1 && escTimer && !k) {
+          esc = 0;
+          return {Cmd::Esc, 0, false, true};
+        }
+
+        if (k == term || !k) return {};  // suppressed terminator or no input
+
+        if (esc == 1) {
           if (k == '[') {
             esc = 2;
-            return false;
+            return {};  // absorb; wait for sequence body
           } else {
-            esc=0;
+            // ESC followed immediately by a non-bracket key:
+            // deliver Esc first, queue the Key char for next poll.
+            esc = 0;
             escTimer.reset();
-            return nav.template doCmd<false>(Cmd::Esc)&&
-                  nav.template doCmd<false>(Cmd::Key,k);
+            _pending = {Cmd::Key, k, false, false};
+            return {Cmd::Esc, 0, false, false};
           }
-        } else if(esc==2) {
-          term=0x7E;
-          esc=0;
-          switch(k) {
-            case 'A':return nav.template doCmd<false>(Cmd::Down);
-            case 'B':return nav.template doCmd<false>(Cmd::Up);
-            case 'C':return nav.template doCmd<false>(Cmd::Left);
-            case 'D':return nav.template doCmd<false>(Cmd::Right);
-            default: 
-              esc=0;
-              return O::parseKey(nav,k)||nav.template doCmd<true>(Cmd::Key,k,true);
+
+        } else if (esc == 2) {
+          term = 0x7E;
+          esc  = 0;
+          switch (k) {
+            case 'A': return {Cmd::Down};
+            case 'B': return {Cmd::Up};
+            case 'C': return {Cmd::Left};
+            case 'D': return {Cmd::Right};
+            default: {
+              // Unknown escape sequence: let inner chain try, else emit Key.
+              CKE r = O::parseKey(k);
+              return r.cmd != Cmd::None ? r : CKE{Cmd::Key, k, false, true};
+            }
           }
+
         } else {
-          esc=0;
-          if(k==0x1B) {// \e
-            esc=1;
+          esc = 0;
+          if (k == 0x1B) {  // ESC start
+            esc = 1;
             escTimer.reset();
-            return false;
-          } else {
-            esc=0;
-            switch (k) {
-            case 0x1B:
+            return {};
+          }
+          switch (k) {
             case 0xA:
-              term=0xD;
-              return nav.template doCmd<false>(Cmd::Enter);
+              term = 0xD;
+              return {Cmd::Enter};
             case 0xD:
-              term=0xA;
-              return nav.template doCmd<false>(Cmd::Enter);
-            default:
-              return nav.template doCmd<true>(Cmd::Key,k)||O::parseKey(nav,k);
+              term = 0xA;
+              return {Cmd::Enter};
+            default: {
+              // Raw key: let inner chain try first, else emit as Key event.
+              CKE r = O::parseKey(k);
+              return r.cmd != Cmd::None ? r : CKE{Cmd::Key, k, false, true};
             }
           }
         }
       }
     };
   };
-};//namespace oneMenu 
+
+};//namespace oneMenu

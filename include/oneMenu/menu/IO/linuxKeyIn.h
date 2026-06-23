@@ -49,13 +49,17 @@ static int getch() {
 /// @brief POSIX system key reader
 struct LinuxKeyIn {
   template<typename In>
-  struct Part:In {
-    // using In::In;
-    static bool available() {return kbhit();}
-    inline Part() {set_conio_terminal_mode();}//capture the keyboard
-    inline ~Part() {reset_terminal_mode();}//reset the capture state
-    template<typename Nav>
-    inline bool cmd(Nav& nav) 
-      {return available()?In::parseKey(nav,getch()):In::cmd(nav);}
+  struct Part : In {
+    inline Part() {set_conio_terminal_mode();}
+    inline ~Part() {reset_terminal_mode();}
+
+    static bool available() { return In::available() || kbhit(); }
+
+    oneMenu::CKE cmd() {
+      // Drain any pending event from the inner component first.
+      if (In::available()) return In::cmd();
+      // Otherwise read stdin if ready.
+      return kbhit() ? In::parseKey(oneMenu::Key(getch())) : In::cmd();
+    }
   };
 };

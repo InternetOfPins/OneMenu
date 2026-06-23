@@ -89,6 +89,8 @@ namespace oneMenu {
         if(tag&Fmt::Item) {
           if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?WHITE:BLACK,GREEN);
           Base::nl();
+        } else if(tag==Fmt::Title) {
+          Base::nl();
         }
         Base::template fmtStop<tag>(ctx);
       }

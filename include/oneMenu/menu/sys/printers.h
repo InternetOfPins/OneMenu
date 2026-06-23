@@ -120,7 +120,7 @@ namespace oneMenu {
       using IsPrinter=std::true_type;
       using Base=typename BodyPrinter::Part<P>;
       using Base::lockMode;
-      using Base::pos;
+      using Base::getPos;
       using Base::free;
       using Base::setPos;
 
@@ -128,12 +128,14 @@ namespace oneMenu {
       bool printMenu(I& i,Ctx& ctx) {
         if(i.size()==0) return false;
         LockMode om=lockMode();
-        Sz x=Base::pos().x;
-        Sz y=Base::pos().y;
+        // Changed/Sync are read-only traversals — skip scroll state changes entirely
+        if(om==LockMode::Changed||om==LockMode::Sync) return Base::printMenu(i,ctx);
+        Sz x=Base::getPos().x;
+        Sz y=Base::getPos().y;
         if(ctx.sel(ctx.pAt)<0) ctx.path.data[(int)ctx.pAt]=0;
         else if(ctx.sel(ctx.pAt)>=i.size()) ctx.path.data[(int)ctx.pAt]=i.size()-1;
         if(ctx.sel(ctx.pAt)<ctx.top()) {
-          ctx.top(ctx.sel());//--scroll down
+          ctx.top(ctx.sel());//--scroll up
           om=LockMode::None;//scroll => full redraw
         } else for(;;) {
           lockMode(LockMode::Measure);
@@ -146,7 +148,7 @@ namespace oneMenu {
           ctx.idx=0;
           if(ctx.sel(ctx.pAt)<ci&&(!(ctx.sel(ctx.pAt)==(ci-1)&&f<0))) break;
           setPos(Pos{x,y});
-          ctx.top(ctx.top()+1);//--scroll up
+          ctx.top(ctx.top()+1);//--scroll down
           om=LockMode::None;//scroll => full redraw
         };
         lockMode(om);
@@ -160,6 +162,10 @@ namespace oneMenu {
           ctx.idx++;
           return false;
         }
+        // In Changed/Sync traversal Gate already gates output — bypass free().y area check
+        // so visible items' changed()/sync() is actually reached.
+        LockMode m=Base::lockMode();
+        if(m==LockMode::Changed||m==LockMode::Sync) return Base::printItem(i,ctx);
         return Base::free().y>0?Base::printItem(i,ctx):false;
       }
     };
@@ -182,7 +188,7 @@ namespace oneMenu {
       using Base::fmtStop;
       using Base::lockMode;
       using Base::setPos;
-      using Base::pos;
+      using Base::getPos;
       template<typename I>
       bool printItem(I& i,Ctx& ctx) {
         LockMode om=lockMode();

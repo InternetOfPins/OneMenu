@@ -29,7 +29,7 @@ namespace oneMenu {
       
       void nl() {
         O::nl();
-        setPos({0,O::obj().pos().y});
+        setPos({0,O::obj().getPos().y});
       }
 
       void clear() {
