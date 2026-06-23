@@ -221,14 +221,14 @@ namespace oneMenu {
       using F::fmtStop;
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::Item> fmtStart(const Ctx& ctx) {
-        F::template fmtStart<tag>(ctx);
         if(ctx && (!ctx.pad || (ctx.after()>1&&(ctx.sel(ctx.pAt) == ctx.pIdx)))) m_text_cursor_at=F::obj().getPos();
+        F::template fmtStart<tag>(ctx);
       }
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::EditCursor> fmtStart(const Ctx& ctx) {
-        F::template fmtStart<tag>(ctx);
-        m_editing=true;
         m_text_cursor_at=F::obj().getPos();
+        m_editing=true;
+        F::template fmtStart<tag>(ctx);
       }
     protected:
       Pos m_text_cursor_at{0,0};
