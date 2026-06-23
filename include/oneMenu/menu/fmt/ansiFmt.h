@@ -26,6 +26,7 @@ namespace oneMenu {
       using Base::setColors;
       using Base::clear;
       using Base::nl;
+      using Base::clearToEOL;
       using Base::clearLine;
       using Base::clearFree;
       using Base::put;
@@ -88,9 +89,14 @@ namespace oneMenu {
       void fmtStop(const Ctx& ctx) {
         if(tag&Fmt::Item) {
           if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?WHITE:BLACK,GREEN);
+          clearToEOL();
           Base::nl();
         } else if(tag==Fmt::Title) {
+          clearToEOL();
           Base::nl();
+        } else if(tag==Fmt::View) {
+          setColors(WHITE,BLUE);
+          clearFree();
         }
         Base::template fmtStop<tag>(ctx);
       }

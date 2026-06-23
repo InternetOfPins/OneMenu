@@ -455,7 +455,7 @@ namespace oneMenu {
       // clearLine:  clearToEOL + nl — for clearing whole blank rows
       void clearToEOL() {Base::padWith(free().x/glyphWidth(' '));}
       void clearLine()  {clearToEOL(); nl();}
-      void clearFree()  {do clearLine(); while(free().y);}
+      void clearFree()  {while(free().y>0) clearLine();}
       Sz fieldWidth() const {return m_fieldWidth;}
       // Pos pos() const {return m_at;}
       Pos getPos() const {return m_at;}
