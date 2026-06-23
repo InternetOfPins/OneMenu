@@ -56,7 +56,7 @@ namespace oneMenu {
   struct IOut {
     virtual void lockMode(LockMode)=0;
     virtual LockMode lockMode()=0;
-    virtual void resume()=0;
+    // virtual void resume()=0;
     virtual void fmtStart(Fmt,const Ctx&)=0;
     virtual void fmtStop(Fmt,const Ctx&)=0;
     virtual void setPos(const Pos&)=0;
@@ -77,7 +77,7 @@ namespace oneMenu {
     using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,OO...>;
     virtual void lockMode(LockMode m) {Base::lockMode(m);}
     virtual LockMode lockMode() {return Base::lockMode();}
-    virtual void resume() override {Base::resume();}
+    // virtual void resume() override {Base::resume();}
     using Base::fmtStart;
     using Base::fmtStop;
     virtual void fmtStart(Fmt tag,const Ctx& ctx) override {
@@ -97,7 +97,7 @@ namespace oneMenu {
         case Fmt::EditCursor: Base::template fmtStart<Fmt::EditCursor>(ctx);break;
         case Fmt::Data: Base::template fmtStart<Fmt::Data>(ctx);break;
         case Fmt::Unit: Base::template fmtStart<Fmt::Unit>(ctx);break;
-        case Fmt::Footer: Base::template fmtStart<Fmt::Footer>(ctx);break;
+        // case Fmt::Footer: Base::template fmtStart<Fmt::Footer>(ctx);break;
       }
       // Base::template fmtStart<tag>(ctx);
     }
@@ -118,7 +118,7 @@ namespace oneMenu {
         case Fmt::EditCursor: Base::template fmtStop<Fmt::EditCursor>(ctx);break;
         case Fmt::Data: Base::template fmtStop<Fmt::Data>(ctx);break;
         case Fmt::Unit: Base::template fmtStop<Fmt::Unit>(ctx);break;
-        case Fmt::Footer: Base::template fmtStop<Fmt::Footer>(ctx);break;
+        // case Fmt::Footer: Base::template fmtStop<Fmt::Footer>(ctx);break;
       }
       // Base::template fmtStop<tag>(ctx);
     }
@@ -199,7 +199,7 @@ namespace oneMenu {
         lockMode(LockMode::Update);
         return {Base::posX()-o.x,Base::posY()-o.y};
       }
-      void resume() {m_lock_mode=LockMode::None;Base::resume();}
+      // void resume() {m_lock_mode=LockMode::None;Base::resume();}
       bool unlocked() const {return lockMode()==LockMode::None;}
       bool updating() const {return lockMode()==LockMode::Update;}
       bool locked() const {return !unlocked();}
@@ -274,10 +274,10 @@ namespace oneMenu {
       using RawDevice=std::true_type;
       using Base=typename Gate::Part<O>;
       static void _nl() {Base::nl();}
-      static void _flush() {Base::flush();}
+      // static void _flush() {Base::flush();}//not locked
       template<typename T> void _put(const T o) {Base::put(o);}
-      void _setPos(Sz x,Sz y) {Base::setPos(x,y);}
-      void _setPos(const Pos& o) {Base::setPos(o);}
+      // void _setPos(Sz x,Sz y) {Base::setPos(x,y);}//old stuff
+      // void _setPos(const Pos& o) {Base::setPos(o);}
       void padWith(Sz n,const char o=' ') {for(;n>0;n--) Base::obj().put(o);}
     };
   };
@@ -408,7 +408,7 @@ namespace oneMenu {
       void setColors(Cor f,Cor b) {m_fg=f;m_bg=b;m_set=true;Base::setColors(f,b);}
       void setColors(const Colors<Cor>& o) {m_fg=o.fg;m_bg=o.bg;m_set=true;Base::setColors(o.fg,o.bg);}
       Colors<Cor> getColors() const {return {m_fg,m_bg};}
-      void resume() {Base::resume();if(m_set) Base::setColors(m_fg,m_bg);}
+      // void resume() {Base::resume();if(m_set) Base::setColors(m_fg,m_bg);}//direction is correct
       private:
         Cor m_fg{};
         Cor m_bg{};
@@ -455,14 +455,15 @@ namespace oneMenu {
       void clearLine()  {clearToEOL(); nl();}
       void clearFree()  {do clearLine(); while(free().y);}
       Sz fieldWidth() const {return m_fieldWidth;}
-      Pos pos() const {return m_at;}
+      // Pos pos() const {return m_at;}
       Pos getPos() const {return m_at;}
       void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
-      void resume() {
-        m_at = {Base::orgX(), Base::orgY()};
-        m_fieldWidth = 0;
-        Base::resume();
-      }
+      // void resume() {
+      //   Base::setPOs(m_at);
+      //   // m_at = {Base::orgX(), Base::orgY()};
+      //   // m_fieldWidth = 0;
+      //   Base::resume();
+      // }
       Pos area() const {return {fieldWidth(),m_at.y};}
       void clear() {
         m_at.x=0;

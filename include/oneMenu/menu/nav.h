@@ -90,26 +90,30 @@ namespace oneMenu {
       bool changed() const {
         return m_level.changed()
           ||m_navMode.changed()
-          ||m_prevSel!=sel();
+          ||m_prevSel!=sel();//however items will check later if the are on focus or just blur (Ctx sel and prev. sel) and signal a draw (on update)
       }
 
       template<typename Out>
       bool changed(Out& out) {
-        if(m_level.changed()) {
-          out.lockMode(LockMode::None);
-          out.clear();           // resets m_at to {0,0} + hardware clear
-          return true;
-        }
-        if(m_navMode.changed()||m_prevSel!=sel()) {
-          out.resume();          // resets m_at to {orgX,orgY} + device state (invert, cursor)
-          out.lockMode(LockMode::Update); // resume forces None; set Update after
-          return true;
-        }
+        if(changed()) return true;
+        //changed should not modify the output NEVER, it has to remain faithful to the print  process
+        // if(m_level.changed()) {
+        //   out.lockMode(LockMode::None);
+        //   out.clear();           // resets m_at to {0,0} + hardware clear
+        //   return true;
+        // }
+        // if(m_navMode.changed()||m_prevSel!=sel()) {
+        //   // out.resume();          // resets m_at to {orgX,orgY} + device state (invert, cursor)
+        //   out.lockMode(hapi::TagIs<PartialDraw>::Check<Out>::value?LockMode::Update:LockMode::None); // resume forces None; set Update after
+        //   return true;
+        // }
         LockMode om=out.lockMode();
         out.lockMode(LockMode::Changed);
         bool r=printTo(out);    // probe: Gate suppresses all hardware, m_at drift is harmless
-        if(r) out.resume();     // data changed: reset for full redraw; resume sets None
-        else out.lockMode(om);
+        // out.setPos({0,0});//this is clear() job
+        // if(r) out.resume();     // data changed: reset for full redraw; resume sets None
+        // else 
+        out.lockMode(om);
         return r;
       }
 
@@ -120,7 +124,9 @@ namespace oneMenu {
         Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
         // dout<<xy<0,1><<colors<BLACK,RED><<ctx<<padWith<10><<flush;out.resume();
         // dout<<xy<0,2><<" level:"<<level()<<" path:"<<path()<<padWith<10><<flush;
-        return root().printMenu(out,ctx);
+        bool r=root().printMenu(out,ctx);
+        out.flush();
+        return r;
       }
 
       template<bool isKbd>
@@ -147,7 +153,13 @@ namespace oneMenu {
         return true;
       }
 
-      template<typename In>  bool in(In& in) {return in.cmd(Base::obj());}
+      template<typename In>
+      bool in(In& in) {
+        CKE cke = in.cmd();
+        if (cke.cmd == Cmd::None) return false;
+        return cke.kbd ? doCmd<true> (cke.cmd, cke.key, cke.ext)
+                       : doCmd<false>(cke.cmd, cke.key, cke.ext);
+      }
 
       void go(Sz i,Depth delta=0) {
         assert(m_level+delta<depth());
@@ -184,6 +196,23 @@ namespace oneMenu {
       oneData::DataDef<Watch<oneData::Data<Depth>>> m_level{0};
       Depth m_print_level{0};
       oneData::DataDef<Watch<oneData::Data<NavMode>>> m_navMode{NavMode::Nav};
+    };
+  };
+
+  // Handles Cmd::Go from IdParser: jumps to item N at current level then enters it.
+  // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav, Root<...>>
+  struct IndexGo {
+    template<typename N>
+    struct Part : N {
+      using Base = N;
+      template<bool kbd = false>
+      bool doCmd(Cmd c, Key k = 0, bool e = false) {
+        if (c == Cmd::Go) {
+          Base::go(Sz(k) - 1);  // IdParser emits 1-based; go() is 0-based
+          return Base::template doCmd<false>(Cmd::Enter);
+        }
+        return Base::template doCmd<kbd>(c, k, e);
+      }
     };
   };
 

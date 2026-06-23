@@ -86,7 +86,10 @@ namespace oneMenu {
       // stop --
       template<Fmt tag>
       void fmtStop(const Ctx& ctx) {
-        if((tag&Fmt::Item)&&ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?WHITE:BLACK,GREEN);
+        if(tag&Fmt::Item) {
+          if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?WHITE:BLACK,GREEN);
+          Base::nl();
+        }
         Base::template fmtStop<tag>(ctx);
       }
     };

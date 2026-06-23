@@ -101,6 +101,12 @@ namespace oneMenu {
 
       static constexpr Depth depth() {return Body::depth()+1;}
 
+      template<typename Nav>
+      bool setStr(Nav& n,const char* s,Path p) {
+        if(p.len>0) return body.setStr(n,s,p.next(),p.sel());
+        return Base::setStr(n,s,p);
+      }
+
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,Path p) {
         if(p.len>0)

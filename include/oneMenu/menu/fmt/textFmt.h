@@ -30,6 +30,7 @@ namespace oneMenu {
 
       template<Fmt tag>
       void fmtStart(const Ctx& ctx) {
+        // dout<<"<"<<tag<<" mode=\""<<Base::lockMode()<<"\">"<<flush;
         switch(tag) {
           default:break;
           case Fmt::NavCursor:
@@ -43,18 +44,23 @@ namespace oneMenu {
             } else if(!ctx.pad) put(' ');
             break;
         }
+        Base::template fmtStart<tag>(ctx);
       }
 
       template<Fmt tag>
       void fmtStop(const Ctx&ctx) {
+        // dout<<"</"<<tag<<">"<<flush;
         switch(tag){
-          default:break;
           case Fmt::View:
           case Fmt::Title:
-          case Fmt::Footer:
+          // case Fmt::Footer:
           case Fmt::Item:
             if(!ctx.pad) Base::nl();
+            // dout<<endl;
+            break;
+          default:break;
         }
+        Base::template fmtStop<tag>(ctx);
       }
 
     };

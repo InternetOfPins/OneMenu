@@ -30,7 +30,7 @@ namespace oneMenu  {
         switch(tag) {
           case Fmt::View:       return "view";
           case Fmt::Title:      return "title";
-          case Fmt::Footer:     return "footer";
+          // case Fmt::Footer:     return "footer";
           case Fmt::Menu:       return "menu";
           case Fmt::Body:       return "body";
           case Fmt::Item:       return "item";
@@ -48,12 +48,20 @@ namespace oneMenu  {
       }
 
       static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditCursor|Fmt::EditMode|Fmt::Accel;
-      static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item|Fmt::Footer;
-      static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item|Fmt::Footer;
+      static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;//|Fmt::Footer;
+      static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;//|Fmt::Footer;
 
       void putPath(const Path& p, Depth s, Depth l) {
         Depth end = (s+l < p.len) ? s+l : p.len-1;
         for(int i=s; i<end; i++) { Base::put('/'); Base::put(p.data[i]); }
+        Base::put('/');
+      }
+
+      // Absolute path for the item currently being rendered:
+      // parent path (ctx.at levels) + this item's own index.
+      void putItemPath(const Ctx& ctx) {
+        putPath(ctx.path, 0, ctx.at);
+        Base::put(ctx.idx);
         Base::put('/');
       }
 
@@ -109,6 +117,23 @@ namespace oneMenu  {
           }
           indent++;
         }
+        if(tag==Fmt::Item) {
+          Base::put(" path=\"");
+          putItemPath(ctx);
+          Base::put('"');
+        }
+        // path on labels and titles enables client-side XSLT string translation
+        // without ancestor traversal: <lbl path="/1/3/">Motor Power</lbl>
+        if(tag==Fmt::Label) {
+          Base::put(" path=\"");
+          putItemPath(ctx);
+          Base::put('"');
+        }
+        if(tag==Fmt::Title) {
+          Base::put(" path=\"");
+          putPath(ctx.path, 0, std::min<Depth>(ctx.at, (Depth)(ctx.path.len-1)));
+          Base::put('"');
+        }
         Base::template fmtStart<tag>(ctx);
       }
 
@@ -134,7 +159,7 @@ namespace oneMenu  {
         Base::put("</");
         Base::put(tagName<tag>());
         Base::put('>');
-        if(tag&(Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Item|Fmt::Title|Fmt::Footer)) Base::nl();
+        if(tag&(Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Item|Fmt::Title/*|Fmt::Footer*/)) Base::nl();
       }
     };
   };

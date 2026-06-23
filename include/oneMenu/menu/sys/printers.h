@@ -94,19 +94,19 @@ namespace oneMenu {
   /// @brief footer boundary — emits fmtStart/fmtStop(Footer) so format layers
   /// can draw a separator, colour band, or nl. No default content is printed here;
   /// actual footer text is driven by OnFocus/Put::ToOut in individual items.
-  struct FooterPrinter : aPrinter {
-    template<typename O>
-    struct Part:O {
-      using IsPrinter=std::true_type;
-      using Base=O;
-      template<typename I>
-      bool printMenu(I& i,Ctx& ctx) {
-        Base::template fmtStart<Fmt::Footer>(ctx);
-        Base::template fmtStop<Fmt::Footer>(ctx);
-        return Base::printMenu(i,ctx)||i.changed();
-      }
-    };
-  };
+  // struct FooterPrinter : aPrinter {
+  //   template<typename O>
+  //   struct Part:O {
+  //     using IsPrinter=std::true_type;
+  //     using Base=O;
+  //     template<typename I>
+  //     bool printMenu(I& i,Ctx& ctx) {
+  //       // Base::template fmtStart<Fmt::Footer>(ctx);
+  //       // Base::template fmtStop<Fmt::Footer>(ctx);
+  //       return Base::printMenu(i,ctx)||i.changed();
+  //     }
+  //   };
+  // };
 
   /// @brief print scroll menu body
   struct ScrollBodyPrinter : aPrinter {
@@ -331,20 +331,20 @@ namespace oneMenu {
   // Full printers: title + body + footer
   using FullPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<TitlePrinter,BodyPrinter,FooterPrinter,ItemsPrinter>
+    MenuPrinter<TitlePrinter,BodyPrinter,/*FooterPrinter,*/ItemsPrinter>
   >;
   using ScrollPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<TitlePrinter,ScrollBodyPrinter,FooterPrinter,ItemsPrinter>
+    MenuPrinter<TitlePrinter,ScrollBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
   >;
 
   // No-title variants: body + footer only — default for small-display devices
   using NoTitlePrinter=Chain<
     ViewPrinter,
-    MenuPrinter<BodyPrinter,FooterPrinter,ItemsPrinter>
+    MenuPrinter<BodyPrinter,/*FooterPrinter,*/ItemsPrinter>
   >;
   using NoTitleScrollPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<ScrollBodyPrinter,FooterPrinter,ItemsPrinter>
+    MenuPrinter<ScrollBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
   >;
 };//oneMenu

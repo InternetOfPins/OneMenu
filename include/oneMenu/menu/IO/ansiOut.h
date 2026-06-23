@@ -13,7 +13,7 @@
 
 namespace oneMenu {
   /// @brief sends ANSI codes to the output
-  struct ANSIOut {
+  struct ANSIOut:PartialDraw {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Requires<RawDevice, After>, "ANSIOut: Raw (or aRawDevice) must be placed below ANSIOut — ANSIOut sends escape codes directly via _put()");
