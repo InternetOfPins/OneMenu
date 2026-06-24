@@ -14,7 +14,7 @@
  */
 
 #include "oneMenu/menu/in.h"
-#include <tinyTimeUtils.h>
+#include <oneChip/clock.h>
 
 namespace oneMenu {
 
@@ -39,7 +39,7 @@ namespace oneMenu {
       static CKE parseKey(Key k) {
         static Key esc  = 0;
         static Key term = 0;
-        static TinyTimeUtils::Timeout<30> escTimer;
+        static hw::Timeout<30> escTimer;
 
         // ESC timeout: ESC was received but no bracket followed within 30ms.
         if (esc == 1 && escTimer && !k) {

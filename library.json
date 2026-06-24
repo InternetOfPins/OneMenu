@@ -23,8 +23,8 @@
   "license": "MIT",
   "homepage": "https://github.com/InternetOfPins/OneMenu",
   "dependencies": {
-    "tinyTimeUtils":"https://github.com/neu-rah/tinyTimeUtils.git",
     "HAPI":">=0.4.1",
+    "OneChip":"https://github.com/InternetOfPins/OneChip.git",
     "OneData":">=0.1.13",
     "OneItem":">=0.1.3",
     "OneOutput":">=0.0.5",

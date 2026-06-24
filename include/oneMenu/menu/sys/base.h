@@ -31,7 +31,7 @@
   #include <limits>
   #include <algorithm>
 #endif
-#include <tinyTimeUtils.h>
+#include <oneChip/clock.h>
 
 #include <hapi/hapi.h>
 // #include <oneList/oneList.h>
