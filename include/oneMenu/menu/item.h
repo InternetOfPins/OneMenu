@@ -294,7 +294,7 @@ namespace oneMenu {
         Base::printItem(out,ctx);
         out.setPos(out.getPos());
         if(ctx) {
-          if(ctx.mode==NavMode::Edit) Base::body.printItem(out,ctx,ctx.path.last());
+          if(ctx.mode==NavMode::Edit||ctx.after()>1) Base::body.printItem(out,ctx,ctx.path.last());
           else Base::body.printItem(out,ctx,m_sel);
         }
         else Base::body.printItem(out,ctx,m_sel);

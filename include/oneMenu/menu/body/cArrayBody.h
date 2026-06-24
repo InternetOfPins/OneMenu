@@ -10,11 +10,12 @@ namespace oneMenu {
     static constexpr Sz size() noexcept {return _sz;}
     static constexpr Sz size(Sz i) {assert(i<_sz);return data[i].size();}
 
-    bool changed() {
+    bool changed() const {
       bool c{false};
       for(Sz i=0;i<_sz;i++) c=c||data[i].changed();
       return c;
     }
+    void sync() {for(Sz i=0;i<_sz;i++) data[i].sync();}
 
     template<typename Out>
     void print(Out& out) const noexcept {
@@ -45,11 +46,12 @@ namespace oneMenu {
     static constexpr Sz size() noexcept {return _sz;}
     static constexpr Sz size(Sz i) {assert(i<_sz);return data[i]->size();}
 
-    bool changed() {
+    bool changed() const {
       bool c{false};
       for(Sz i=0;i<_sz;i++) c=c||data[i]->changed();
       return c;
     }
+    void sync() {for(Sz i=0;i<_sz;i++) data[i]->sync();}
 
     template<typename Out>
     void print(Out& out) const noexcept {

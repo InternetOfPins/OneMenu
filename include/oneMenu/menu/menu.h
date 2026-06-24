@@ -63,6 +63,9 @@ namespace oneMenu {
         return find<Q>();
       }
 
+      bool changed() const {return Base::changed()||body.changed();}
+      void sync() {Base::sync();body.sync();}
+
       template<typename Out>
       void print(Out& out) const {
         title.print(out);

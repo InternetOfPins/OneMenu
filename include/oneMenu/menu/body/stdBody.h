@@ -10,10 +10,14 @@ namespace oneMenu {
     Sz size() const {return T::size();}
     Sz size(Sz i) const {return T::operator[](i)->size();}
 
-    bool changed() {
+    bool changed() const {
       bool c{false};
       for(Sz i=0;i<T::size();i++) c=c||T::operator[](i)->changed();
       return c;
+    }
+
+    void sync() {
+      for(Sz i=0;i<T::size();i++) T::operator[](i)->sync();
     }
 
     template<typename Out>

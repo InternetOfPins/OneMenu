@@ -24,6 +24,7 @@ namespace oneMenu {
     template<typename Nav,typename P>
     static constexpr bool setStr(Nav&,const char*,P,Sz=0) noexcept {return false;}
     static constexpr bool changed() noexcept {return false;}
+    static constexpr void sync() noexcept {}
   };
 
   template<typename O, typename... OO>
@@ -78,7 +79,8 @@ namespace oneMenu {
   bool setStr(Nav& n,const char* s,P p,Sz i)
     {return i?((Tail&)tail).setStr(n,s,p,i-1):head.setStr(n,s,p);}
 
-  bool changed() {return head.changed()||((Tail&)tail).changed();}
+  bool changed() const {return head.changed()||((const Tail&)tail).changed();}
+  void sync() {head.sync();((Tail&)tail).sync();}
 
   };
 
