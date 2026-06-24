@@ -297,6 +297,7 @@ namespace oneMenu {
         using IsPrinter=std::true_type;
         using Base=O;
         using Base::Base;
+        template<typename Out> void print(Out&) const {}  // stop Base::print from escaping to O
         template<typename Out>
         void printItem(Out& out,Ctx& ctx) {}
       };

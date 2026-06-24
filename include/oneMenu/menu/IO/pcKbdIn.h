@@ -71,9 +71,10 @@ namespace oneMenu {
             case 'C': return {Cmd::Left};
             case 'D': return {Cmd::Right};
             default: {
-              // Unknown escape sequence: let inner chain try, else emit Key.
+              // Unknown escape sequence (e.g. Home=H, End=F, Del=3~): let inner chain try,
+              // else emit as extended key so text fields can distinguish from typed chars.
               CKE r = O::parseKey(k);
-              return r.cmd != Cmd::None ? r : CKE{Cmd::Key, k, false, true};
+              return r.cmd != Cmd::None ? r : CKE{Cmd::Key, k, true, true};
             }
           }
 

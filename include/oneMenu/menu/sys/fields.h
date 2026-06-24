@@ -132,7 +132,8 @@ namespace oneMenu {
 
   // TextField<N, Mask> is self-contained (storage inside the field),
   // so TextFieldDef needs no DataRef/Watch layer — just title + size + mask.
+  // TextField::Part is PadDraw (a ParentDraw subtype) so no extra ParentDraw needed.
   template<typename T, Sz N, typename Mask = CharMask::ASCII7>
   using TextFieldDef
-    =ItemDef<T,AsEditMode<>,EditField,ParentDraw,TextField<N,Mask>>;
+    =ItemDef<T,AsEditMode<>,EditField,TextField<N,Mask>>;
 };
