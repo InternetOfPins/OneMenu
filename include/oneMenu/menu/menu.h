@@ -12,6 +12,14 @@ namespace oneMenu {
   // Tag for passing Q as a value to avoid <Q> function-call template syntax (C++17 ambiguity workaround)
   template<typename Q> struct BodyQ {};
 
+  namespace detail {
+    // Declared here (BodyQ<Q> available), defined in staticBody.h (Body::Head/Tail available).
+    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int> = 0>
+    auto& findBody(BodyQ<Q>, Body&);
+    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int> = 0>
+    const auto& findBody(BodyQ<Q>, const Body&);
+  }
+
   //TODO: make this just a query target, it will give the boolean we need, we can generalize this type of tags here
   struct WrapNav {
     template<typename I>
@@ -47,12 +55,18 @@ namespace oneMenu {
       template<typename Q> auto& find() {
         if constexpr (hapi::query<Q, Types>)
           return hapi::template find<Q>(*this);
-        else { using BQ = BodyQ<Q>; return findBody(BQ{}, body); }
+        else {
+          static_assert(hapi::query<Q, Body>, "find<Q>: Q not found in chain or body");
+          using BQ = BodyQ<Q>; return detail::findBody(BQ{}, body);
+        }
       }
       template<typename Q> const auto& find() const {
         if constexpr (hapi::query<Q, Types>)
           return hapi::template find<Q>(*this);
-        else { using BQ = BodyQ<Q>; return findBody(BQ{}, body); }
+        else {
+          static_assert(hapi::query<Q, Body>, "find<Q>: Q not found in chain or body");
+          using BQ = BodyQ<Q>; return detail::findBody(BQ{}, body);
+        }
       }
       template<typename Q> auto& find(Q) {
         static_assert(hapi::is_predicate<Q>::value,"find(Q{}): Q must be a hapi predicate");
@@ -141,14 +155,14 @@ namespace oneMenu {
     using Node = ItemDef<Menu<T,B,MM...>>;
     if constexpr (hapi::query<Q, typename Node::Types::Tail>)
       return hapi::find<Q>(node);
-    else { using BQ = BodyQ<Q>; return findBody(BQ{}, node.body); }
+    else { using BQ = BodyQ<Q>; return detail::findBody(BQ{}, node.body); }
   }
   template<typename Q, typename T, typename B, typename... MM>
   const auto& find(const ItemDef<Menu<T,B,MM...>>& node) {
     using Node = ItemDef<Menu<T,B,MM...>>;
     if constexpr (hapi::query<Q, typename Node::Types::Tail>)
       return hapi::find<Q>(node);
-    else { using BQ = BodyQ<Q>; return findBody(BQ{}, node.body); }
+    else { using BQ = BodyQ<Q>; return detail::findBody(BQ{}, node.body); }
   }
 
 };//oneMenu

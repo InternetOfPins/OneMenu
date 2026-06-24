@@ -88,42 +88,36 @@ namespace oneMenu {
   constexpr StaticBody<OO...> staticBody(OO&&... oo)
     {return StaticBody<OO...>{std::forward<OO>(oo)...};}
 
-  template<typename Q, typename Body>
-  auto& findBody(Body& body) {
-    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
-    else return findBody<Q>(body.tail);
-  }
-  template<typename Q, typename Body>
-  const auto& findBody(const Body& body) {
-    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
-    else return findBody<Q>(body.tail);
-  }
-  template<typename Q>
-  auto& findBody(StaticBody<>&) {
-    static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
-  }
-
-  // Tag-dispatched overloads: findBody(BodyQ<Q>{}, body)
-  // Used from contexts where findBody<Q>(body) cannot be parsed (C++17 template arg ambiguity).
-  // BodyQ<Q> is defined in menu.h (included before staticBody.h via fields.h).
-
-  template<typename Q, typename Body>
-  auto& findBody(BodyQ<Q>, Body& body) {
-    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
-    else return findBody(BodyQ<Q>{}, body.tail);
-  }
-  template<typename Q, typename Body>
-  const auto& findBody(BodyQ<Q>, const Body& body) {
-    if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
-    else return findBody(BodyQ<Q>{}, body.tail);
-  }
-  template<typename Q>
-  auto& findBody(BodyQ<Q>, StaticBody<>&) {
-    static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
-  }
-  template<typename Q>
-  const auto& findBody(BodyQ<Q>, const StaticBody<>&) {
-    static_assert(sizeof(Q)==0, "findBody<>: no item satisfies predicate Q");
-  }
+  namespace detail {
+    // Internal body search — use find<Q>(node) from the public API, not these directly.
+    // SFINAE on query<Q,Body>: absent Q → "no matching function" at the find<Q> call site.
+    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int> = 0>
+    auto& findBody(Body& body) {
+      if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+      else return findBody<Q>(body.tail);
+    }
+    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int> = 0>
+    const auto& findBody(const Body& body) {
+      if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+      else return findBody<Q>(body.tail);
+    }
+    // BodyQ<Q> tag-dispatch: avoids C++17 template-arg-as-less-than parse ambiguity.
+    // Declared in menu.h (where BodyQ<Q> is defined); defined here where Body::Head/Tail are available.
+    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int>>
+    auto& findBody(BodyQ<Q>, Body& body) {
+      if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+      else return findBody(BodyQ<Q>{}, body.tail);
+    }
+    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int>>
+    const auto& findBody(BodyQ<Q>, const Body& body) {
+      if constexpr (hapi::query<Q, typename Body::Head>) return body.head;
+      else return findBody(BodyQ<Q>{}, body.tail);
+    }
+  } // namespace detail
 
 } // namespace oneMenu
+
+template<typename Q, typename... OO>
+constexpr const bool hapi::template query<Q, oneMenu::StaticBody<OO...>>{
+  (hapi::template query<Q, OO> || ...)
+};

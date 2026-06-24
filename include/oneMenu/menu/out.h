@@ -23,6 +23,7 @@ namespace oneMenu {
     template<typename Item> static constexpr bool printItem(Item& item,Ctx& ctx) {return false;}
     template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
     static constexpr Pos pos() {return {0,0};}
+    static constexpr Pos getPos() {return {0,0};}  // terminal: paired with setPos; overridden by Cursor<> when present
     static constexpr void setPos(const Pos&) {}  // terminal: absorbs oneMenu::Pos before reaching oneOutput::OutAPI
     static constexpr void resume() {}
     using Base::put;
