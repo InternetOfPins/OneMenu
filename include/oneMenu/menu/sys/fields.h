@@ -32,6 +32,9 @@ namespace oneMenu {
       void sync() {edited=false;}
 
       template<typename Out>
+      void print(Out&) const noexcept {}  // all output goes through printItem (cursor rendering)
+
+      template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         const char* text = get();
         Sz i=ctx.sel();
@@ -117,7 +120,7 @@ namespace oneMenu {
   template<typename T,typename B,typename... OO>
   using SelectFieldDef=ItemDef<
     RecallNavPos,
-    Menu<T,B,EditField,ParentDraw,OO...>
+    Menu<T,B,EditField,PadDraw,OO...>
   >;
 
   template<typename T,typename B,typename... OO>
