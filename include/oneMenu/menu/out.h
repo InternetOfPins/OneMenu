@@ -51,9 +51,18 @@ namespace oneMenu {
   // template<typename API>
   // struct OutImpl<API>:APIOf<API> {using Base=APIOf<API>;};
 
+  /// @brief chain head injected by OutDef — propagates resume() down to Gate/Cursor/ColorTrack
+  struct Resume {
+    template<typename O>
+    struct Part:O {
+      using Base=O;
+      void resume() {Base::resume();}
+    };
+  };
+
   /// @brief compose a complete output chain (printer + format + parsers + cursor + device + geometry)
   template<typename... OO>
-  struct OutDef:OutImpl<OutAPI<hapi::CRTP<OutDef<OO...>>>,OO...>{};
+  struct OutDef:OutImpl<OutAPI<hapi::CRTP<OutDef<OO...>>>,Resume,OO...>{};
 
   /// @brief output interface base for runtime-polymorphic output dispatch
   struct IOut {
@@ -77,8 +86,8 @@ namespace oneMenu {
 
   /// @brief OutDef variant with virtual dispatch for runtime-polymorphic output
   template<typename... OO>
-  struct IOutDef:IOut,OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,OO...>{
-    using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,OO...>;
+  struct IOutDef:IOut,OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>{
+    using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>;
     virtual void lockMode(LockMode m) {Base::lockMode(m);}
     virtual LockMode lockMode() {return Base::lockMode();}
     virtual void resume() override {Base::resume();}
