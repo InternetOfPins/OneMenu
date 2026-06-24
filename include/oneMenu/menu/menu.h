@@ -92,8 +92,10 @@ namespace oneMenu {
         if constexpr(Base::isPad()) {
           // Inline body display: one level deeper so focus-check uses the pad's selection.
           // pad=true suppresses newlines between items (TextFmt::fmtStop skips nl when pad).
+          // pIdx=ctx.idx: tells ANSIFmt which parent-body slot owns this pad, enabling
+          // the psel() focus check for color/EditMode highlighting of inline sub-items.
           Ctx inner{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,
-                    (Depth)(ctx.at+1),ctx.prev,true,0,ctx.pIdx};
+                    (Depth)(ctx.at+1),ctx.prev,true,0,ctx.idx};
           body.printInline(out,inner);
         }
         return r;

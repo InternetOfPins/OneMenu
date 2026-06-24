@@ -117,10 +117,36 @@ namespace oneMenu {
     Menu<T,B,ParentDraw,WrapNav,OO...>
   >;
 
+  // SelectBehave: like RecallNavPos but calls n.padOpen() instead of delegating to
+  // Menu::nav on root Enter, so the sub-list stays at the parent display level.
+  // ParentDraw (not PadDraw) in Menu<> prevents body.printInline from showing all items.
+  struct SelectBehave {
+    template<typename I>
+    struct Part:RecallNavPos::template Part<I> {
+      using Base=typename RecallNavPos::template Part<I>;
+      using Base::Base;
+      template<typename... OO> Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path& path) {
+        if(cke.cmd==Cmd::Enter) {
+          if(path.len) {
+            Base::m_sel=path.sel();
+            return I::template nav<isKbd>(n,cke,path);
+          } else {
+            n.padOpen();
+            n.go(Base::m_sel);
+            return true;
+          }
+        }
+        return I::template nav<isKbd>(n,cke,path);
+      }
+    };
+  };
+
   template<typename T,typename B,typename... OO>
   using SelectFieldDef=ItemDef<
-    RecallNavPos,
-    Menu<T,B,EditField,PadDraw,OO...>
+    SelectBehave,
+    Menu<T,B,EditField,ParentDraw,OO...>
   >;
 
   template<typename T,typename B,typename... OO>
