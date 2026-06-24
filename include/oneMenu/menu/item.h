@@ -289,10 +289,10 @@ namespace oneMenu {
       using Base::Base;
       template<typename... OO>
       constexpr Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
-      template<typename Out> 
+      template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         Base::printItem(out,ctx);
-        out.setPos(out.pos());
+        out.setPos(out.getPos());
         if(ctx) {
           if(ctx.mode==NavMode::Edit) Base::body.printItem(out,ctx,ctx.path.last());
           else Base::body.printItem(out,ctx,m_sel);
