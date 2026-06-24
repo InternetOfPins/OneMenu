@@ -4,6 +4,7 @@
 #include <iostream>
 
 namespace oneMenu {
+  /// @brief routes _put() to a std::ostream reference
   template<typename Out,Out& out>
   struct StreamOut : aRawDevice {
     template<typename O>

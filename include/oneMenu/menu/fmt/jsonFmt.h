@@ -15,6 +15,7 @@
 
 namespace oneMenu {
 
+  /// @brief JSON format: object-per-item, all nav attributes as JSON properties
   struct JsonFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {

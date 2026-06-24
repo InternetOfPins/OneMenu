@@ -50,9 +50,11 @@ namespace oneMenu {
   // template<typename API>
   // struct OutImpl<API>:APIOf<API> {using Base=APIOf<API>;};
 
+  /// @brief compose a complete output chain (printer + format + parsers + cursor + device + geometry)
   template<typename... OO>
   struct OutDef:OutImpl<OutAPI<hapi::CRTP<OutDef<OO...>>>,OO...>{};
 
+  /// @brief output interface base for runtime-polymorphic output dispatch
   struct IOut {
     virtual void lockMode(LockMode)=0;
     virtual LockMode lockMode()=0;
@@ -72,6 +74,7 @@ namespace oneMenu {
     template<Fmt tag> void fmtStop(const Ctx& ctx) {fmtStop(tag,ctx);}
   };
 
+  /// @brief OutDef variant with virtual dispatch for runtime-polymorphic output
   template<typename... OO>
   struct IOutDef:IOut,OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,OO...>{
     using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,OO...>;
@@ -167,6 +170,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief lock-mode gate: controls when output is allowed (None/Update/Sync/Measure/Changed)
   struct Gate : aParser {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -236,6 +240,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief compile-time fixed output area (width × height in device units)
   template<int w,int h>
   struct StaticArea : anArea {
     static_assert(w > 0, "StaticArea<w,h>: width must be positive");
@@ -249,6 +254,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief compile-time fixed origin position in device coordinates
   template<int x,int y>
   struct StaticPos {
     template<typename O>
@@ -361,6 +367,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief wraps long text at word boundaries within the current area
   struct TextWrap : aParser {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -402,6 +409,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief tracks current foreground/background color; provides setColors()
   template<typename Cor>
   struct ColorTrack {
     template<typename O>
@@ -418,6 +426,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief intercepts control characters (\n, \r, \t) before they reach the device
   struct CtrlChars {
     template<typename O>
     struct Part:O {
@@ -426,6 +435,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief tracks cursor position (x,y) in device units; provides getPos/setPos/clearToEOL/clearFree
   // CharW: advance per character in device units (1=char-based, 6=font5x8 pixels, etc.)
   // LineH: advance per line in device units (1=char-based, 8=font5x8 pixels, etc.)
   // Adv:   optional per-glyph advance fn (char→Sz) for proportional/variable-width fonts.
@@ -495,6 +505,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief intermediate character buffer; flushes to device on nl() or flush()
   //panel buffer, can support cursor over serial
   template<Scroll scrl=Scroll::yes,char c=' '>
   struct Buffer : aBuffer {

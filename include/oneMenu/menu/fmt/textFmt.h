@@ -13,6 +13,7 @@
 #include "oneMenu/menu/sys/formats.h"
 
 namespace oneMenu {
+  /// @brief plain text format: one line per item, no color
   struct TextFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {

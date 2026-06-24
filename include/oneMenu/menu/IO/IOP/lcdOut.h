@@ -9,6 +9,7 @@ namespace oneMenu {
   // Same slot as ConsoleOut/SerialOut — place inside OutDef, swap freely.
   // LCD must provide: print(char), print(const char*), setCursor(col,row), clear().
   // LCD must expose static constexpr cols and rows — satisfies IsArea.
+  /// @brief raw output device adapter for HD44780-compatible character LCDs
   template<typename LCD>
   struct LcdDisplay : aRawDevice, anArea {
     template<typename O>

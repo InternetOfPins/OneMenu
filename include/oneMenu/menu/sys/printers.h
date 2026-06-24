@@ -57,6 +57,7 @@ namespace oneMenu {
   };
 
   /// @brief print the title + format
+  /// @brief printer layer that emits the menu title wrapped in fmtStart/fmtStop(Title)
   struct TitlePrinter : aPrinter {
     template<typename O>
     struct Part:O {
@@ -208,6 +209,7 @@ namespace oneMenu {
   };
 
   /// @brief print the item
+  /// @brief printer leaf that delegates printItem to the item itself, then signals changed()
   struct ItemBodyPrinter : aPrinter {
     template<typename O>
     struct Part:O {
@@ -256,6 +258,7 @@ namespace oneMenu {
 
   /// @brief allow inclusion of data on the printers queue as a item part
   /// @tparam Data: included static data
+  /// @brief printer that injects a static data value as an item prefix
   template<typename Data>
   struct StaticDataPrinter : aPrinter {
     template<typename O>

@@ -4,6 +4,7 @@
 
 namespace oneMenu {
 
+  /// @brief base mixin for format layers; marks layer as IsFormat
   struct Formats : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -16,6 +17,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief clears unused lines below body and trailing pixels after each item/title
   struct ClearFreeFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {

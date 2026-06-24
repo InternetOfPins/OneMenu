@@ -24,6 +24,7 @@ namespace oneMenu {
     bool esc() {return Base::template doCmd<false>(Cmd::Esc);}
   };
 
+  /// @brief compose a navigation chain from nav components (TreeNav, Root, IndexGo, etc.)
   template<typename... II>
   struct NavDef:DefinedNav<NavAPI<hapi::CRTP<NavDef<II...>>>,II...> {};
 
@@ -34,6 +35,7 @@ namespace oneMenu {
     using Base=DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...>;
   };
 
+  /// @brief binds a nav chain to an external menu instance as the navigation root
   template<typename T,T& menu>
   struct Root {
     template<typename N>
@@ -45,6 +47,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief embeds a menu instance directly inside the nav object (value ownership)
   template<typename M>
   struct StaticRoot {
     template<typename N>
@@ -56,6 +59,7 @@ namespace oneMenu {
     };
   };
 
+  /// @brief hierarchical tree navigator: tracks path, level, selection, and scroll position
   struct TreeNav {
     template<typename N>
     struct Part:N {
@@ -201,6 +205,7 @@ namespace oneMenu {
 
   // Handles Cmd::Go from IdParser: jumps to item N at current level then enters it.
   // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav, Root<...>>
+  /// @brief nav component that handles Cmd::Go: jumps to item N at the current level by index
   struct IndexGo {
     template<typename N>
     struct Part : N {

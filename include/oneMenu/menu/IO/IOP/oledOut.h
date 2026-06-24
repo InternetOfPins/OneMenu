@@ -9,6 +9,7 @@ namespace oneMenu {
   // Oled must provide: begin(), clear(), print(char), setCursor(col_px, page),
   //   fillRect(col_px, page, w_px, h_pages, byte), setInverted(bool), charWidth(), lineSpacing().
   // resume() resets invert state and repositions to (0,0) without clearing.
+  /// @brief raw output device adapter for SSD1306-style OLED and Nokia 5110 pixel displays
   template<typename Oled>
   struct OledOut : aRawDevice {
     template<typename O>

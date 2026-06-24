@@ -18,6 +18,7 @@ namespace oneMenu {
   //
   // Radius: reserved for future drawRoundRect use (API compat).
   // Spacing: extra blank pages between items (0 = packed).
+  /// @brief pixel-display format: inverted-video selection, optional big title font, item spacing
   template<Sz Radius=2, Sz Spacing=0, bool BigTitle=false>
   struct GfxFmt : aFormat {
     template<typename Before, typename After>

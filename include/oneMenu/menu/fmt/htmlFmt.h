@@ -9,6 +9,7 @@ namespace oneMenu {
   // Selection indicated by class "s" on the item div.
   // NavCursor suppressed — class handles highlight.
   // CSS and nav buttons embedded in fmtStart/fmtStop<View>.
+  /// @brief HTML format: complete page per render, selection via CSS class, nav buttons included
   struct HtmlFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {

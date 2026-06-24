@@ -14,6 +14,7 @@
 
 namespace oneMenu {
 
+  /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support
   struct ANSIFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {

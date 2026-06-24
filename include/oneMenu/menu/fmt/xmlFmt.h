@@ -4,6 +4,7 @@
 #include "oneMenu/menu/sys/formats.h"
 
 namespace oneMenu  {
+  /// @brief XML format: element-per-item, attributes for nav state, CDATA for label text
   struct XmlFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
