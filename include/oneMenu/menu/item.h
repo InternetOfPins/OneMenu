@@ -441,11 +441,8 @@ namespace oneMenu {
           LockMode lm=out.lockMode();
           alt.resume();
           if(clr==Clear::yes) alt.clear();
-          // OO... components have print() not printItem() — use print to get their content.
           Base::print(alt);
-          // Restore out's terminal state (colors + cursor) so the next item in out prints
-          // correctly. footer.resume() leaves the terminal in alt's ANSI state.
-          out.resume();
+          out.resume();  // restores lockMode→None, then cursor→origin, then colors
           out.lockMode(lm);
         }
       };

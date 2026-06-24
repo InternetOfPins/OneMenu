@@ -24,6 +24,7 @@ namespace oneMenu {
     template<typename Item> static constexpr bool printMenu(Item& item,Ctx& ctx) {return false;}
     static constexpr Pos pos() {return {0,0};}
     static constexpr void setPos(const Pos&) {}  // terminal: absorbs oneMenu::Pos before reaching oneOutput::OutAPI
+    static constexpr void resume() {}
     using Base::put;
     static constexpr void put(const char*,Sz) {}
   };
@@ -58,7 +59,7 @@ namespace oneMenu {
   struct IOut {
     virtual void lockMode(LockMode)=0;
     virtual LockMode lockMode()=0;
-    // virtual void resume()=0;
+    virtual void resume()=0;
     virtual void fmtStart(Fmt,const Ctx&)=0;
     virtual void fmtStop(Fmt,const Ctx&)=0;
     virtual void setPos(const Pos&)=0;
@@ -80,7 +81,7 @@ namespace oneMenu {
     using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,OO...>;
     virtual void lockMode(LockMode m) {Base::lockMode(m);}
     virtual LockMode lockMode() {return Base::lockMode();}
-    // virtual void resume() override {Base::resume();}
+    virtual void resume() override {Base::resume();}
     using Base::fmtStart;
     using Base::fmtStop;
     virtual void fmtStart(Fmt tag,const Ctx& ctx) override {
@@ -205,7 +206,7 @@ namespace oneMenu {
         lockMode(LockMode::Update);
         return {Base::posX()-o.x,Base::posY()-o.y};
       }
-      // void resume() {m_lock_mode=LockMode::None;Base::resume();}
+      void resume() {m_lock_mode=LockMode::None;Base::resume();}
       bool unlocked() const {return lockMode()==LockMode::None;}
       bool updating() const {return lockMode()==LockMode::Update;}
       bool locked() const {return !unlocked();}
@@ -418,7 +419,7 @@ namespace oneMenu {
       void setColors(Cor f,Cor b) {m_fg=f;m_bg=b;m_set=true;Base::setColors(f,b);}
       void setColors(const Colors<Cor>& o) {m_fg=o.fg;m_bg=o.bg;m_set=true;Base::setColors(o.fg,o.bg);}
       Colors<Cor> getColors() const {return {m_fg,m_bg};}
-      // void resume() {Base::resume();if(m_set) Base::setColors(m_fg,m_bg);}//direction is correct
+      void resume() {Base::resume();if(m_set) Base::setColors(m_fg,m_bg);}
       private:
         Cor m_fg{};
         Cor m_bg{};
@@ -470,12 +471,7 @@ namespace oneMenu {
       // Pos pos() const {return m_at;}
       Pos getPos() const {return m_at;}
       void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
-      // void resume() {
-      //   Base::setPOs(m_at);
-      //   // m_at = {Base::orgX(), Base::orgY()};
-      //   // m_fieldWidth = 0;
-      //   Base::resume();
-      // }
+      void resume() {Base::resume();setPos({Base::orgX(),Base::orgY()});m_fieldWidth=0;}
       Pos area() const {return {fieldWidth(),m_at.y};}
       void clear() {
         m_at.x=0;
