@@ -480,7 +480,7 @@ namespace oneMenu {
       // Pos pos() const {return m_at;}
       Pos getPos() const {return m_at;}
       void setPos(const Pos& o) {m_at.x=o.x;m_at.y=o.y;Base::setPos(o);}
-      void resume() {Base::resume();setPos({Base::orgX(),Base::orgY()});m_fieldWidth=0;}
+      void resume() {Base::resume();Base::setPos(m_at);}
       Pos area() const {return {fieldWidth(),m_at.y};}
       void clear() {
         m_at.x=0;
