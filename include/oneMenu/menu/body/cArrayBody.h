@@ -26,6 +26,8 @@ namespace oneMenu {
       for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(data[i],ctx);
       return false;
     }
+    template<typename Out> static bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
+    template<typename Out> static bool printHiddenMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
 
     template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
       {return data[i].printMenu(out,ctx);}
@@ -62,6 +64,8 @@ namespace oneMenu {
       for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(*data[i],ctx);
       return false;
     }
+    template<typename Out> static bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
+    template<typename Out> static bool printHiddenMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
 
     template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
       {return data[i]->printMenu(out,ctx);}

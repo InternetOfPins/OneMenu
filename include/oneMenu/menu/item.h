@@ -15,7 +15,12 @@
 using oneData::Bool;
 
 namespace oneMenu {
-  
+
+  namespace detail {
+    // Terminal for Chain<II...>::Part<HiddenStop>: stops print chain without output.
+    struct HiddenStop { template<typename O> static void print(O&) noexcept {} };
+  }
+
   template<typename Cfg=Nil>
   struct ItemAPI:oneItem::ItemAPI<Cfg> {
     using Base=oneItem::ItemAPI<Cfg>;
@@ -36,6 +41,8 @@ namespace oneMenu {
     static constexpr bool down() {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&) {return false;}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&) {return false;}
+    template<typename Out> static constexpr void printHidden(Out&,Ctx&) noexcept {}
+    template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&) noexcept {return false;}
     using Base::print;
     template<typename Out> constexpr void printItem(Out&,Ctx&) {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
@@ -197,6 +204,11 @@ namespace oneMenu {
       using Base::Base;
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {I::printItem(out,ctx);}
+      template<typename Out>
+      void printHidden(Out& out,Ctx& ctx) {
+        if(!ctx) return;
+        typename hapi::Chain<II...>::template Part<detail::HiddenStop>{}.print(out);
+      }
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path p)
         {return Base::template nav<isKbd>(n,cke,p);}
@@ -238,13 +250,24 @@ namespace oneMenu {
     struct Part:I {
       using Base=I;
       using Base::Base;
+      bool m_levelOpened{false};  // true when I::nav opened a level on Enter (e.g. TextField padOpen)
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
         bool r=false;
         if(cke.cmd==Cmd::Enter) {
-          // dout<<xy<0,3><<colors<BLUE,BLACK><<"EditField::Nav(Cmd::Enter) |"<<cnt<>++<<padWith<10><<flush;
-          n.navMode(path.len?NavMode::Nav:NavMode::Edit);
+          auto lv=n.level();
+          n.navMode(path.len?NavMode::Nav
+            :(n.navMode()==NavMode::Edit?NavMode::Nav:NavMode::Edit));
           r=true;
+          bool ir=I::template nav<isKbd>(n,cke,path);
+          m_levelOpened=(n.level()!=lv&&n.navMode()==NavMode::Edit);
+          return ir||r;
+        } else if(cke.cmd==Cmd::Esc&&!path.len&&n.navMode()==NavMode::Edit) {
+          n.navMode(NavMode::Nav);
+          // if I::nav opened a level on Enter, let close() fire to undo it (r stays false)
+          // if not (NumField, date sub-items), consume Esc so close() is skipped
+          if(!m_levelOpened) r=true;
+          m_levelOpened=false;
         }
         return I::template nav<isKbd>(n,cke,path)||r;
       }

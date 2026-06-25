@@ -27,6 +27,8 @@ namespace oneMenu {
       for(Sz i=0;i<T::size()&&out.free().y;i++) out.printItem(*T::operator[](i),ctx);
       return false;
     }
+    template<typename Out> static bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
+    template<typename Out> static bool printHiddenMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
 
     template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
       {return T::operator[](i)->printMenu(out,ctx);}

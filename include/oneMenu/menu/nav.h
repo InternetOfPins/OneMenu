@@ -133,11 +133,21 @@ namespace oneMenu {
         return r;
       }
 
+      // Renders the focused item's Hidden<> content to out (pull-based footer).
+      template<typename Out>
+      void printHiddenTo(Out& out) {
+        out.resume();
+        static Sz tops[root().depth()+1]{0};
+        Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
+        root().printHiddenMenu(out,ctx);
+        out.flush();
+      }
+
       template<bool isKbd>
       bool doCmd(Cmd cmd,Key k=0, bool e=false) {
-        if(cmd==Cmd::Esc) return close();//preemptive esc=>close, //TODO: need events to inform target (as a component!)
         CKE cke{cmd,k,e};
         bool r=root().template nav<isKbd>(Base::obj(),cke,focus(m_level+1));
+        if(!r&&cmd==Cmd::Esc) return close();  // items get first chance; close only if unhandled
         return r;
       }
 

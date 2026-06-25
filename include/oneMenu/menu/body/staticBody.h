@@ -16,6 +16,8 @@ namespace oneMenu {
     template<typename Out> static constexpr void print(Out&) noexcept {}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
+    template<typename Out> static constexpr bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
+    template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printInline(Out&,Ctx&) noexcept {return false;}
@@ -53,6 +55,15 @@ namespace oneMenu {
 
   template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
     {return i?((Tail&)tail).printMenu(out,ctx,i-1):head.printMenu(out,ctx);}
+
+  template<typename Out> bool printHiddenMenu(Out& out,Ctx& ctx,Sz i)
+    {return i?((Tail&)tail).printHiddenMenu(out,ctx,i-1):head.printHiddenMenu(out,ctx);}
+
+  template<typename Out> bool printHiddenBody(Out& out,Ctx& ctx) {
+    head.printHidden(out,ctx);
+    ctx.idx++;
+    return ((Tail&)tail).printHiddenBody(out,ctx);
+  }
 
   template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
     bool r=out.printItem(head,ctx);

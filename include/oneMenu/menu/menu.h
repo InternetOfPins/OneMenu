@@ -104,6 +104,17 @@ namespace oneMenu {
       bool printBody(Out& out,Ctx& ctx) {return body.printBody(out,ctx);}
 
       template<typename Out>
+      bool printHiddenMenu(Out& out,Ctx& ctx) {
+        if(ctx.pAt>ctx.at) {
+          Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+1),ctx.prev,ctx.pad,0,ctx.idx};
+          Sz s=ctx.sel();
+          return body.printHiddenMenu(out,tmp,s);
+        }
+        ctx.at++;
+        return body.printHiddenBody(out,ctx);
+      }
+
+      template<typename Out>
       bool printItem(Out& out,Ctx& ctx) {
         bool r=title.printItem(out,ctx);
         if constexpr(Base::isPad()) {
@@ -128,12 +139,14 @@ namespace oneMenu {
 
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,Path p) {
-        if(p.len>0)
-          // Only deliver to focused item (p.len==1) on Enter; movement goes to doNav directly.
-          // Preemptive: prevents focused-but-closed items from consuming Up/Down at the wrong level.
-          return (p.len>1||cke.cmd==Cmd::Enter?body.template nav<isKbd>(n,cke,p.next(),p.sel()):false)
-          ||Base::template nav<isKbd>(n,cke,p)
-          ||(p.len==1&&(n.doNav(cke,size(),Base::wraps())||(cke.cmd==Cmd::Enter&&n.close())));
+        if(p.len>0) {
+          bool inEdit=n.navMode()==NavMode::Edit;
+          // In edit mode, route all keys to the focused item (not doNav).
+          return (p.len>1||cke.cmd==Cmd::Enter||(p.len==1&&inEdit)
+              ?body.template nav<isKbd>(n,cke,p.next(),p.sel()):false)
+            ||Base::template nav<isKbd>(n,cke,p)
+            ||(p.len==1&&!inEdit&&(n.doNav(cke,size(),Base::wraps())||(cke.cmd==Cmd::Enter&&n.close())));
+        }
         if(cke.cmd==Cmd::Enter) return Base::isPad()?n.padOpen():n.open();
         return Base::template nav<isKbd>(n,cke,p);
       }
