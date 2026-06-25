@@ -361,10 +361,8 @@ OutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars,
 
 | Component | What it does |
 |---|---|
-| `ANSIFmt` | ANSI colors, cursor highlight, edit-mode indicators (default palette) |
-| `ANSIFmtP<Palette>` | ANSI format with custom color palette |
-| `TextFmt` | Plain text cursors and decorations, no escape codes (default chars) |
-| `TextFmtP<Chars>` | Text format with custom cursor/separator characters |
+| `ANSIFmt` | ANSI colors, cursor highlight, edit-mode indicators |
+| `TextFmt` | Plain text cursors and decorations, no escape codes |
 | `DataParser<>` | Converts data values to characters |
 | `CtrlChars` | Translates control characters (newline, clear, etc.) |
 | `TextWrap` | Long text continues on next line |

@@ -25,9 +25,8 @@ namespace oneMenu {
   };
 
   /// @brief plain text format: one line per item, no color.
-  /// @tparam Chars  custom cursor/separator char set; use TextFmt (no params) for default MenuChars
-  template<typename Chars=MenuChars>
-  struct TextFmtP : aFormat {
+  struct TextFmt : aFormat {
+    using Chars = MenuChars;
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsPrinter, After>, "TextFmt: printer layers must be placed above TextFmt");
@@ -74,8 +73,5 @@ namespace oneMenu {
       }
     };
   };
-
-  /// @brief default text format — TextFmtP<MenuChars>; use TextFmtP<MyChars> to customize
-  struct TextFmt : TextFmtP<> {};
 
 };//namespace oneMenu
