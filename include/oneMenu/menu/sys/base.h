@@ -136,12 +136,14 @@ namespace oneMenu {
       Sz pIdx={-1}
     ):path{path},mode{mode},pAt{pAt},enabled{enabled},tops{tops},at{at},prev{prev},pad{pad},idx{idx},pIdx{pIdx}{}
 
+    Ctx():path{0,nullptr},mode{NavMode::Nav},pAt{0},enabled{true},tops{nullptr},at{0},prev{0},pad{false},idx{-1},pIdx{-1}{}
+
     constexpr bool psel() const {return sel(pAt)==pIdx;}// <=> parent is selected?
     constexpr Depth after() const {return path.len-pAt;}// <=> depth after print root, 1=>menu nav, 2=>pad menu nav, 3=>pad menu edit
-    constexpr Sz sel() const {return path.sel(std::min((Depth)at,(Depth)(path.len-1)));}
+    constexpr Sz sel() const {return path.len>0?path.sel(std::min((Depth)at,(Depth)(path.len-1))):(Sz)-1;}
     constexpr Sz sel(Depth i) const {assert(i<path.len);return path.sel(i);}
     constexpr Sz top() const {return tops[(int)at];}
-    constexpr operator bool() const {return path.sel(at>0?at-1:0)==idx;}
+    constexpr operator bool() const {return path.len>0&&path.sel(at>0?at-1:0)==idx;}
     constexpr bool padPrinting() const {return at-pAt>0;}
     Sz top(Sz i) {return tops[(int)at]=i;}
     Ctx next() const {assert(at+1<path.len);return Ctx{path,mode,pAt,enabled,tops,(Depth)(at+1),0,pad,0};}
