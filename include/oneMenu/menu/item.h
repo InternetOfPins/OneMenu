@@ -506,6 +506,16 @@ namespace oneMenu {
     };
   };
 
+  // output partition tag -------------------------------------------------------
+  /// @brief marks an item as belonging to output partition Tag.
+  /// - SkipOutId<Tag> in the main OutDef skips these items on the main output.
+  /// - PartitionBody<Tag,Body> renders only these items to a secondary output.
+  /// - Items are nav-invisible when placed after the body's navSize() boundary.
+  template<typename Tag>
+  struct OutId {
+    template<typename O> using Part=O;  // pure tag: zero behavior, queryable via SameAs<OutId<Tag>>
+  };
+
 };//namespace oneMenu
 
 //rules ItemDef query specialization --

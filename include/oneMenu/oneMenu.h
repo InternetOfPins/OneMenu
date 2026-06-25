@@ -12,6 +12,7 @@
 #include "oneMenu/menu/sys/formats.h"
 #include "oneMenu/menu/body/staticBody.h"
 #include "oneMenu/menu/body/joinBody.h"
+#include "oneMenu/menu/body/partitionBody.h"
 #include "oneMenu/menu/out.h"
 #include "oneMenu/menu/item.h"
 #include "oneMenu/menu/menu.h"
