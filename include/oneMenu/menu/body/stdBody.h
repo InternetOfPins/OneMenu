@@ -20,9 +20,6 @@ namespace oneMenu {
       for(Sz i=0;i<T::size();i++) T::operator[](i)->sync();
     }
 
-    template<typename Out>
-    void print(Out&) const noexcept {}
-
     template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
       for(Sz i=0;i<T::size()&&out.free().y;i++) out.printItem(*T::operator[](i),ctx);
       return false;

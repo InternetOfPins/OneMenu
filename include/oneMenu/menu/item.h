@@ -16,16 +16,10 @@ using oneData::Bool;
 
 namespace oneMenu {
 
-  namespace detail {
-    // Terminal for Chain<II...>::Part<HiddenStop>: stops print chain without output.
-    struct HiddenStop { template<typename O> static void print(O&) noexcept {} };
-  }
-
   template<typename Cfg=Nil>
   struct ItemAPI:oneItem::ItemAPI<Cfg> {
     using Base=oneItem::ItemAPI<Cfg>;
     constexpr ItemAPI() {}
-    // static constexpr const Wraps wraps{Wraps::no};
     template<typename> using Requires=std::false_type;
     template<typename> using Excludes=std::true_type;
     static constexpr Depth depth() {return 1;}
@@ -44,40 +38,14 @@ namespace oneMenu {
     template<typename Out> static constexpr void printHidden(Out&,Ctx&) noexcept {}
     template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&) noexcept {return false;}
     using Base::print;
-    template<typename Out> constexpr void printItem(Out&,Ctx&) {}
+    template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     template<typename Nav,typename P> static constexpr bool setStr(Nav&,const char*,P) {return false;}
-    //Id--
-    // static constexpr int getId() {return -1;}
-    // template<int> using HasId=std::false_type;
-    // template<int> using WithId=ItemAPI<hapi::CRTP<ItemAPI<Nil>>>;
   };
-
-  template<typename T>
-  struct MenuData {
-    template<typename O>
-    struct Part : T::template Part<O> {//deriving from OneData *::Part<> we should have the data hapi here get/set
-      using Base = typename T::template Part<O>;
-      using Base::Base;
-      template<typename Out> bool printItem(Out& out,Ctx& ctx) {
-        Base::print(out);
-        Base::printItem(out,ctx);
-        return Base::changed();
-      }
-    };
-  };
-
-  // Chain transformation: lifts oneData:: components into MenuData<> wrappers.
-  // Passthrough for everything else.
-  template<typename T>              struct wrap_menu_data               { using Type = T; };
-  template<typename T>              struct wrap_menu_data<oneData::Data<T>>       { using Type = MenuData<oneData::Data<T>>; };
-  template<auto V>                  struct wrap_menu_data<oneData::StaticData<V>> { using Type = MenuData<oneData::StaticData<V>>; };
-  template<const char* const* P>    struct wrap_menu_data<oneData::StaticText<P>> { using Type = MenuData<oneData::StaticText<P>>; };
-  template<auto A>                  struct wrap_menu_data<oneData::DataRef<A>>    { using Type = MenuData<oneData::DataRef<A>>; };
 
   template<typename... OO>
-  struct ItemDef:APIOf<ItemAPI<>,typename wrap_menu_data<OO>::Type...>{
-    using Base=APIOf<ItemAPI<>,typename wrap_menu_data<OO>::Type...>;
+  struct ItemDef:APIOf<ItemAPI<>,OO...>{
+    using Base=APIOf<ItemAPI<>,OO...>;
     using Base::Base;
     using Base::printMenu;
     using Base::enabled;
@@ -203,11 +171,9 @@ namespace oneMenu {
       using Base=typename oneItem::Hidden<II...>::template Part<I>;
       using Base::Base;
       template<typename Out>
-      void printItem(Out& out,Ctx& ctx) {I::printItem(out,ctx);}
-      template<typename Out>
       void printHidden(Out& out,Ctx& ctx) {
         if(!ctx) return;
-        typename hapi::Chain<II...>::template Part<detail::HiddenStop>{}.print(out);
+        typename hapi::Chain<II...>::template Part<ItemAPI<>>{}.printItem(out,ctx);
       }
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path p)
@@ -448,25 +414,22 @@ namespace oneMenu {
         struct Part:O {
           using Base=O;
           using Base::Base;
-          template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {}
-          // Block print so StaticText/data components inside Put<OO...> don't leak
-          // their text back through the outer chain's print() call.
-          template<typename Out> static constexpr void print(Out& out) noexcept {}
+          template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
+          template<typename Out> static constexpr void print(Out&) noexcept {}
         };
       };
       template<typename O>
       struct Part:Chain<OO...,End>::template Part<O> {
         using Base=typename Chain<OO...,End>::template Part<O>;
         using Base::Base;
-        // OO... content belongs only on alt, never on the main output's print chain.
-        template<typename Out> void print(Out& out) const {}
+        template<typename Out> void print(Out& out) const { O::print(out); }
         template<typename Out>
         void printItem(Out& out,Ctx& ctx) {
           if(!(out.lockMode()==LockMode::None||out.lockMode()==LockMode::Update)) return;
           LockMode lm=out.lockMode();
           alt.resume();
           if(clr==Clear::yes) alt.clear();
-          Base::print(alt);
+          Base::printItem(alt,ctx);
           out.resume();  // restores lockMode→None, then cursor→origin, then colors
           out.lockMode(lm);
         }
@@ -481,17 +444,14 @@ namespace oneMenu {
       struct Part:O {
         using Base=O;
         using Base::Base;
-        template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {}
+        template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
+        template<typename Out> static constexpr void print(Out&) noexcept {}
       };
     };
     template<typename O>
     struct Part:Chain<OO...,End>::template Part<O> {
       using Base=typename Chain<OO...,End>::template Part<O>;
-        using Base::Base;
-      // Block OO... from the `print` chain: `print` is for inline data display
-      // (called by MenuData::printItem → Base::print). The OO... pack must NOT
-      // contribute to `print` — it must only fire via `printItem` (conditionally).
-      // Forward to O::print to keep the outer chain intact beyond this component.
+      using Base::Base;
       template<typename Out> void print(Out& out) const { O::print(out); }
       template<typename Out> void printItem(Out& out,Ctx& ctx) {
         O::printItem(out,ctx);

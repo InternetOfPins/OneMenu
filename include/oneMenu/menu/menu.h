@@ -81,10 +81,7 @@ namespace oneMenu {
       void sync() {Base::sync();body.sync();}
 
       template<typename Out>
-      void print(Out& out) const {
-        title.print(out);
-        if constexpr(Base::isPad()) body.print(out);
-      }
+      void print(Out& out) const {title.print(out);}
       template<typename Out> void print(Out& out,Ctx&) {print(out);}
       Sz size() const {return body.size();}
 

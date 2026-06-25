@@ -13,7 +13,6 @@ namespace oneMenu {
   template<> struct StaticBody<> {
     static constexpr Sz size() noexcept {return 0;}
     static constexpr Depth depth() noexcept {return 0;}
-    template<typename Out> static constexpr void print(Out&) noexcept {}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
@@ -46,12 +45,6 @@ namespace oneMenu {
     template<typename... II>
     constexpr StaticBody(II&&... oo) 
       : head{}, tail{std::forward<II>(oo)...} {}
-
-    template<typename Out>
-    constexpr void print(Out& out) const noexcept {
-      head.print(out);
-      tail.print(out);
-    }
 
   template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
     {return i?((Tail&)tail).printMenu(out,ctx,i-1):head.printMenu(out,ctx);}

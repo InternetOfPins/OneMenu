@@ -45,8 +45,8 @@
     using DOut=DebugOut<decltype(std::cerr),std::cerr>;
     DOut dout;
 
-    template<template<typename...> class T,typename... NN> 
-    DOut& operator<<(DOut& out,T<NN...>& o) {o.print(out);return out;}
+    template<template<typename...> class T,typename... NN>
+    DOut& operator<<(DOut& out,T<NN...>& o) {Ctx ctx;o.printItem(out,ctx);return out;}
 
     DOut& endl (DOut& s) {s.nl();return s;}
     DOut& flush(DOut& s) {s.flush();return s;}

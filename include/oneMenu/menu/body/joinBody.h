@@ -21,9 +21,6 @@ namespace oneMenu {
     void sync() {b1.sync();b2.sync();}
 
     template<typename Out>
-    void print(Out& out) const noexcept {b1.print(out);b2.print(out);}
-
-    template<typename Out>
     bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
       bool r=b1.printBody(out,ctx,bidx);
       return b2.printBody(out,ctx,bidx+b1.size())||r;

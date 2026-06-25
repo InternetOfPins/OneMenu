@@ -17,11 +17,6 @@ namespace oneMenu {
     }
     void sync() {for(Sz i=0;i<_sz;i++) data[i].sync();}
 
-    template<typename Out>
-    void print(Out& out) const noexcept {
-      for(Sz i=0;i<_sz;i++) data[i].print(out);
-    }
-
     template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
       for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(data[i],ctx);
       return false;
@@ -54,11 +49,6 @@ namespace oneMenu {
       return c;
     }
     void sync() {for(Sz i=0;i<_sz;i++) data[i]->sync();}
-
-    template<typename Out>
-    void print(Out& out) const noexcept {
-      for(Sz i=0;i<_sz;i++) data[i]->print(out);
-    }
 
     template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
       for(Sz i=0;i<_sz&&out.free().y;i++) out.printItem(*data[i],ctx);

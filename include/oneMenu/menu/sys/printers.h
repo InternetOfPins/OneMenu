@@ -66,7 +66,7 @@ namespace oneMenu {
       template<typename I>
       bool printMenu(I& i,Ctx& ctx) {
         O::template fmtStart<Fmt::Title>(ctx);
-        i.print(O::obj(),ctx);//title
+        i.print(O::obj(),ctx);
         O::template fmtStop<Fmt::Title>(ctx);
         return O::printMenu(i,ctx)||i.changed();
       }
@@ -293,27 +293,24 @@ namespace oneMenu {
   struct AsFmt {
     struct PartEnd {
       template<typename O>
-      struct Part:O {//TODO: put this content into Part::print and generalize PartEnd
-        using IsPrinter=std::true_type;
+      struct Part:O {
         using Base=O;
         using Base::Base;
-        template<typename Out> void print(Out&) const {}  // stop Base::print from escaping to O
-        template<typename Out>
-        void printItem(Out& out,Ctx& ctx) {}
+        template<typename Out> static void print(Out&) noexcept {}
+        template<typename Out> static void printItem(Out&,Ctx&) noexcept {}
       };
     };
     template<typename O>
     struct Part:Chain<OO...,PartEnd>::template Part<O> {
       using Base=typename Chain<OO...,PartEnd>::template Part<O>;
       using Base::Base;
-      template<typename Out> void print(Out&) const {}  // data flows inside printItem only
+      template<typename Out> void print(Out& out) const { O::print(out); }
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         out.template fmtStart<tag>(ctx);
         out.template fmtStart<Fmt::Data>(ctx);
-        Base::print(out);
-        out.template fmtStop<Fmt::Data>(ctx);
         Base::printItem(out,ctx);
+        out.template fmtStop<Fmt::Data>(ctx);
         out.template fmtStop<tag>(ctx);
         O::printItem(out,ctx);
       }
