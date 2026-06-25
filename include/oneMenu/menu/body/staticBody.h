@@ -82,6 +82,10 @@ namespace oneMenu {
   bool changed() const {return head.changed()||((const Tail&)tail).changed();}
   void sync() {head.sync();((Tail&)tail).sync();}
 
+  template<typename Fn>
+  auto visit(Sz i, Fn&& fn)
+    {return i?((Tail&)tail).visit(i-1,std::forward<Fn>(fn)):fn(head);}
+
   };
 
   template<typename... OO>

@@ -102,9 +102,10 @@ namespace text {
   static constexpr CText settings    {"Settings..."};
   static constexpr CText power       {"Power"};
   static constexpr CText percent     {"%"};
-  static constexpr CText off         {"Off"};
-  static constexpr CText on          {"On"};
   static constexpr CText toggle_demo {"Toggle"};
+  static constexpr CText rise        {"Rise"};
+  static constexpr CText fall        {"Fall"};
+  static constexpr CText both        {"Both"};
   static constexpr CText select_demo {"Select"};
   static constexpr CText choose_demo {"Choose"};
   static constexpr CText s10         {"10"};
@@ -163,13 +164,15 @@ using Power = NumFieldDef<
   AsUnit<StaticText<&text::percent>>
 >;
 
-// Toggle: cycles Off / On inline
+// Toggle: cycles Rise/Fall/Both inline on each Enter (WrapNav baked in)
 using ToggleDemo = ToggleFieldDef<
   ItemDef<StaticText<&text::toggle_demo>, AsEditMode<>>,
   StaticBody<
-    ItemDef<AsField<StaticText<&text::off>>>,
-    ItemDef<AsField<StaticText<&text::on>>>
-  >
+    ItemDef<AsField<StaticText<&text::rise>>>,
+    ItemDef<AsField<StaticText<&text::fall>>>,
+    ItemDef<AsField<StaticText<&text::both>>>
+  >,
+  BodyAction<action::subIdx>
 >;
 
 // Select: pick one from a drop-down list; selected value shown inline

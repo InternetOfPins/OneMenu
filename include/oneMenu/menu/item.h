@@ -311,6 +311,8 @@ namespace oneMenu {
         }
         return I::template nav<isKbd>(n,cke,path);//still check base
       }
+      template<typename Fn>
+      auto visit(Fn&& fn) {return Base::body.visit(m_sel,std::forward<Fn>(fn));}
       protected: Sz m_sel{0};
     };
   };
