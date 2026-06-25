@@ -9,6 +9,7 @@
 #include <oneMenu/menu/IO/ansiOut.h>
 #include <oneMenu/menu/fmt/ansiFmt.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
+#include <oneMenu/menu/IO/idParser.h>
 
 #ifdef __AVR__
   #include <onePin/onePin.h>
@@ -73,6 +74,7 @@ InDef<
   #else
     LinuxKeyIn,
   #endif
+  IdParser,
   PCKbd
 > in;
 
@@ -273,6 +275,7 @@ auto mainMenu = menuDef<WrapNav>(
 );
 
 INavDef<
+  IndexGo,
   TreeNav,
   Root<decltype(mainMenu), mainMenu>
 > nav;
