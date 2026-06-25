@@ -1,7 +1,7 @@
 /**
  * @file main.cpp
  * @author Rui Azevedo (ruihfazevedo@gmail.com)
- * @brief OneMenu fields example — text, numeric, toggle, select, choose, date
+ * @brief OneMenu fields example — text, numeric, toggle, select, choose, date, prompt, idle
  */
 
 // ── Includes ──────────────────────────────────────────────────────────────────
@@ -64,6 +64,7 @@ using oneMenu::Action;
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool running = true;
+char promptMsg[48]{};
 
 // ── I/O ───────────────────────────────────────────────────────────────────────
 InDef<
@@ -75,13 +76,12 @@ InDef<
   PCKbd
 > in;
 
+// main output — IOutDef auto-injects Gate/ColorTrack/Cursor
 IOutDef<
-  ScrollPrinter,
+  FullPrinter,
   ANSIFmt,
   DataParser<>,
   CtrlChars,
-  TextWrap,
-  Clip,
   ANSIOut,
   #ifdef __AVR__
     SerialOut,
@@ -91,6 +91,25 @@ IOutDef<
   StaticPos<20,10>,
   StaticArea<30,10>
 > out;
+
+// prompt overlay — OutDef with explicit tracking components, inset over out
+OutDef<
+  FullPrinter,
+  ANSIFmt,
+  DataParser<>,
+  CtrlChars,
+  ColorTrack<int>,
+  Cursor<>,
+  Gate,
+  ANSIOut,
+  #ifdef __AVR__
+    SerialOut,
+  #else
+    ConsoleOut,
+  #endif
+  StaticPos<decltype(out)::orgX()+4, decltype(out)::orgY()+2>,
+  StaticArea<decltype(out)::width()-8, 4>
+> promptOut;
 
 // ── Text strings ──────────────────────────────────────────────────────────────
 namespace text {
@@ -114,6 +133,7 @@ namespace text {
   static constexpr CText s80         {"80"};
   static constexpr CText s100        {"100"};
   static constexpr CText dateSep     {"."};
+  static constexpr CText ok          {"OK"};
 }
 
 // ── Item IDs (for find<>) ─────────────────────────────────────────────────────
@@ -121,28 +141,15 @@ enum ids { op3_id, power_id };
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 namespace action {
-  bool op1(Sz) {
-    out.resume();
-    out << "option 1 activated." << endl;
-    return true;
-  }
-  bool op2(Sz);  // toggles op3 — defined after mainMenu
-  bool op3(Sz) {
-    out.resume();
-    out << "option 3 activated." << endl;
-    return true;
-  }
+  bool op1(Sz);  // defined after showPrompt
+  bool op2(Sz);  // defined after mainMenu
+  bool ok(Sz);   // defined after showPrompt
+  bool op3(Sz) { return true; }
   bool quit(Sz) {
-    out.resume();
-    out << "Bye!" << endl;
     running = false;
     return true;
   }
-  bool subIdx(Sz i) {
-    out.resume();
-    out << "selected: " << i << endl;
-    return false;
-  }
+  bool subIdx(Sz i) { return false; }
 }
 
 // ── Reusable item types ───────────────────────────────────────────────────────
@@ -175,7 +182,7 @@ using ToggleDemo = ToggleFieldDef<
   BodyAction<action::subIdx>
 >;
 
-// Select: pick one from a drop-down list; selected value shown inline
+// Select: pick one from a list; selected value shown inline
 using SelectDemo = SelectFieldDef<
   ItemDef<
     AsLabel<StaticText<&text::select_demo>>,
@@ -193,7 +200,7 @@ using SelectDemo = SelectFieldDef<
   BodyAction<action::subIdx>
 >;
 
-// Choose: navigate into a sub-body to pick; chosen value shown on the item row
+// Choose: navigate into sub-body to pick; chosen value shown on item row
 using ChooseDemo = ChooseFieldDef<
   ItemDef<
     StaticText<&text::choose_demo>,
@@ -270,10 +277,80 @@ INavDef<
   Root<decltype(mainMenu), mainMenu>
 > nav;
 
-// op2 defined here — mainMenu must be in scope for find<>
 bool action::op2(Sz) {
   auto& op3 = find<SameAs<Id<ids::op3_id>>>(mainMenu);
   op3.enable(!op3.enabled());
+  return true;
+}
+
+// ── Prompt ────────────────────────────────────────────────────────────────────
+auto promptMenu = menuDef<>(
+  ItemDef<Text>{promptMsg},
+  staticBody(
+    ItemDef<Action<action::ok>, StaticText<&text::ok>>{}
+  )
+);
+
+INavDef<
+  TreeNav,
+  Root<decltype(promptMenu), promptMenu>
+> promptNav;
+
+// ── Handler machinery ─────────────────────────────────────────────────────────
+using RunFn = bool(*)();
+RunFn activeRun;
+
+static SysTick::Period<30000> idleTimer;
+
+void showIdle();  // forward
+
+bool mainRun() {
+  bool input = nav.in(in);
+  if (input) idleTimer.reset();
+  if (nav.changed(out)) { nav.printTo(out); nav.sync(out); }
+  if (idleTimer) { idleTimer.reset(); showIdle(); }
+  return running;
+}
+
+bool idleRun() {
+  if (nav.in(in)) {
+    idleTimer.reset();
+    activeRun = mainRun;
+    out.lockMode(LockMode::None);
+    nav.printTo(out);
+  }
+  return running;
+}
+
+bool promptRun() {
+  promptNav.in(in);
+  if (promptNav.changed(promptOut)) {
+    promptNav.printTo(promptOut);
+    promptNav.sync(promptOut);
+  }
+  return running;
+}
+
+void showIdle() {
+  activeRun = idleRun;
+  out.clear();
+}
+
+void showPrompt(const char* msg) {
+  strncpy(promptMsg, msg, sizeof(promptMsg)-1);
+  activeRun = promptRun;
+  promptOut.lockMode(LockMode::None);
+  promptOut.setColors(BLACK, WHITE);
+  promptOut.clear();
+  promptNav.printTo(promptOut);
+}
+
+bool action::op1(Sz) { showPrompt("Option 1 activated!"); return true; }
+bool action::ok(Sz)  {
+  promptOut.clear();
+  activeRun = mainRun;
+  out.lockMode(LockMode::None);
+  nav.printTo(out);
   return true;
 }
 
@@ -282,11 +359,7 @@ bool run() {
   static SysTick::Period<30> fps;
   if (fps) {
     fps.reset();
-    nav.in(in);
-    if (nav.changed(out)) {
-      nav.printTo(out);
-      nav.sync(out);
-    }
+    activeRun();
   }
   if (!fps) hw::delay_ms(fps.when() - hw::millis());
   return running;
@@ -296,6 +369,7 @@ void setup() {
   out.lockMode(LockMode::None);
   out.setColors(WHITE, BLACK);
   out.clear();
+  activeRun = mainRun;
   nav.printTo(out);
 }
 
