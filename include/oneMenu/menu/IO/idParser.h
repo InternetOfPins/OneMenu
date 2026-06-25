@@ -22,6 +22,8 @@ namespace oneMenu {
       static CKE parseKey(Key k) {
         if (k >= '1' && k <= '9')
           return {Cmd::Go, Key(k - '0'), false, false};
+        if (k == '0')
+          return {Cmd::Esc};
         return O::parseKey(k);
       }
     };
