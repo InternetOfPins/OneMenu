@@ -337,9 +337,13 @@ namespace oneMenu {
         void put(const long o,const char* fmt="%li") {put<long>(o,fmt);}
         void put(const unsigned long o,const char* fmt="%lu") {put<unsigned long>(o,fmt);}
       #endif
-      #ifdef ARDUINO
-        // void put(const double o) {put(String(o, 5).c_str(),"%s");}
-      #else
+      #ifdef __AVR__
+        void put(int n)           { char b[7];  itoa(n,  b, 10); put(b, sizeof(b)); }
+        void put(unsigned int n)  { char b[6];  utoa(n,  b, 10); put(b, sizeof(b)); }
+        void put(long n)          { char b[12]; ltoa(n,  b, 10); put(b, sizeof(b)); }
+        void put(unsigned long n) { char b[11]; ultoa(n, b, 10); put(b, sizeof(b)); }
+      #endif
+      #ifndef __AVR__
         void put(const double o,const char* fmt="%f") {put<double>(o,fmt);}
       #endif
     };

@@ -96,7 +96,7 @@ namespace oneMenu {
     constexpr Sz sel(Depth i=0) const {return len>i?data[(int)i]:0;}
     constexpr Sz last() const {return sel(len-1);}
     constexpr Path next() const {
-      #ifndef ARDUINO
+      #if !defined(__AVR__)
         assert(len>0);
       #endif
       return {(Depth)(len-1),&data[1]};
