@@ -13,7 +13,20 @@
 #include "oneMenu/menu/sys/formats.h"
 
 namespace oneMenu {
-  /// @brief plain text format: one line per item, no color
+
+  /// @brief Default cursor/separator characters for TextFmt
+  struct TextChars {
+    static constexpr char focus    = '>';  // focused item, enabled
+    static constexpr char focusDis = '-';  // focused item, disabled
+    static constexpr char blur     = ' ';  // unfocused item
+    static constexpr char sepNav   = ':';  // edit-mode separator, NavMode::Nav
+    static constexpr char sepEdit  = '=';  // edit-mode separator, NavMode::Edit
+    static constexpr char sepTune  = '.';  // edit-mode separator, NavMode::Tune
+  };
+
+  /// @brief plain text format: one line per item, no color.
+  /// @tparam Chars  cursor/separator character set (default TextChars)
+  template<typename Chars=TextChars>
   struct TextFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -31,39 +44,34 @@ namespace oneMenu {
 
       template<Fmt tag>
       void fmtStart(const Ctx& ctx) {
-        // dout<<"<"<<tag<<" mode=\""<<Base::lockMode()<<"\">"<<flush;
         switch(tag) {
           default:break;
           case Fmt::NavCursor:
-            put(ctx?(ctx.enabled?'>':'-'):' ');
+            put(ctx?(ctx.enabled?Chars::focus:Chars::focusDis):Chars::blur);
             break;
           case Fmt::EditMode:
             if(ctx) switch(ctx.mode) {
-              case NavMode::Nav: put(':');break;
-              case NavMode::Edit: put('=');break;
-              case NavMode::Tune: put('.');break;
-            } else if(!ctx.pad) put(' ');
+              case NavMode::Nav:  put(Chars::sepNav);  break;
+              case NavMode::Edit: put(Chars::sepEdit); break;
+              case NavMode::Tune: put(Chars::sepTune); break;
+            } else if(!ctx.pad) put(Chars::blur);
             break;
         }
         Base::template fmtStart<tag>(ctx);
       }
 
       template<Fmt tag>
-      void fmtStop(const Ctx&ctx) {
-        // dout<<"</"<<tag<<">"<<flush;
+      void fmtStop(const Ctx& ctx) {
         switch(tag){
           case Fmt::View:
           case Fmt::Title:
-          // case Fmt::Footer:
           case Fmt::Item:
             if(!ctx.pad) Base::nl();
-            // dout<<endl;
             break;
           default:break;
         }
         Base::template fmtStop<tag>(ctx);
       }
-
     };
   };
-};//namespace oneMenu 
+};//namespace oneMenu

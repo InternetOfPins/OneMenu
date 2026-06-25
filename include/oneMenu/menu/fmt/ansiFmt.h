@@ -14,7 +14,19 @@
 
 namespace oneMenu {
 
-  /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support
+  /// @brief Default ANSI color palette
+  struct ANSIColors {
+    static constexpr int view_fg=WHITE,  view_bg=BLUE;
+    static constexpr int title_fg=BLUE,  title_bg=WHITE;
+    static constexpr int sel_bg=GREEN,   unsel_bg=BLUE;
+    static constexpr int ena_fg=WHITE,   dis_fg=BLACK;
+    static constexpr int pad_nav_fg=GREEN, pad_nav_dis_fg=BLACK, pad_nav_bg=WHITE;
+    static constexpr int pad_edit_fg=BLUE, pad_edit_bg=WHITE;
+  };
+
+  /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support.
+  /// @tparam Palette  color scheme (default ANSIColors); @tparam Chars  cursor chars (default TextChars)
+  template<typename Palette=ANSIColors, typename Chars=TextChars>
   struct ANSIFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -24,6 +36,8 @@ namespace oneMenu {
     template<typename O>
     struct Part:UseEditCursorFmt::template Part<O> {
       using Base=typename UseEditCursorFmt::template Part<O>;
+      using P=Palette;
+      using C=Chars;
       using Base::setColors;
       using Base::clear;
       using Base::nl;
@@ -34,50 +48,38 @@ namespace oneMenu {
       using Base::resume;
 
       static Colors<int> fb(const Ctx& ctx) {
-          if(ctx.pad&&ctx.psel()) {//pad focus
-            if(ctx) {//selected
-              switch(ctx.after()) {//pad nav mode
-                default: return {ctx&&ctx.enabled?WHITE:BLACK,GREEN};//parent nav
-                case 2: return {ctx.enabled?GREEN:BLACK,WHITE};//pad nav
-                case 3: return {BLUE,WHITE};//pad edit
-              }
-            } else return {ctx.enabled?WHITE:BLACK,GREEN};//on pad with parent selected
-          } else if(ctx && (!ctx.pad || (ctx.psel() && ctx.after() > 1))) return {ctx.enabled?WHITE:BLACK,GREEN};//pad parent focus
-          return {ctx.enabled?WHITE:BLACK,BLUE};//unselected
+        if(ctx.pad&&ctx.psel()) {
+          if(ctx) switch(ctx.after()) {
+            default: return {ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg};
+            case 2:  return {ctx.enabled?P::pad_nav_fg:P::pad_nav_dis_fg, P::pad_nav_bg};
+            case 3:  return {P::pad_edit_fg, P::pad_edit_bg};
+          } else return {ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg};
+        } else if(ctx && (!ctx.pad||(ctx.psel()&&ctx.after()>1)))
+          return {ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg};
+        return {ctx.enabled?P::ena_fg:P::dis_fg, P::unsel_bg};
       }
 
-      // start ---
       template<Fmt tag>
       void fmtStart(const Ctx& ctx) {
-        switch(tag) {//for colors
+        switch(tag) {
           default:break;
-          case Fmt::View:
-            setColors(WHITE,BLUE);
-            clear();
-            break;
-          case Fmt::Title: setColors(BLUE,WHITE);break;
-          // case Fmt::Field: setColors(ctx.enabled?WHITE:BLACK,fb(ctx).bg);break;
-          case Fmt::Item: {
-            Colors<int> o=fb(ctx);
-            setColors(o.fg,o.bg);
-          } break;
+          case Fmt::View:  setColors(P::view_fg, P::view_bg); clear(); break;
+          case Fmt::Title: setColors(P::title_fg,P::title_bg); break;
+          case Fmt::Item: { auto o=fb(ctx); setColors(o.fg,o.bg); } break;
         }
-        switch(tag){//for text
+        switch(tag) {
           case Fmt::EditMode:
-            if(ctx && (!ctx.pad || (ctx.sel(ctx.pAt) == ctx.pIdx))) switch(ctx.mode) {
+            if(ctx && (!ctx.pad||(ctx.sel(ctx.pAt)==ctx.pIdx))) switch(ctx.mode) {
               default: break;
-              case NavMode::Nav: put(':');break;
-              case NavMode::Edit: put('=');break;
-              case NavMode::Tune: put('.');break;
-            } else if(!ctx.pad) put(' ');
+              case NavMode::Nav:  put(C::sepNav);  break;
+              case NavMode::Edit: put(C::sepEdit); break;
+              case NavMode::Tune: put(C::sepTune); break;
+            } else if(!ctx.pad) put(C::blur);
             break;
-          case Fmt::NavCursor: 
-            if(!ctx.pad) {
-              if (ctx) put(ctx.enabled?'>':'-');
-              else put(' ');
-            }
+          case Fmt::NavCursor:
+            if(!ctx.pad) put(ctx?(ctx.enabled?C::focus:C::focusDis):C::blur);
             break;
-          case Fmt::Index: 
+          case Fmt::Index:
             if(!ctx.pad) put(ctx.idx<9?1+ctx.idx:' ');
             break;
           default:break;
@@ -85,18 +87,17 @@ namespace oneMenu {
         Base::template fmtStart<tag>(ctx);
       }
 
-      // stop --
       template<Fmt tag>
       void fmtStop(const Ctx& ctx) {
         if(tag&Fmt::Item) {
-          if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?WHITE:BLACK,GREEN);
+          if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg);
           clearToEOL();
           Base::nl();
         } else if(tag==Fmt::Title) {
           clearToEOL();
           Base::nl();
         } else if(tag==Fmt::View) {
-          setColors(WHITE,BLUE);
+          setColors(P::view_fg,P::view_bg);
           clearFree();
         }
         Base::template fmtStop<tag>(ctx);
@@ -104,4 +105,4 @@ namespace oneMenu {
     };
   };
 
-};//namespace oneMenu 
+};//namespace oneMenu
