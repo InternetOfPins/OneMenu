@@ -25,9 +25,9 @@ namespace oneMenu {
   };
 
   /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support.
-  /// @tparam Palette  global color scheme (default ANSIColors)
+  /// @tparam Palette  custom color scheme; use ANSIFmt (no params) for default ANSIColors
   template<typename Palette=ANSIColors>
-  struct ANSIFmt : aFormat {
+  struct ANSIFmtP : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsPrinter, After>, "ANSIFmt: printer layers must be placed above ANSIFmt");
@@ -104,5 +104,8 @@ namespace oneMenu {
       }
     };
   };
+
+  /// @brief default ANSI format — ANSIFmtP<ANSIColors>; use ANSIFmtP<MyPalette> to customize
+  struct ANSIFmt : ANSIFmtP<> {};
 
 };//namespace oneMenu
