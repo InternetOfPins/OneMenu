@@ -49,8 +49,32 @@ namespace oneMenu {
       }
 
       template<bool isKbd,typename Nav>
-      std::enable_if_t<!isKbd,bool> nav(Nav& n,const CKE& cke,const Path& path)
-        {return Base::template nav<isKbd>(n,cke,path)||n.doNav(cke,std::min(sz,ss()+1),false);}
+      std::enable_if_t<!isKbd,bool> nav(Nav& n,const CKE& cke,const Path& path) {
+        if(n.navMode()==NavMode::Edit) switch(cke.cmd) {
+          case Cmd::Left:  return n.doNav({Cmd::Up},  std::min(sz,ss()+1),false);
+          case Cmd::Right: return n.doNav({Cmd::Down}, std::min(sz,ss()+1),false);
+          case Cmd::Down: {   // ↑ key → cycle char up through mask
+            Sz pos=path.sel();
+            if(pos>=sz-1) return true;
+            char* text=get();
+            if(!text[pos]) text[pos+1]='\0';
+            text[pos]=Mask::up(text[pos]);
+            edited=true;
+            return true;
+          }
+          case Cmd::Up: {     // ↓ key → cycle char down through mask
+            Sz pos=path.sel();
+            if(pos>=sz-1) return true;
+            char* text=get();
+            if(!text[pos]) text[pos+1]='\0';
+            text[pos]=Mask::down(text[pos]);
+            edited=true;
+            return true;
+          }
+          default: break;
+        }
+        return Base::template nav<isKbd>(n,cke,path);
+      }
 
       template<bool isKbd,typename Nav>
       std::enable_if_t<isKbd,bool> nav(Nav& n,const CKE& cke,const Path& path) {

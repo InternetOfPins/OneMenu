@@ -78,7 +78,7 @@ InDef<
 
 // main output — IOutDef auto-injects Gate/ColorTrack/Cursor
 IOutDef<
-  FullPrinter,
+  ScrollPrinter,
   ANSIFmt,
   DataParser<>,
   CtrlChars,
@@ -334,6 +334,8 @@ bool promptRun() {
 void showIdle() {
   activeRun = idleRun;
   out.clear();
+  out.resume();
+  out << "z z z" << endl;
 }
 
 void showPrompt(const char* msg) {

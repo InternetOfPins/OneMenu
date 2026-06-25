@@ -149,8 +149,10 @@ namespace oneMenu {
         Sz& sel=m_path.data[(int)level()];
         oneData::DataDef<NumRange<Sz>,oneData::Data<Sz>> at(0,len-1,w,sel);
         switch(cke.cmd) {
-          case Cmd::Up:   at.up();   break;
-          case Cmd::Down: at.down(); break;
+          case Cmd::Up:
+          case Cmd::Left:  at.up();   break;
+          case Cmd::Down:
+          case Cmd::Right: at.down(); break;
           default: return false;
         }
         sel=at.get();
