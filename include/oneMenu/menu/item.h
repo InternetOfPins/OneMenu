@@ -166,18 +166,34 @@ namespace oneMenu {
 
   template<typename... II>
   struct Hidden {
+    struct End {
+      template<typename O>
+      struct Part:O {
+        using Base=O;
+        using Base::Base;
+        template<typename Out> static void print(Out&) noexcept {}
+        template<typename Out> static void printItem(Out&,Ctx&) noexcept {}
+      };
+    };
     template<typename I>
-    struct Part:oneItem::Hidden<II...>::template Part<I> {
-      using Base=typename oneItem::Hidden<II...>::template Part<I>;
+    struct Part:hapi::Chain<II...,End>::template Part<I> {
+      using Base=typename hapi::Chain<II...,End>::template Part<I>;
       using Base::Base;
+      // skip II... in flat output chain
+      template<typename Out>
+      void print(Out& out) const noexcept {I::print(out);}
+      // skip II... in printItem chain
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) noexcept {I::printItem(out,ctx);}
+      // render II... only — Base inherits from Chain<II...,End>::Part<I>; End stops before I
       template<typename Out>
       void printHidden(Out& out,Ctx& ctx) {
         if(!ctx) return;
-        typename hapi::Chain<II...>::template Part<ItemAPI<>>{}.printItem(out,ctx);
+        static_cast<Base&>(*this).printItem(out,ctx);
       }
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path p)
-        {return Base::template nav<isKbd>(n,cke,p);}
+        {return I::template nav<isKbd>(n,cke,p);}
     };
   };
 
