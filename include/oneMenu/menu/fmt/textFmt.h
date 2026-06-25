@@ -15,7 +15,7 @@
 namespace oneMenu {
 
   /// @brief Default cursor/separator characters for TextFmt
-  struct TextChars {
+  struct MenuChars {
     static constexpr char focus    = '>';  // focused item, enabled
     static constexpr char focusDis = '-';  // focused item, disabled
     static constexpr char blur     = ' ';  // unfocused item
@@ -25,8 +25,8 @@ namespace oneMenu {
   };
 
   /// @brief plain text format: one line per item, no color.
-  /// @tparam Chars  cursor/separator character set (default TextChars)
-  template<typename Chars=TextChars>
+  /// @tparam Chars  cursor/separator character set (default MenuChars)
+  template<typename Chars=MenuChars>
   struct TextFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
