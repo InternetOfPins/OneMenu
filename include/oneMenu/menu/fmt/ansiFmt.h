@@ -25,8 +25,6 @@ namespace oneMenu {
   };
 
   /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support.
-  /// @tparam Palette  color scheme (default ANSIColors); @tparam Chars  cursor chars (default MenuChars)
-  template<typename Palette=ANSIColors, typename Chars=MenuChars>
   struct ANSIFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -36,8 +34,8 @@ namespace oneMenu {
     template<typename O>
     struct Part:UseEditCursorFmt::template Part<O> {
       using Base=typename UseEditCursorFmt::template Part<O>;
-      using P=Palette;
-      using C=Chars;
+      using P=ANSIColors;
+      using C=MenuChars;
       using Base::setColors;
       using Base::clear;
       using Base::nl;
