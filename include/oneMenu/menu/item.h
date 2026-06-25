@@ -481,6 +481,31 @@ namespace oneMenu {
   template<int id> struct Id {template<typename O> using Part=O;};
   template<auto V> inline constexpr hapi::SameAs<Id<V>> byId{};
 
+  // liquid position — item jumps to a fixed screen position before rendering ----
+  /// @brief compile-time item position: printItem moves cursor to (x,y) then renders
+  template<Sz x,Sz y>
+  struct Liquid {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {out.setPos({x,y});Base::printItem(out,ctx);}
+    };
+  };
+
+  /// @brief runtime item position: set liquidPos({x,y}) to relocate item on screen
+  struct LiquidPos {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      Pos m_liquidPos{0,0};
+      void liquidPos(Pos p) {m_liquidPos=p;}
+      Pos liquidPos() const {return m_liquidPos;}
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {out.setPos(m_liquidPos);Base::printItem(out,ctx);}
+    };
+  };
+
 };//namespace oneMenu
 
 //rules ItemDef query specialization --
