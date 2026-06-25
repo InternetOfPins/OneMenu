@@ -25,6 +25,8 @@ namespace oneMenu {
   };
 
   /// @brief plain text format: one line per item, no color.
+  /// @tparam Chars  global cursor/separator char set (default MenuChars)
+  template<typename Chars=MenuChars>
   struct TextFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -45,14 +47,14 @@ namespace oneMenu {
         switch(tag) {
           default:break;
           case Fmt::NavCursor:
-            put(ctx?(ctx.enabled?MenuChars::focus:MenuChars::focusDis):MenuChars::blur);
+            put(ctx?(ctx.enabled?Chars::focus:Chars::focusDis):Chars::blur);
             break;
           case Fmt::EditMode:
             if(ctx) switch(ctx.mode) {
-              case NavMode::Nav:  put(MenuChars::sepNav);  break;
-              case NavMode::Edit: put(MenuChars::sepEdit); break;
-              case NavMode::Tune: put(MenuChars::sepTune); break;
-            } else if(!ctx.pad) put(MenuChars::blur);
+              case NavMode::Nav:  put(Chars::sepNav);  break;
+              case NavMode::Edit: put(Chars::sepEdit); break;
+              case NavMode::Tune: put(Chars::sepTune); break;
+            } else if(!ctx.pad) put(Chars::blur);
             break;
         }
         Base::template fmtStart<tag>(ctx);
