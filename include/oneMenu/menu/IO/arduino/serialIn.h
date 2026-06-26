@@ -1,22 +1,40 @@
 #pragma once
 
 #include "oneMenu/menu/in.h"
+#ifdef ARDUINO
+  #include <Arduino.h>
+#endif
 
-template<typename Dev, Dev& dev>
-struct ArduinoSerialIn {
-  template<typename In>
-  struct Part : In {
-    #ifdef ARDUINO
+namespace oneMenu {
+
+  // Generic UART input: Dev must expose .available() and .read()
+  template<typename Dev, Dev& dev>
+  struct UartIn {
+    template<typename In>
+    struct Part : In {
       static bool available() { return In::available() || dev.available(); }
-    #else
-      static bool available() { return In::available() || dev.peek(); }
-    #endif
-
-    static oneMenu::CKE cmd() {
-      if (In::available()) return In::cmd();  // drain inner pending first
-      return available() ? In::parseKey(oneMenu::Key(dev.read())) : In::cmd();
-    }
+      static CKE cmd() {
+        if (In::available()) return In::cmd();
+        return available() ? In::parseKey(Key(dev.read())) : In::cmd();
+      }
+    };
   };
-};
 
-using SerialIn = ArduinoSerialIn<decltype(Serial), Serial>;
+  // Arduino Serial input: inherits UartIn on device; on PC uses peek() for test streams
+  template<typename Dev, Dev& dev>
+  struct ArduinoSerialIn {
+    template<typename In>
+    struct Part : UartIn<Dev, dev>::template Part<In> {
+      #ifndef ARDUINO
+        static bool available() { return In::available() || dev.peek(); }
+        static CKE cmd() {
+          if (In::available()) return In::cmd();
+          return available() ? In::parseKey(Key(dev.read())) : In::cmd();
+        }
+      #endif
+    };
+  };
+
+  using SerialIn = ArduinoSerialIn<decltype(Serial), Serial>;
+
+} // namespace oneMenu
