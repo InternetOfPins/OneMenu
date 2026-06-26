@@ -342,6 +342,7 @@ namespace oneMenu {
         void put(unsigned int n)  { char b[6];  utoa(n,  b, 10); put(b, sizeof(b)); }
         void put(long n)          { char b[12]; ltoa(n,  b, 10); put(b, sizeof(b)); }
         void put(unsigned long n) { char b[11]; ultoa(n, b, 10); put(b, sizeof(b)); }
+        void put(double n)        { put((long)n); }
       #endif
       #ifndef __AVR__
         void put(const double o,const char* fmt="%f") {put<double>(o,fmt);}
