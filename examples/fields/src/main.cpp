@@ -7,6 +7,7 @@
 // ── Includes ──────────────────────────────────────────────────────────────────
 #include <oneMenu/oneMenu.h>
 #include <oneMenu/menu/IO/ansiOut.h>
+#include <oneMenu/menu/fmt/textFmt.h>  // must precede ansiFmt.h (defines MenuChars)
 #include <oneMenu/menu/fmt/ansiFmt.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
 #include <oneMenu/menu/IO/idParser.h>
@@ -14,6 +15,10 @@
 #ifdef __AVR__
   #include <onePin/onePin.h>
   #include <chips/avr/avrDevice.h>
+  #include <oneMenu/menu/IO/arduino/serialOut.h>
+  #include <oneMenu/menu/IO/arduino/serialIn.h>
+#elif defined(ARDUINO_ARCH_RP2040)
+  #include <oneChip/clock.h>
   #include <oneMenu/menu/IO/arduino/serialOut.h>
   #include <oneMenu/menu/IO/arduino/serialIn.h>
 #elif defined(__arm__)
@@ -47,6 +52,11 @@ using oneMenu::Action;
   #ifdef IOP
   IOP_TIMER0_ISR(Board)
   #endif
+#elif defined(ARDUINO_ARCH_RP2040)
+  struct SysTick {
+    template<uint32_t Ms>
+    using Period = hw::Period<Ms>;
+  };
 #elif defined(__arm__)
   using namespace onePin;
   using namespace oneBit;
@@ -78,14 +88,16 @@ InDef<
   PCKbd
 > in;
 
-// main output — IOutDef auto-injects Gate/ColorTrack/Cursor
-IOutDef<
+OutDef<
   ScrollPrinter,
   ANSIFmt,
   DataParser<>,
   CtrlChars,
+  ColorTrack<int>,
+  Cursor<>,
+  Gate,
   ANSIOut,
-  #ifdef __AVR__
+  #ifdef ARDUINO
     SerialOut,
   #else
     ConsoleOut,
@@ -104,7 +116,7 @@ OutDef<
   Cursor<>,
   Gate,
   ANSIOut,
-  #ifdef __AVR__
+  #ifdef ARDUINO
     SerialOut,
   #else
     ConsoleOut,
@@ -281,7 +293,7 @@ INavDef<
 > nav;
 
 bool action::op2(Sz) {
-  auto& op3 = find<SameAs<Id<ids::op3_id>>>(mainMenu);
+  auto& op3 = mainMenu.find<SameAs<Id<ids::op3_id>>>();  // member find<> searches body
   op3.enable(!op3.enabled());
   return true;
 }
@@ -371,6 +383,10 @@ bool run() {
 }
 
 void setup() {
+  #ifdef ARDUINO_ARCH_RP2040
+    Serial.begin(115200);
+    while (!Serial) delay(10);
+  #endif
   out.lockMode(LockMode::None);
   out.setColors(WHITE, BLACK);
   out.clear();
@@ -378,8 +394,12 @@ void setup() {
   nav.printTo(out);
 }
 
+#ifdef ARDUINO
+void loop() { run(); }
+#else
 int main() {
   setup();
   while (run());
   return 0;
 }
+#endif

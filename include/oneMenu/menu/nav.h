@@ -217,18 +217,23 @@ namespace oneMenu {
 
   // Handles Cmd::Go from IdParser: jumps to item N at current level then enters it.
   // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav, Root<...>>
+  // NOTE: must override in(), not doCmd() — TreeNav::Part::in() uses static dispatch
+  // for doCmd and cannot reach a more-derived doCmd override without CRTP.
   /// @brief nav component that handles Cmd::Go: jumps to item N at the current level by index
   struct IndexGo {
     template<typename N>
     struct Part : N {
       using Base = N;
-      template<bool kbd = false>
-      bool doCmd(Cmd c, Key k = 0, bool e = false) {
-        if (c == Cmd::Go) {
-          Base::go(Sz(k) - 1);  // IdParser emits 1-based; go() is 0-based
+      template<typename In>
+      bool in(In& src) {
+        CKE cke = src.cmd();
+        if (cke.cmd == Cmd::None) return false;
+        if (cke.cmd == Cmd::Go) {
+          Base::go(Sz(cke.key) - 1);  // IdParser emits 1-based; go() is 0-based
           return Base::template doCmd<false>(Cmd::Enter);
         }
-        return Base::template doCmd<kbd>(c, k, e);
+        return cke.kbd ? Base::template doCmd<true> (cke.cmd, cke.key, cke.ext)
+                       : Base::template doCmd<false>(cke.cmd, cke.key, cke.ext);
       }
     };
   };

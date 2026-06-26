@@ -32,9 +32,6 @@ namespace oneMenu {
       void sync() {edited=false;}
 
       template<typename Out>
-      void print(Out&) const noexcept {}  // all output goes through printItem (cursor rendering)
-
-      template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         const char* text = get();
         Sz i=ctx.sel();
@@ -45,7 +42,7 @@ namespace oneMenu {
           out.template fmtStop<Fmt::EditCursor>(ctx);
           out.put(&text[i+1]);
         } else out.put(text,sz);
-        Base::printItem(out,ctx);
+        I::printItem(out,ctx);  // skip Data<char[]>::printItem — PartEnd owns all output
       }
 
       template<bool isKbd,typename Nav>
