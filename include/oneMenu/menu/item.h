@@ -322,10 +322,15 @@ namespace oneMenu {
     };
   };
 
+  struct ItemNav; // forward — needed by ParentDraw::rules()
+
   struct ParentDraw {
     template<typename Before, typename After>
     static constexpr bool rules() {
-      static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>, "ParentDraw: RecallNavPos must be placed above ParentDraw in the ItemDef chain");
+      static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>,
+        "ParentDraw: RecallNavPos must be placed above ParentDraw in the ItemDef chain");
+      static_assert(Excludes<hapi::SameAs<ItemNav>, Before, After>,
+        "ParentDraw: ItemNav cannot coexist with ParentDraw — ParentDraw handles Enter/close by itself; remove ItemNav");
       return true;
     }
     template<typename I>
@@ -345,6 +350,8 @@ namespace oneMenu {
   struct ItemNav {
     template<typename Before, typename After>
     static constexpr bool rules() {
+      static_assert(Excludes<hapi::SameAs<ParentDraw>, Before, After>,
+        "ItemNav: cannot coexist with ParentDraw — ParentDraw handles Enter/close; remove ItemNav");
       return true;
     }
     template<typename I>

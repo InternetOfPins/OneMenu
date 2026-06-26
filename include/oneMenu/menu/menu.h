@@ -29,6 +29,14 @@ namespace oneMenu {
   };
 
   struct PadDraw {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<hapi::SameAs<ItemNav>, Before, After>,
+        "PadDraw: ItemNav cannot coexist with PadDraw — PadDraw handles Enter/close; remove ItemNav");
+      static_assert(Excludes<hapi::SameAs<ParentDraw>, Before, After>,
+        "PadDraw: use either PadDraw or ParentDraw, not both");
+      return true;
+    }
     template<typename I>
     struct Part:ParentDraw::template Part<I> {
       static constexpr bool isPad() {return true;}
