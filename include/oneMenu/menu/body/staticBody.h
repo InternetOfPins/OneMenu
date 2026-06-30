@@ -11,8 +11,10 @@ namespace oneMenu {
   template<typename...> struct StaticBody;
 
   template<> struct StaticBody<> {
+    using Types = hapi::Chain<>;
     static constexpr Sz size() noexcept {return 0;}
     static constexpr Depth depth() noexcept {return 0;}
+    template<template<typename> class M> using Map = StaticBody<>;
     template<typename Out> static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
@@ -30,10 +32,12 @@ namespace oneMenu {
 
   template<typename O, typename... OO>
   struct StaticBody<O, OO...> {
+    using Types = hapi::Chain<O, OO...>;
     static constexpr Sz size() noexcept {return 1+sizeof...(OO);}
     using Head = O;
     using Tail = StaticBody<OO...>;
     static constexpr Depth depth() {return staticMax<Head::depth(),Tail::depth()>();}
+    template<template<typename> class M> using Map = StaticBody<M<O>, M<OO>...>;
     
     Head head;
     Tail tail;

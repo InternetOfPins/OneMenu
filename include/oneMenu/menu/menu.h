@@ -47,12 +47,12 @@ namespace oneMenu {
   template<typename T,typename B,typename... OO>
   struct Menu {
     using Chain_=hapi::Chain<OO...>;
-    using Types=hapi::Chain<OO..., B>; // include body in query traversal
+    using Types=Chain_; // chain components only; body searched separately
     template<typename O>
     struct Part : Chain_::template Part<O> {
       using Base=typename Chain_::template Part<O>;
       using Base::Base;
-      using Types=hapi::Chain<OO..., B>; // include body in query traversal
+      using Types=Chain_; // chain components only; body searched separately
       using Title=T;
       using Body=B;
       Title title;
