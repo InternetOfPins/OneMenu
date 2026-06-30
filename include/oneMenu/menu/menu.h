@@ -47,43 +47,17 @@ namespace oneMenu {
   template<typename T,typename B,typename... OO>
   struct Menu {
     using Chain_=hapi::Chain<OO...>;
-    using Types=Chain_; // needed for hapi::query traversal into this component
+    using Types=hapi::Chain<OO..., B>; // include body in query traversal
     template<typename O>
     struct Part : Chain_::template Part<O> {
       using Base=typename Chain_::template Part<O>;
       using Base::Base;
-      using Types=Chain_;
+      using Types=hapi::Chain<OO..., B>; // include body in query traversal
       using Title=T;
       using Body=B;
       Title title;
       Body body;
       Part(Title&& t,Body&& b):title{std::move(t)},body{std::move(b)} {}
-
-      // Shadows Hapi::Part::find<Q>() — searches chain first, then body
-      // template<typename Q> auto& find() {
-      //   if constexpr (hapi::query<Q, Types>)
-      //     return hapi::template find<Q>(*this);
-      //   else {
-      //     static_assert(hapi::query<Q, Body>, "find<Q>: Q not found in chain or body");
-      //     using BQ = BodyQ<Q>; return detail::findBody(BQ{}, body);
-      //   }
-      // }
-      // template<typename Q> const auto& find() const {
-      //   if constexpr (hapi::query<Q, Types>)
-      //     return hapi::template find<Q>(*this);
-      //   else {
-      //     static_assert(hapi::query<Q, Body>, "find<Q>: Q not found in chain or body");
-      //     using BQ = BodyQ<Q>; return detail::findBody(BQ{}, body);
-      //   }
-      // }
-      // template<typename Q> auto& find(Q) {
-      //   static_assert(hapi::is_predicate<Q>::value,"find(Q{}): Q must be a hapi predicate");
-      //   return find<Q>();
-      // }
-      // template<typename Q> const auto& find(Q) const {
-      //   static_assert(hapi::is_predicate<Q>::value,"find(Q{}): Q must be a hapi predicate");
-      //   return find<Q>();
-      // }
 
       bool changed() const {return Base::changed()||body.changed();}
       void sync() {Base::sync();body.sync();}
@@ -166,21 +140,13 @@ namespace oneMenu {
   template <typename T, typename B,typename... OO> using MenuDef=ItemDef<Menu<T,B,OO...>>;
   template <typename T, typename B,typename... OO> using IMenuDef=IItemDef<Menu<T,B,OO...>>;
 
-  // find<Q>(menu): more specialized than hapi::find — wins via partial ordering; tries chain then body.
-  // Uses BodyQ<Q> tag dispatch to avoid C++17 template-arg-as-less-than ambiguity.
-  // template<typename Q, typename T, typename B, typename... MM>
-  // auto& find(ItemDef<Menu<T,B,MM...>>& node) {
-  //   using Node = ItemDef<Menu<T,B,MM...>>;
-  //   if constexpr (hapi::query<Q, typename Node::Types::Tail>)
-  //     return hapi::find<Q>(node);
-  //   else { using BQ = BodyQ<Q>; return detail::findBody(BQ{}, node.body); }
-  // }
-  // template<typename Q, typename T, typename B, typename... MM>
-  // const auto& find(const ItemDef<Menu<T,B,MM...>>& node) {
-  //   using Node = ItemDef<Menu<T,B,MM...>>;
-  //   if constexpr (hapi::query<Q, typename Node::Types::Tail>)
-  //     return hapi::find<Q>(node);
-  //   else { using BQ = BodyQ<Q>; return detail::findBody(BQ{}, node.body); }
-  // }
-
 };//oneMenu
+
+// Traverse specialization: expose body structure to HAPI queries
+namespace hapi {
+  template<typename Op, typename T, typename B, typename... MM>
+  struct Traverse<Op, oneMenu::Menu<T,B,MM...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, MM>::Beta...,
+                                                   typename Traverse<Op, B>::Beta>;
+  };
+}
