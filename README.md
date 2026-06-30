@@ -12,6 +12,31 @@ HAPI-based composable menu system for embedded targets. Zero dynamic allocation,
 - Navigation: tree menus, wrap/no-wrap, enter/esc/up/down
 - Data items: editable numeric and string fields
 - Web output: XML + XSLT, live navigation via browser
+- Runtime item lookup by compile-time `Id<>`: `find<>`/`find()` walk the menu tree (title, chain, and nested bodies) and return a real reference to the tagged item
+
+## Finding items by `Id<>`
+
+Tag any item with `Id<V>` and look it up later — from an action callback, for example — to toggle, enable, or otherwise mutate it at runtime:
+
+```cpp
+enum ids { op3_id };
+
+auto mainMenu = menuDef<WrapNav>(
+  ItemDef<Text>{"Main menu"},
+  staticBody(
+    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, StaticText<&text::op3>>{}
+    // ...
+  )
+);
+
+bool action::op2(Sz) {
+  auto& op3 = mainMenu.find<SameAs<Id<ids::op3_id>>>();  // or: mainMenu.find(byId<ids::op3_id>)
+  op3.enable(!op3.enabled());
+  return true;
+}
+```
+
+`find<>` searches the whole tree — a submenu's own `Id<>`, its title, or anything nested arbitrarily deep in its body — and is a compile error if the tag isn't found anywhere.
 
 ## Output devices
 
