@@ -62,22 +62,15 @@ namespace oneMenu {
     }
 
     template<typename Out> bool printItem(Out& out,Ctx& ctx) {
-      // out.template fmtStart<Fmt::Data>(ctx);
-      // print(out);
-      // out.template fmtStop<Fmt::Data>(ctx);
       Base::printItem(out,ctx);
       return Base::changed();
     }
     template<typename Out> bool printItem(Out& out,Ctx&& ctx={{}})
       {return printItem(out,static_cast<Ctx&>(ctx));}
 
-    // member find<Q>(): search own ::Types for Q, return *this
-    // verification deferred to usage (requires full Traverse infrastructure for nested bodies)
-    template<typename Q>
-    ItemDef& find() { return *this; }
-
-    template<typename Q>
-    const ItemDef& find() const { return *this; }
+    // find<Q>()/find(Q) are NOT declared here: for ItemDef<Menu<...>> they must be
+    // inherited unshadowed from Menu::Part (own chain or body search); a plain ItemDef
+    // (no nested Menu) has nothing to search and isn't a valid find<> receiver.
 
     template<typename... XX> using Ins=oneMenu::ItemDef<XX...,OO...>;
     template<typename... XX> using App=oneMenu::ItemDef<OO...,XX...>;
@@ -116,14 +109,12 @@ namespace oneMenu {
     using Base=ItemDef<II...>;
     using Base::Base;
 
-    // virtual Depth depth() const override {return Base::depth();}
     virtual bool printMenu(IOut& out,Ctx& ctx) override {return Base::printMenu(out,ctx);}
     virtual bool printBody(IOut& out,Ctx& ctx) override {return Base::printBody(out,ctx);}
     virtual void printItem(IOut& out,Ctx& ctx) override {Base::printItem(out,ctx);}
     virtual bool enabled() const override {return Base::enabled();}
     virtual void enable(bool o=true) override {return Base::enable(o);}
     virtual bool changed() override {return Base::changed();}
-    // virtual bool changed(IOut& out) override {return Base::changed(out);}
     virtual void sync() override {Base::sync();}
     virtual void sync(IOut& out) override {Base::sync(out);}
     virtual bool up() const {return Base::up();};
@@ -132,11 +123,6 @@ namespace oneMenu {
     virtual bool _kbdNav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<true>(n,cke,p);}
     template <typename Out> static constexpr bool printMenu(Out& out,Ctx& ctx) {return Base::printMenu(out,ctx);}
     template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {return Base::printItem(out,ctx);}
-
-    //Id--
-    static constexpr int getId() {return -1;}
-    template<int> using HasId=std::false_type;
-    template<int> using WithId=ItemAPI<hapi::CRTP<ItemAPI<Nil>>>;
   };
 
   //---------------------------------------------------------------------------------------------
@@ -148,7 +134,6 @@ namespace oneMenu {
     struct Part:I {
       using Base=I;
       using Base::Base;
-      // constexpr Part(){}
       static constexpr bool act(int i) {return action(i);}
       template<bool isKbd,typename Nav>
       static constexpr bool nav(Nav& n,const CKE& cke,Path path) 
@@ -292,10 +277,6 @@ namespace oneMenu {
 
   /// @brief store and restore navigation position
   struct RecallNavPos {
-    /// @brief provide a default value to a index Recall
-    /// @tparam val Sz index
-    // template<Sz val>
-    // using Default=Chain<Default<Data<Sz>,val>>;
     template<typename I>
     struct Part:I {
       using Base=I;
@@ -405,7 +386,6 @@ namespace oneMenu {
       using RefType=R;
       operator RefType&() const {return ref;}
       static constexpr const Depth depth() {return ref.depth();}
-      // static constexpr Sz size(Path p={}) {return ref.size(p);}
       static constexpr bool enabled() {return ref.enable(); }
       static constexpr void enable(bool o=true) {ref.enable(o);}
       static constexpr bool changed() {return ref.changed();}
@@ -425,14 +405,9 @@ namespace oneMenu {
       static constexpr void printItem(Out& out,Ctx& ctx)
         {ref.printItem(out,ctx);}
 
-      template<bool isKbd,typename Nav> 
-      static constexpr bool nav(Nav& n,const CKE& cke,const Path p) 
+      template<bool isKbd,typename Nav>
+      static constexpr bool nav(Nav& n,const CKE& cke,const Path p)
         {return ref.nav(n,cke,p);}
-
-      //Id--
-      static constexpr int getId() {return -1;}
-      template<int i> using HasId=typename R::template HasId<i>;
-      template<int i> using WithId=typename R::template WithId<i>;
     };
   };
 
@@ -533,7 +508,6 @@ namespace oneMenu {
 };//namespace oneMenu
 
 //rules ItemDef query specialization --
-//TODO: why not Map?
 template<typename Q,typename... OO>
 constexpr const bool hapi::template query<Q,oneMenu::template ItemDef<OO...>>{(hapi::template query<Q,OO>||...)};
 

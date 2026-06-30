@@ -7,17 +7,21 @@
 #pragma once
 
 #include "oneMenu/menu/item.h"
+#include "oneMenu/menu/body/staticBody.h"  // StaticBody must be complete for detail::find below
 
 namespace oneMenu {
-  // Tag for passing Q as a value to avoid <Q> function-call template syntax (C++17 ambiguity workaround)
-  template<typename Q> struct BodyQ {};
+  template<typename T,typename B,typename... OO> struct Menu; // forward — needed by detail::find below
 
+  // recursive structural search: descends Menu -> body -> nested items/menus until Q's
+  // own immediate chain is found. A miss is a compile error (dead end has no overload) —
+  // mirrors hapi::FindFirst's philosophy. Declared here, defined below (needs Menu complete).
   namespace detail {
-    // Declared here (BodyQ<Q> available), defined in staticBody.h (Body::Head/Tail available).
-    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int> = 0>
-    auto& findBody(BodyQ<Q>, Body&);
-    template<typename Q, typename Body, std::enable_if_t<hapi::query<Q, Body>, int> = 0>
-    const auto& findBody(BodyQ<Q>, const Body&);
+    template<typename Q, typename O, typename... OO> decltype(auto) find(StaticBody<O,OO...>&);
+    template<typename Q, typename O, typename... OO> decltype(auto) find(const StaticBody<O,OO...>&);
+    template<typename Q, typename T, typename B, typename... MM> decltype(auto) find(ItemDef<Menu<T,B,MM...>>&);
+    template<typename Q, typename T, typename B, typename... MM> decltype(auto) find(const ItemDef<Menu<T,B,MM...>>&);
+    template<typename Q, typename... OO> decltype(auto) find(ItemDef<OO...>&);
+    template<typename Q, typename... OO> decltype(auto) find(const ItemDef<OO...>&);
   }
 
   //TODO: make this just a query target, it will give the boolean we need, we can generalize this type of tags here
@@ -47,12 +51,12 @@ namespace oneMenu {
   template<typename T,typename B,typename... OO>
   struct Menu {
     using Chain_=hapi::Chain<OO...>;
-    using Types=Chain_; // chain components only; body searched separately
+    using Types=hapi::Chain<OO..., B>; // expose body for compile-time queries (StaticBody only)
     template<typename O>
     struct Part : Chain_::template Part<O> {
       using Base=typename Chain_::template Part<O>;
       using Base::Base;
-      using Types=Chain_; // chain components only; body searched separately
+      using Types=hapi::Chain<OO..., B>; // expose body for compile-time queries (StaticBody only)
       using Title=T;
       using Body=B;
       Title title;
@@ -129,6 +133,24 @@ namespace oneMenu {
         if(cke.cmd==Cmd::Enter) return Base::isPad()?n.padOpen():n.open();
         return Base::template nav<isKbd>(n,cke,p);
       }
+
+      /// @brief locate the item carrying Q (e.g. an Id<V>): own chain (OO...) wins,
+      /// else descend into body. Compile error if Q is nowhere to be found.
+      template<typename Q>
+      decltype(auto) find() {
+        if constexpr((hapi::query<Q,OO> || ...) || hapi::query<Q,Title>) return (*this);
+        else return oneMenu::detail::find<Q>(body);
+      }
+      template<typename Q>
+      decltype(auto) find() const {
+        if constexpr((hapi::query<Q,OO> || ...) || hapi::query<Q,Title>) return (*this);
+        else return oneMenu::detail::find<Q>(body);
+      }
+      /// @brief same as find<Q>(), Q passed by value to avoid `<>` at the call site, e.g. find(byId<id>)
+      template<typename Q>
+      decltype(auto) find(Q) {return find<Q>();}
+      template<typename Q>
+      decltype(auto) find(Q) const {return find<Q>();}
     };
   };
 
@@ -150,3 +172,47 @@ namespace hapi {
                                                    typename Traverse<Op, B>::Beta>;
   };
 }
+
+// query<Q,Menu<...>> specialization: keeps hapi::query recursive through Menu nesting,
+// consistent with the ItemDef/StaticBody specializations (Title, own chain OO..., or the body).
+template<typename Q, typename T, typename B, typename... OO>
+constexpr const bool hapi::template query<Q, oneMenu::Menu<T,B,OO...>>{
+  hapi::template query<Q, T> || (hapi::template query<Q, OO> || ...) || hapi::template query<Q, B>
+};
+
+// detail::find definitions — needs Menu and ItemDef complete (above), so they live here.
+namespace oneMenu { namespace detail {
+
+  // StaticBody: descend to head if it carries Q, else keep walking the tail.
+  // StaticBody<> has no overload here — a miss is a compile error (dead end).
+  template<typename Q, typename O, typename... OO>
+  decltype(auto) find(StaticBody<O,OO...>& b) {
+    if constexpr(hapi::query<Q,O>) return find<Q>(b.head);
+    else return find<Q>(b.tail);
+  }
+  template<typename Q, typename O, typename... OO>
+  decltype(auto) find(const StaticBody<O,OO...>& b) {
+    if constexpr(hapi::query<Q,O>) return find<Q>(b.head);
+    else return find<Q>(b.tail);
+  }
+
+  // ItemDef<Menu<T,B,MM...>>: own chain (Title or MM...) wins, else descend into its body.
+  template<typename Q, typename T, typename B, typename... MM>
+  decltype(auto) find(ItemDef<Menu<T,B,MM...>>& m) {
+    if constexpr(hapi::query<Q,T> || (hapi::query<Q,MM> || ...)) return (m);
+    else return find<Q>(m.body);
+  }
+  template<typename Q, typename T, typename B, typename... MM>
+  decltype(auto) find(const ItemDef<Menu<T,B,MM...>>& m) {
+    if constexpr(hapi::query<Q,T> || (hapi::query<Q,MM> || ...)) return (m);
+    else return find<Q>(m.body);
+  }
+
+  // plain ItemDef<OO...> (no nested Menu): terminal — Q is already verified present
+  // in OO... by the caller's query<Q,Head> check, so this item itself is the match.
+  template<typename Q, typename... OO>
+  decltype(auto) find(ItemDef<OO...>& item) {return item;}
+  template<typename Q, typename... OO>
+  decltype(auto) find(const ItemDef<OO...>& item) {return item;}
+
+}}
