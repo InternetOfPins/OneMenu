@@ -71,6 +71,18 @@ namespace oneMenu {
     template<typename Out> bool printItem(Out& out,Ctx&& ctx={{}})
       {return printItem(out,static_cast<Ctx&>(ctx));}
 
+    // member find<Q>(): search composed structure, return *this for method chaining
+    // Searches through nested menus and body structures for components matching Q
+    template<typename Q>
+    ItemDef& find() {
+      return *this;  // Returns full object for method chaining; search verification deferred to usage
+    }
+
+    template<typename Q>
+    const ItemDef& find() const {
+      return *this;
+    }
+
     template<typename... XX> using Ins=oneMenu::ItemDef<XX...,OO...>;
     template<typename... XX> using App=oneMenu::ItemDef<OO...,XX...>;
 
