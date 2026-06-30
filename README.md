@@ -2,6 +2,8 @@
 
 HAPI-based composable menu system for embedded targets. Zero dynamic allocation, zero-overhead output chain, streaming-first (no host framebuffer). Tested on AVR, ESP32, and Linux native.
 
+**HAPI Compatibility:** Updated for new Check/Apply/ApplyPack API (2026-Q2)
+
 ## Features
 
 - Composable output chain: format + printer + cursor + raw device assembled at compile time
