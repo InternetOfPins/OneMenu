@@ -71,15 +71,21 @@ namespace oneMenu {
     template<typename Out> bool printItem(Out& out,Ctx&& ctx={{}})
       {return printItem(out,static_cast<Ctx&>(ctx));}
 
-    // member find<Q>(): search composed structure, return *this for method chaining
-    // Searches through nested menus and body structures for components matching Q
+    // member find<Q>(): search own ::Types for Q, return *this if found
+    // compile-time verified: Q must match something in Types
     template<typename Q>
     ItemDef& find() {
-      return *this;  // Returns full object for method chaining; search verification deferred to usage
+      using Types = typename ItemDef::Types;
+      static_assert(hapi::HasResult<hapi::FindFirst_<Q, Types>>::value,
+        "find<Q>(): Q not found in ItemDef::Types");
+      return *this;
     }
 
     template<typename Q>
     const ItemDef& find() const {
+      using Types = typename ItemDef::Types;
+      static_assert(hapi::HasResult<hapi::FindFirst_<Q, Types>>::value,
+        "find<Q>(): Q not found in ItemDef::Types");
       return *this;
     }
 
