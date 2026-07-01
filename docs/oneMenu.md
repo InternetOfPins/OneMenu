@@ -99,7 +99,7 @@ Watch<EnDis<false>>  // item starts disabled
 Use `Id<N>` to find and manipulate items at runtime:
 
 ```cpp
-auto& item = find<SameAs<Id<N>>>(menu);
+auto& item = menu.find<SameAs<Id<N>>>();  // or: menu.find(byId<N>)
 item.enable(false);         // disable
 item.enable(!item.enabled()); // toggle
 ```
@@ -149,7 +149,7 @@ MenuDef<ItemDef<...>, CArrayBody<CItem, files, 3>>{};
 // runtime-populated std container
 MenuDef<ItemDef<...>, StdBody<vector<IItem*>>, Id<container_id>>{};
 // then in setup:
-auto& m = find<SameAs<Id<container_id>>>(mainMenu);
+auto& m = mainMenu.find<SameAs<Id<container_id>>>();
 m.body.push_back(new IItemDef<Text>{"dynamic item"});
 ```
 
@@ -269,19 +269,34 @@ auto dateField(const char* lbl) {
 
 ### Getting the value from enumerated fields (Toggle/Select/Choose)
 
-Call `visit(fn)` on the field — the lambda receives the currently selected body `ItemDef&`:
+Call `visit(fn)` on the field — the lambda receives the currently selected body `ItemDef&`. This is useful for reaching whatever real accessors that item exposes (`enabled()`, a `Watch<>`'s `get()`, etc.):
 
 ```cpp
-field.visit([](auto& item) { return item.getId(); });
-field.visit([](auto& item) { return item.key(); });   // if item has Key<V>
+field.visit([](auto& item) { return item.enabled(); });
 ```
 
-Put typed values on body items using `Id<V>` or a custom component:
+`Id<V>` is a compile-time-only tag (used with `find<>` to locate an item — see
+[Runtime queries](#runtime-queries)); it has no runtime accessor, so it can't be
+used to recover which option was picked. For that, use the index `BodyAction<fn>`
+already hands you and map it to your own enum:
 
 ```cpp
-ItemDef<AsField<StaticText<&text::rise>>, Id<RISING>>
-// then:
-field.visit([](auto& item) { return item.getId(); }); // returns RISING
+enum Edge { RISING, FALLING, CHANGE };
+
+bool onChange(Sz index) {
+  Edge e = static_cast<Edge>(index);  // index matches body item order
+  return false;
+}
+
+using EdgeMode = ToggleFieldDef<
+  ItemDef<StaticText<&text::edge>, AsEditMode<>>,
+  StaticBody<
+    ItemDef<AsField<StaticText<&text::rise>>>,   // index 0 → RISING
+    ItemDef<AsField<StaticText<&text::fall>>>,   // index 1 → FALLING
+    ItemDef<AsField<StaticText<&text::both>>>    // index 2 → CHANGE
+  >,
+  BodyAction<onChange>
+>;
 ```
 
 ---
@@ -439,17 +454,25 @@ ItemDef<StaticText<&text::op1>, Desc<StaticText<&text::desc_op1>>>{}
 
 ## Runtime queries
 
-### `find<Q>` — locate an item in the menu tree
+### `find<Q>()` / `find(Q)` — locate an item in the menu tree
+
+Member calls on the menu (not free functions). Search the menu's title, its own
+chain, and every nested submenu's body, to any depth — so `Id<N>` works whether
+it's attached to a plain body item or to a submenu itself.
 
 ```cpp
-auto& item = find<SameAs<Id<N>>>(menu);        // by id
-auto& item = find<TagIs<MyTag>>(menu);          // by tag
+auto& item = menu.find<SameAs<Id<N>>>();   // by id, explicit predicate type
+auto& item = menu.find(byId<N>);           // same thing, no `<>` needed
+auto& item = menu.find<TagIs<MyTag>>();    // by tag (anything deriving from MyTag)
 ```
+
+A miss is a **compile error**, not a null/empty result — if `Id<N>` isn't anywhere
+in the tree, `find<>` simply won't compile for that `N`.
 
 ### Enable / disable at runtime
 
 ```cpp
-auto& item = find<SameAs<Id<op3_id>>>(mainMenu);
+auto& item = mainMenu.find<SameAs<Id<op3_id>>>();
 item.enable(false);
 item.enable(!item.enabled());
 ```
@@ -526,31 +549,13 @@ bool idleRun() {
 
 `idleTimer` must be file-scope (not local to `mainRun`) so `idleRun` can reset it on wake.
 
-### Typed value on enumerated field body items
-
-Put `Id<V>` (or any component with a value accessor) on body items:
-
-```cpp
-StaticBody<
-  ItemDef<AsField<StaticText<&text::rise>>, Id<RISING>>,
-  ItemDef<AsField<StaticText<&text::fall>>, Id<FALLING>>,
-  ItemDef<AsField<StaticText<&text::both>>, Id<CHANGE>>
->
-```
-
-Retrieve via `visit`:
-
-```cpp
-int mode = field.visit([](auto& item) { return item.getId(); });
-```
-
 ### Toggle option 3 at runtime
 
 ```cpp
 enum ids { op3_id };
 // in menu: ItemDef<Id<op3_id>, Watch<EnDis<false>>, ...>
 
-auto& op3 = find<SameAs<Id<op3_id>>>(mainMenu);
+auto& op3 = mainMenu.find<SameAs<Id<op3_id>>>();
 op3.enable(!op3.enabled());
 nav.printTo(out);  // or let the next changed() catch it
 ```
