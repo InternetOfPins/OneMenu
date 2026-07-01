@@ -2,6 +2,7 @@
 #include "oneMenu/menu/sys/base.h"
 #include "oneMenu/menu/sys/formats.h"
 #include "oneMenu/menu/sys/colors.h"
+#include "oneMenu/menu/sys/fonts.h"
 
 namespace oneMenu {
 
@@ -29,6 +30,11 @@ namespace oneMenu {
   // the color-capable formats). Override via a ColorTable<...> placed below GfxFmt
   // (enforced, see rules()); omit it and the built-in default below applies (identical
   // to the previous hardcoded invert-only-when-selected behavior).
+  //
+  // Fonts: same Font<Fnt>::Table<...> mechanism, with Fnt=bool (big/normal — all the
+  // driver currently supports via setBigFont(bool)). BigTitle still works exactly as
+  // before (it's just the default table's Title value now); override per-role/state
+  // via a FontTable<...> placed below GfxFmt (enforced, see rules()).
   /// @brief pixel-display format: inverted-video selection, optional big title font, item spacing
   template<Sz Radius=2, Sz Spacing=0, bool BigTitle=false>
   struct GfxFmt : aFormat {
@@ -38,6 +44,8 @@ namespace oneMenu {
       static_assert(Requires<IsCursor,  After>, "GfxFmt: Cursor must be placed below GfxFmt");
       static_assert(Excludes<hapi::IsInstanceOf<ColorTable>, Before>,
         "GfxFmt: ColorTable<> must be placed below GfxFmt (or omitted to use the built-in default)");
+      static_assert(Excludes<hapi::IsInstanceOf<FontTable>, Before>,
+        "GfxFmt: FontTable<> must be placed below GfxFmt (or omitted to use the built-in default)");
       return true;
     }
     template<typename O>
@@ -78,6 +86,22 @@ namespace oneMenu {
           : (ctx?inverted(typename NavDis::Selected{}):inverted(typename NavDis::Item::Body{}));
       }
 
+      // built-in default: Title uses BigTitle (preserves the old template-arg behavior
+      // exactly), everything else normal — cascades from Default below.
+      using DefaultFonts = typename Font<bool>::template Table<
+        /*Title*/   typename Font<bool>::template Value<BigTitle>,
+        /*Default*/ typename Font<bool>::template Value<false>
+      >;
+
+      using FoundFont = typename hapi::FindFirstOr<hapi::IsInstanceOf<FontTable>, FontTable<DefaultFonts>>
+                          ::template Check<typename O::Types>;
+      using PF = typename FoundFont::Type;
+
+      // unwrap a compile-time Value<v> tag into its bool — constexpr so callers can
+      // still use it in `if constexpr` (the table is fully resolved at compile time).
+      template<bool v>
+      static constexpr bool big(typename Font<bool>::template Value<v>) {return v;}
+
       // fully suppress NavCursor — no space, no '>' — inverted video is the indicator
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::NavCursor>
@@ -90,7 +114,7 @@ namespace oneMenu {
       std::enable_if_t<tag&Fmt::Title>
       fmtStart(const Ctx& ctx) {
         m_itemPos = Base::obj().getPos();
-        if constexpr(BigTitle) {
+        if constexpr(big(typename PF::Title{})) {
           Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 2);
           Base::setBigFont(true);
         } else {
@@ -113,10 +137,10 @@ namespace oneMenu {
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::Title>
       fmtStop(const Ctx& ctx) {
-        if constexpr(BigTitle) Base::setBigFont(false);
+        if constexpr(big(typename PF::Title{})) Base::setBigFont(false);
         if(!ctx.pad) {
           Base::obj().nl();
-          if constexpr(BigTitle) Base::obj().nl(); // extra page for 2-page big title
+          if constexpr(big(typename PF::Title{})) Base::obj().nl(); // extra page for 2-page big title
         }
       }
 
