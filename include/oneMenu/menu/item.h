@@ -471,18 +471,36 @@ namespace oneMenu {
   template<auto V> inline constexpr hapi::SameAs<Id<V>> byId{};
 
   // liquid position — item jumps to a fixed screen position before rendering ----
-  /// @brief compile-time item position: printItem moves cursor to (x,y) then renders
+  // Incompatible with ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter): scroll
+  // measurement assumes items advance the cursor sequentially; a liquid item warping
+  // away and back corrupts that math. Enforced below, not just documented — a rule.
+  // On a non-cursor device (e.g. plain serial) position is meaningless, so Liquid
+  // falls back to a normal in-sequence print instead of touching setPos at all.
+
+  /// @brief compile-time item position: printItem moves cursor to (x,y), renders,
+  /// then restores the original position so the next sequential item isn't displaced.
   template<Sz x,Sz y>
   struct Liquid {
     template<typename I>
     struct Part:I {
       using Base=I;
       template<typename Out>
-      void printItem(Out& out,Ctx& ctx) {out.setPos({x,y});Base::printItem(out,ctx);}
+      void printItem(Out& out,Ctx& ctx) {
+        static_assert(hapi::Excludes<IsScrollBody,typename Out::Types>,
+          "Liquid: incompatible with ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — "
+          "scroll measurement needs sequential item positions; use FullPrinter/NoTitlePrinter instead");
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          Pos saved=out.getPos();
+          out.setPos({x,y});
+          Base::printItem(out,ctx);
+          out.setPos(saved);
+        } else Base::printItem(out,ctx);  // no addressable cursor: fall back to normal print
+      }
     };
   };
 
-  /// @brief runtime item position: set liquidPos({x,y}) to relocate item on screen
+  /// @brief runtime item position: set liquidPos({x,y}) to relocate item on screen.
+  /// Same save/restore and non-cursor fallback behavior as Liquid<x,y>.
   struct LiquidPos {
     template<typename I>
     struct Part:I {
@@ -491,7 +509,17 @@ namespace oneMenu {
       void liquidPos(Pos p) {m_liquidPos=p;}
       Pos liquidPos() const {return m_liquidPos;}
       template<typename Out>
-      void printItem(Out& out,Ctx& ctx) {out.setPos(m_liquidPos);Base::printItem(out,ctx);}
+      void printItem(Out& out,Ctx& ctx) {
+        static_assert(hapi::Excludes<IsScrollBody,typename Out::Types>,
+          "LiquidPos: incompatible with ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — "
+          "scroll measurement needs sequential item positions; use FullPrinter/NoTitlePrinter instead");
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          Pos saved=out.getPos();
+          out.setPos(m_liquidPos);
+          Base::printItem(out,ctx);
+          out.setPos(saved);
+        } else Base::printItem(out,ctx);  // no addressable cursor: fall back to normal print
+      }
     };
   };
 

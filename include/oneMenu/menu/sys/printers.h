@@ -56,6 +56,21 @@ namespace oneMenu {
     };
   };
 
+}; // namespace oneMenu (reopened below)
+
+// Traverse specialization: MenuPrinter<OO...> is not a hapi::Chain, so its pack is
+// otherwise opaque to hapi::query/Exists — needed so tags nested inside it (e.g.
+// ScrollBodyPrinter's aScrollBody, buried via MenuPrinter<TitlePrinter,ScrollBodyPrinter,...>)
+// are still found by a flat query<Q, SomeOutDef::Types> walk.
+namespace hapi {
+  template<typename Op, typename... OO>
+  struct Traverse<Op, oneMenu::MenuPrinter<OO...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...>;
+  };
+}
+
+namespace oneMenu {
+
   /// @brief print the title + format
   /// @brief printer layer that emits the menu title wrapped in fmtStart/fmtStop(Title)
   struct TitlePrinter : aPrinter {
@@ -110,7 +125,7 @@ namespace oneMenu {
   // };
 
   /// @brief print scroll menu body
-  struct ScrollBodyPrinter : aPrinter {
+  struct ScrollBodyPrinter : aPrinter, aScrollBody {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Requires<IsCursor, After>, "ScrollBodyPrinter: Cursor must be placed below ScrollBodyPrinter — scroll measurement needs tracked position");

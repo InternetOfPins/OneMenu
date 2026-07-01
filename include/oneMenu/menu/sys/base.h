@@ -187,9 +187,11 @@ namespace oneMenu {
   struct aBuffer    {};
   struct aDataParser{};
   struct aRawDevice {};
+  struct aScrollBody{};
 
   // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
   using IsCursor     = hapi::TagIs<aCursor>;
+  using IsScrollBody = hapi::TagIs<aScrollBody>;
   using IsFormat     = hapi::TagIs<aFormat>;
   using IsPrinter    = hapi::TagIs<aPrinter>;
   using IsParser     = hapi::TagIs<aParser>;
