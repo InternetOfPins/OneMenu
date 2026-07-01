@@ -6,8 +6,9 @@
  * @date 2026-05-07
  * 
  * @copyright Copyright (c) 2026
- * 
+ *
 */
+#pragma once
 
 #include "oneMenu/menu/sys/base.h"
 

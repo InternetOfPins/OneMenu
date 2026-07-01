@@ -8,10 +8,12 @@
  * @copyright Copyright (c) 2026
  *
 */
+#pragma once
 
 #include "oneMenu/menu/sys/base.h"
 #include "oneMenu/menu/sys/formats.h"
 #include "oneMenu/menu/sys/colors.h"
+#include "oneMenu/menu/fmt/textFmt.h"
 
 namespace oneMenu {
 
