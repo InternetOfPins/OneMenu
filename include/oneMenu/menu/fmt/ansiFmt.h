@@ -4,38 +4,32 @@
  * @brief ANSI format file
  * @version 5
  * @date 2026-04-29
- * 
+ *
  * @copyright Copyright (c) 2026
- * 
+ *
 */
 
 #include "oneMenu/menu/sys/base.h"
 #include "oneMenu/menu/sys/formats.h"
+#include "oneMenu/menu/sys/colors.h"
 
 namespace oneMenu {
 
-  /// @brief Default ANSI color palette
-  struct ANSIColors {
-    static constexpr int view_fg=WHITE,  view_bg=BLUE;
-    static constexpr int title_fg=BLUE,  title_bg=WHITE;
-    static constexpr int sel_bg=GREEN,   unsel_bg=BLUE;
-    static constexpr int ena_fg=WHITE,   dis_fg=BLACK;
-    static constexpr int pad_nav_fg=GREEN, pad_nav_dis_fg=BLACK, pad_nav_bg=WHITE;
-    static constexpr int pad_edit_fg=BLUE, pad_edit_bg=WHITE;
-  };
-
   /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support.
+  /// Colors come from a Color<int>::Table<...> — either supplied via a ColorTable<...>
+  /// component placed below ANSIFmt in the output chain, or this built-in default
+  /// (enforced: ColorTable<> must be placed below ANSIFmt, see rules() below).
   struct ANSIFmt : aFormat {
-    using Palette = ANSIColors;
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsPrinter, After>, "ANSIFmt: printer layers must be placed above ANSIFmt");
+      static_assert(Excludes<hapi::IsInstanceOf<ColorTable>, Before>,
+        "ANSIFmt: ColorTable<> must be placed below ANSIFmt (or omitted to use the built-in default palette)");
       return true;
     }
     template<typename O>
     struct Part:UseEditCursorFmt::template Part<O> {
       using Base=typename UseEditCursorFmt::template Part<O>;
-      using P=Palette;
       using C=MenuChars;
       using Base::setColors;
       using Base::clear;
@@ -46,24 +40,61 @@ namespace oneMenu {
       using Base::put;
       using Base::resume;
 
+      // built-in default palette — reproduces the previous hardcoded ANSIColors exactly
+      using DefaultPalette = typename Color<int>::template Table<
+        /*Title*/   typename Color<int>::template Colors<BLUE,WHITE>,
+        /*Default*/ typename Color<int>::template Colors<WHITE,BLUE>,
+        /*View*/    typename Color<int>::template Colors<WHITE,BLUE>,
+        /*Nav*/ typename Color<int>::template Nav<
+          /*Enabled*/ typename Color<int>::template Enabled<
+            typename Color<int>::template Item<
+              /*Body*/     typename Color<int>::template Colors<WHITE,BLUE>,
+              /*Field*/    typename Color<int>::template Colors<GREEN,WHITE>,
+              /*EditMode*/ typename Color<int>::template Colors<BLUE,WHITE>
+            >,
+            /*Selected*/ typename Color<int>::template Colors<WHITE,GREEN>
+          >,
+          /*Disabled*/ typename Color<int>::template Enabled<
+            typename Color<int>::template Item<
+              /*Body*/     typename Color<int>::template Colors<BLACK,BLUE>,
+              /*Field*/    typename Color<int>::template Colors<BLACK,WHITE>,
+              /*EditMode*/ typename Color<int>::template Colors<BLUE,WHITE>
+            >,
+            /*Selected*/ typename Color<int>::template Colors<BLACK,GREEN>
+          >
+        >
+      >;
+
+      // resolve the active table: a ColorTable<...> placed anywhere in the chain wins,
+      // else fall back to DefaultPalette above. See rules(): must sit below ANSIFmt.
+      using Found = typename hapi::FindFirstOr<hapi::IsInstanceOf<ColorTable>, ColorTable<DefaultPalette>>
+                      ::template Check<typename O::Types>;
+      using P = typename Found::Type;
+      using NavEn  = typename P::Nav::Enabled;
+      using NavDis = typename P::Nav::Disabled;
+
+      // unwrap a compile-time Colors<f,b> tag into the runtime {fg,bg} pair setColors() needs
+      template<int f,int b>
+      static constexpr Colors<int> unwrap(typename Color<int>::template Colors<f,b>) {return {f,b};}
+
       static Colors<int> fb(const Ctx& ctx) {
         if(ctx.pad&&ctx.psel()) {
           if(ctx) switch(ctx.after()) {
-            default: return {ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg};
-            case 2:  return {ctx.enabled?P::pad_nav_fg:P::pad_nav_dis_fg, P::pad_nav_bg};
-            case 3:  return {P::pad_edit_fg, P::pad_edit_bg};
-          } else return {ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg};
+            default: return ctx.enabled?unwrap(typename NavEn::Selected{}):unwrap(typename NavDis::Selected{});
+            case 2:  return ctx.enabled?unwrap(typename NavEn::Item::Field{}):unwrap(typename NavDis::Item::Field{});
+            case 3:  return unwrap(typename NavEn::Item::EditMode{});
+          } else return ctx.enabled?unwrap(typename NavEn::Selected{}):unwrap(typename NavDis::Selected{});
         } else if(ctx && (!ctx.pad||(ctx.psel()&&ctx.after()>1)))
-          return {ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg};
-        return {ctx.enabled?P::ena_fg:P::dis_fg, P::unsel_bg};
+          return ctx.enabled?unwrap(typename NavEn::Selected{}):unwrap(typename NavDis::Selected{});
+        return ctx.enabled?unwrap(typename NavEn::Item::Body{}):unwrap(typename NavDis::Item::Body{});
       }
 
       template<Fmt tag>
       void fmtStart(const Ctx& ctx) {
         switch(tag) {
           default:break;
-          case Fmt::View:  setColors(P::view_fg, P::view_bg); clear(); break;
-          case Fmt::Title: setColors(P::title_fg,P::title_bg); break;
+          case Fmt::View:  { auto o=unwrap(typename P::View{}); setColors(o.fg,o.bg); } clear(); break;
+          case Fmt::Title: { auto o=unwrap(typename P::Title{}); setColors(o.fg,o.bg); } break;
           case Fmt::Item: { auto o=fb(ctx); setColors(o.fg,o.bg); } break;
         }
         switch(tag) {
@@ -89,14 +120,17 @@ namespace oneMenu {
       template<Fmt tag>
       void fmtStop(const Ctx& ctx) {
         if(tag&Fmt::Item) {
-          if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) setColors(ctx.enabled?P::ena_fg:P::dis_fg, P::sel_bg);
+          if(ctx&&(ctx.sel(ctx.pAt)==ctx.pIdx)) {
+            auto o=ctx.enabled?unwrap(typename NavEn::Selected{}):unwrap(typename NavDis::Selected{});
+            setColors(o.fg,o.bg);
+          }
           clearToEOL();
           Base::nl();
         } else if(tag==Fmt::Title) {
           clearToEOL();
           Base::nl();
         } else if(tag==Fmt::View) {
-          setColors(P::view_fg,P::view_bg);
+          { auto o=unwrap(typename P::View{}); setColors(o.fg,o.bg); }
           clearFree();
         }
         Base::template fmtStop<tag>(ctx);
