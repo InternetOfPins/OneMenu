@@ -458,13 +458,28 @@ namespace oneMenu {
   };
 
   /// @brief tracks cursor position (x,y) in device units; provides getPos/setPos/clearToEOL/clearFree
-  // CharW: advance per character in device units (1=char-based, 6=font5x8 pixels, etc.)
-  // LineH: advance per line in device units (1=char-based, 8=font5x8 pixels, etc.)
-  // Adv:   optional per-glyph advance fn (char→Sz) for proportional/variable-width fonts.
-  //        When non-null, CharW is ignored for x-advance. clearLine uses CharW as fallback
-  //        for fill-width estimation when Adv is set (space advance should be known).
-  using AdvFn = Sz(*)(char);
-  template<Sz CharW=1, Sz LineH=1, AdvFn Adv=nullptr>
+  // CharW:  advance per character in device units (1=char-based, 6=font5x8 pixels, etc.)
+  // LineH:  advance per line in device units (1=char-based, 8=font5x8 pixels, etc.) — used as-is
+  //         unless LnH (below) is given.
+  // Adv:    optional per-glyph advance fn (char→Sz) for proportional/variable-width fonts.
+  //         When non-null, CharW is ignored for x-advance. clearLine uses CharW as fallback
+  //         for fill-width estimation when Adv is set (space advance should be known).
+  // LnH:    optional dynamic line-height fn (()→Sz), the y-axis analogue of Adv — for a device
+  //         whose row height can change at *runtime* (e.g. GfxFmt's big-font item/title:
+  //         setBigFont(true) doubles the pixel height of the current row on the real driver,
+  //         but LineH is a fixed compile-time constant, so nl() would advance the logical
+  //         position by half of what was actually drawn). When non-null, LineH is ignored for
+  //         y-advance — every nl() (including the ones inside clearLine()/clearFree(), and
+  //         FullScreen's own padding loop in item.h) queries the device's *current* line height
+  //         instead of assuming it never changes, so free()/position stay honest in device
+  //         coordinates even while big-font state is toggling mid-body. Found needed 2026-07-02
+  //         chasing an all-black-screen bug: FullScreen's clearLine() padding ran while
+  //         setBigFont(true) was still active (GfxFmt only turns it off *after* FullScreen
+  //         returns), so physical (2x) and logical (LineH=1) row advancement silently diverged
+  //         and the padding fill overwrote the item's own just-drawn content.
+  using AdvFn  = Sz(*)(char);
+  using LineHFn = Sz(*)();
+  template<Sz CharW=1, Sz LineH=1, AdvFn Adv=nullptr, LineHFn LnH=nullptr>
   struct Cursor : aCursor {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -482,6 +497,10 @@ namespace oneMenu {
       static constexpr Sz glyphWidth(char c) {
         if constexpr(Adv != nullptr) return Adv(c);
         else return CharW;
+      }
+      static constexpr Sz lineHeight() {
+        if constexpr(LnH != nullptr) return LnH();
+        else return LineH;
       }
       // clearToEOL: pad remainder of current row with spaces (no newline)
       // clearLine:  clearToEOL + nl — for clearing whole blank rows
@@ -503,7 +522,7 @@ namespace oneMenu {
       void nl() {
         if(m_at.x>m_fieldWidth) m_fieldWidth=m_at.x;
         m_at.x=0;
-        m_at.y+=LineH;
+        m_at.y+=lineHeight();
         Base::nl();
       }
       void put(const char o) {

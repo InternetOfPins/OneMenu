@@ -584,12 +584,16 @@ namespace oneMenu {
         if constexpr(hapi::query<IsCursor,typename Out::Types>) {
           // Runs before the enclosing ItemPrinter's own fmtStop<Fmt::Item> (clearToEOL()+nl(),
           // same shape as Cursor::clearLine()) finalizes *this* row — so free().y here still
-          // counts the still-open current row as "free". Padding down to free().y>1 (not >0)
-          // leaves exactly that one row for the outer finalization's own nl() to consume;
-          // padding to 0 here would double-nl() this row and overshoot by one (verified via a
-          // scroll-loop trace: every top setting converged one row over budget, f=-1 instead
-          // of 0, until this fix).
-          while(out.free().y>1) out.clearLine();
+          // counts the still-open current row as "free". Reserve out.lineHeight() rows (not a
+          // hardcoded 1) for that finalization: a normal row costs 1 nl(), but a format that
+          // renders this row big (e.g. GfxFmt's item-level big font) costs 2 — and at this point
+          // big-font state (if any) is still active, so a Cursor<...,LnH> with a dynamic
+          // line-height fn already reports the right number here. Reserving a fixed 1 for a
+          // big row under-reserves by one and overshoots (verified via a scroll-loop trace:
+          // every top setting converged one row over budget, f=-1, until the first fix here;
+          // a second, physical-vs-logical-position variant of the same mismatch turned into an
+          // all-black OLED screen once big-font items were added — see notes.md).
+          while(out.free().y>out.lineHeight()) out.clearLine();
         }
       }
     };

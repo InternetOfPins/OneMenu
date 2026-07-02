@@ -29,7 +29,9 @@ namespace oneMenu {
     };
 
     /// @brief focus/blur: Selected (focused/highlighted) defaults to Item's own font.
-    template<typename It, typename Sel=It>
+    /// Sel defaults to It::Body (a leaf Value<v>), not It itself (the whole Item<...> struct)
+    /// — same fix as Color<Cor>::Enabled, see colors.h.
+    template<typename It, typename Sel=typename It::Body>
     struct Enabled { using Item=It; using Selected=Sel; };
 
     /// @brief enabled/disabled: Disabled defaults to the same as Enabled.

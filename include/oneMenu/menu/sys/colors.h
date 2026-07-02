@@ -28,7 +28,10 @@ namespace oneMenu {
     };
 
     /// @brief focus/blur: Selected (focused/highlighted) defaults to Item's own colors.
-    template<typename It, typename Sel=It>
+    /// Sel defaults to It::Body (a leaf Colors<f,b>), not It itself (the whole Item<...>
+    /// struct) — every consumer of ::Selected (e.g. GfxFmt::itemInverted, ANSIFmt::fb) expects
+    /// a leaf, and It is always an Item<...> by construction at every real call site.
+    template<typename It, typename Sel=typename It::Body>
     struct Enabled { using Item=It; using Selected=Sel; };
 
     /// @brief enabled/disabled: Disabled defaults to the same as Enabled.

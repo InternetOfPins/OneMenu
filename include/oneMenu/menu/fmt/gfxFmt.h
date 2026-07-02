@@ -102,6 +102,19 @@ namespace oneMenu {
       template<bool v>
       static constexpr bool big(typename Font<bool>::template Value<v>) {return v;}
 
+      using PFNavEn  = typename PF::Nav::Enabled;
+      using PFNavDis = typename PF::Nav::Disabled;
+
+      // Item content's own big/normal choice — same enabled x selected shape as
+      // itemInverted()/Color<Cor>, read from the font table instead. Runtime (not
+      // `if constexpr` like Title's, which is a single fixed BigTitle value) because it can
+      // legitimately differ per item once a FontTable<> distinguishes Selected from Item::Body.
+      static bool itemBig(const Ctx& ctx) {
+        return ctx.enabled
+          ? (ctx?big(typename PFNavEn::Selected{}):big(typename PFNavEn::Item::Body{}))
+          : (ctx?big(typename PFNavDis::Selected{}):big(typename PFNavDis::Item::Body{}));
+      }
+
       // fully suppress NavCursor — no space, no '>' — inverted video is the indicator
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::NavCursor>
@@ -129,7 +142,9 @@ namespace oneMenu {
       fmtStart(const Ctx& ctx) {
         m_itemPos = Base::obj().getPos();
         Base::setInverted(itemInverted(ctx));   // set before fillRect — driver XORs the fill byte
-        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 1);
+        bool bigItem = itemBig(ctx);
+        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), bigItem?2:1);
+        if(bigItem) Base::setBigFont(true);
         Base::setPos({Base::orgX(), m_itemPos.y});
         Base::template fmtStart<tag>(ctx);
       }
@@ -157,8 +172,11 @@ namespace oneMenu {
         // always reset to the (possibly customized) non-selected state — ctx may
         // evaluate differently in stop vs start, so re-derive rather than hardcode false
         Base::setInverted(ctx.enabled?inverted(typename NavEn::Item::Body{}):inverted(typename NavDis::Item::Body{}));
+        bool bigItem = itemBig(ctx);
+        if(bigItem) Base::setBigFont(false);
         if(!ctx.pad) {
           Base::obj().nl();
+          if(bigItem) Base::obj().nl();  // extra page for 2-page big item, same as big title
           if constexpr(Spacing > 0) {
             if(Base::obj().free().y > 0) {  // guard: skip separator if no room (prevents page wrap)
               auto sep = Base::obj().getPos();
