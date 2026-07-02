@@ -210,7 +210,18 @@ namespace oneMenu {
         LockMode om=lockMode();
         if(om==LockMode::Update
           &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel())))
-        ) lockMode(LockMode::None);
+        ) {
+          lockMode(LockMode::None);
+          // Body-level setPos(x,y) that opens this pass was itself Gate-suppressed (it ran
+          // while still locked at Update) — logical Cursor::m_at reset to the body origin, but
+          // the real device cursor was left wherever the last actually-unlocked write parked
+          // it (e.g. bottom of the previous full page). Items are otherwise written by plain
+          // sequential nl() chaining, no per-item absolute reposition — so a lone force-unlocked
+          // item would draw its content at that stale real position instead of its own row.
+          // Re-send position now, while genuinely unlocked, to resync real-to-logical before
+          // drawing (same idiom as RecallNavPos::printItem's out.setPos(out.getPos())).
+          setPos(getPos());
+        }
         ctx.enabled =i.enabled();
         Base::template fmtStart<Fmt::Item>(ctx);
         bool r=Base::printItem(i,ctx);

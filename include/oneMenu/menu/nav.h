@@ -33,6 +33,14 @@ namespace oneMenu {
       if(!Base::changed(out)) return false;
       Base::printTo(out);
       Base::sync(out);
+      // printTo (via ScrollBodyPrinter) may have forced lockMode to None for a scroll — nothing
+      // downstream restores it, and sync(out) itself just puts back whatever lockMode was at its
+      // own entry (still None in that case). Left alone, every subsequent doOutput() call keeps
+      // running a full unconditional redraw forever (visible as permanent flicker once any scroll
+      // has happened) instead of resting at the normal per-item-selective Update mode. Every other
+      // caller that forces None for a manual full redraw (setup(), idleRun(), action::ok() in the
+      // demo) explicitly restores Update afterward — doOutput() is the one path that didn't.
+      out.lockMode(LockMode::Update);
       return true;
     }
 

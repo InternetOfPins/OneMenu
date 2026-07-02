@@ -112,7 +112,13 @@ namespace oneMenu {
             if(!ctx.pad) put(ctx?(ctx.enabled?C::focus:C::focusDis):C::blur);
             break;
           case Fmt::Index:
-            if(!ctx.pad) put(ctx.idx<9?1+ctx.idx:' ');
+            // must resolve to put(char) (out.h DataParser, single raw glyph), not put(int)
+            // (DataParser's "%i" decimal-text path): the ternary's branches are int (1+ctx.idx)
+            // and char (' ') — usual arithmetic conversions promote ' ' to int 32, so an
+            // unqualified put(...) prints the *decimal text* "32" for idx>=9 instead of a
+            // blank glyph (1-9 looked correct only by coincidence: decimal text of 1..9 is a
+            // single character). The explicit char(...) cast forces put(char) in both branches.
+            if(!ctx.pad) put(char(ctx.idx<9?'1'+ctx.idx:' '));
             break;
           default:break;
         }
