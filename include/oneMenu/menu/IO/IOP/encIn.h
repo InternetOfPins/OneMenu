@@ -5,10 +5,10 @@ namespace oneMenu {
 
   // OneInput encoder InDef adapter.
   //
-  // HW is the assembled hardware chain (hapi::APIOf<InputDef, Encoder, AvrEncPins<...>>).
+  // HW is the assembled hardware chain (oneInput::InputDef<Encoder, AvrEncPins<...>>).
   // EncIn<HW, Steps> is a HAPI component that sits in InDef and polls HW::delta().
   //
-  //   using EncHW = hapi::APIOf<oneInput::InputDef,
+  //   using EncHW = oneInput::InputDef<
   //     oneInput::Encoder,
   //     oneInput::avr::AvrEncPins<1, chip::PortC, 0, 1>
   //   >;

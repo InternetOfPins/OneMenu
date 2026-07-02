@@ -5,11 +5,11 @@ namespace oneMenu {
 
   // OneInput button InDef adapter.
   //
-  // HW is the assembled hardware chain (hapi::APIOf<InputDef, BtnCapture, Hold<800>, ...>).
+  // HW is the assembled hardware chain (oneInput::InputDef<BtnCapture, Hold<800>, ...>).
   // BtnIn<HW, ClickCmd, HoldCmd> is a HAPI component that sits in InDef and drains HW events.
   // BtnCapture (in OneInput) captures onClick(1)/onHold(2) flags; BtnIn maps them to CKE.
   //
-  //   using BtnHW = hapi::APIOf<oneInput::InputDef,
+  //   using BtnHW = oneInput::InputDef<
   //     oneInput::BtnCapture,
   //     oneInput::Hold<800>,
   //     oneInput::Click<300>,
