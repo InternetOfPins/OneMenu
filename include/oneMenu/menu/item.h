@@ -599,6 +599,64 @@ namespace oneMenu {
     };
   };
 
+  /// @brief horizontal text alignment (Left/Center/Right) within the item's own field width.
+  /// Idea salvaged from AM22/AM24's Align<Method,margin> (a two-pass measure-then-pad-then-print
+  /// component) — not the code: those used a separate CanMeasure/lock() capability trait that
+  /// silently no-op'd when missing; this uses LockMode::Measure + Gate, already present for
+  /// exactly this "simulate without writing" purpose (see ScrollBodyPrinter's own scroll-fit
+  /// measurement in printers.h). Dry-run the content once under LockMode::Measure to learn its
+  /// rendered width, rewind X only (same row — unlike Liquid/LiquidPos this never touches Y, so
+  /// it stays compatible with ScrollBodyPrinter's sequential row measurement even though it also
+  /// repositions the cursor), pad, then print for real.
+  /// margin is a genuine no-op for Center, not a bug: insetting the measured field by `margin`
+  /// on *both* sides before centering algebraically cancels out — margin+(freeW-2*margin-used)/2
+  /// == (freeW-used)/2 for any margin. It only does anything for Left/Right, where the inset is
+  /// one-sided. AM22 had a real version of this (margin silently ignored for its Left case too,
+  /// commented "just ignored for now" — an actual bug there, not the mathematical wash this is).
+  /// AM never implemented vertical alignment (open @todo in AM22, never done) — out of scope
+  /// here too. Single-line content only: measuring getPos().x-start.x assumes the dry run never
+  /// wrapped/nl()'d.
+  /// Overrides both printItem (Ctx&-bearing, used for body items via ItemBodyPrinter) and print
+  /// (no Ctx&, used for the menu title via TitlePrinter) — two distinct entry points in this
+  /// codebase for "render this item's own content," so aligning a title needs the print()
+  /// override too, not just printItem().
+  template<AlignMethod method,Sz margin=0>
+  struct Align {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      template<typename Out,typename PrintFn>
+      static void alignedPrint(Out& out,PrintFn&& printFn) {
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          Pos start=out.getPos();
+          LockMode om=out.lockMode();
+          out.lockMode(LockMode::Measure);
+          printFn();
+          Sz used=out.getPos().x-start.x;
+          out.setPos(start);
+          out.lockMode(om);
+          Sz offset = method==AlignMethod::Center ? (out.free().x-used)/2
+                    : method==AlignMethod::Right  ? out.free().x-used-margin
+                    : margin;
+          if(offset>0) out.padWith(offset/out.glyphWidth(' '));
+        }
+        printFn();
+      }
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {
+        alignedPrint(out,[&]{Base::printItem(out,ctx);});
+      }
+      template<typename Out>
+      void print(Out& out) const {
+        alignedPrint(out,[&]{Base::print(out);});
+      }
+    };
+  };
+
+  template<Sz margin=0> using AlignLeft  = Align<AlignMethod::Left,margin>;
+  using AlignCenter                       = Align<AlignMethod::Center>;
+  template<Sz margin=0> using AlignRight = Align<AlignMethod::Right,margin>;
+
   // output partition tag -------------------------------------------------------
   /// @brief marks an item as belonging to output partition Tag.
   /// - SkipOutId<Tag> in the main OutDef skips these items on the main output.

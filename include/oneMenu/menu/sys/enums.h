@@ -19,6 +19,7 @@ namespace oneMenu {
   enum class Clear {no,yes};
   enum class Pad {no,yes};
   enum class NavMode {Nav,Edit,Tune};
+  enum class AlignMethod {Left,Center,Right};
 
   enum class Cmd {None=0,Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
 
