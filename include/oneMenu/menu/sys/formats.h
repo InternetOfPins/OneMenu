@@ -73,8 +73,19 @@ namespace oneMenu {
       void fmtStop(const Ctx& ctx) {
         F::template fmtStop<tag>(ctx);
         if(tag==Fmt::View) {
-          if(F::locked()) F::lockMode(LockMode::Update);
-          F::setPos(F::m_text_cursor_at);
+          // Only for a genuine draw pass (None=full, Update=partial) — Changed/Sync are probes
+          // that must never touch the device ("Gate suppresses all hardware, m_at drift is
+          // harmless", see TreeNav::changed()/sync()). Setting lockMode(Update) here does NOT
+          // unlock Gate (Gate::unlocked() is None-only) — it only normalizes Changed/Sync/Measure
+          // down to Update, so the setPos below stayed silently suppressed on every ordinary
+          // per-tick Update redraw, leaving the real cursor wherever the last force-unlocked
+          // item's own nl() parked it instead of on the selection.
+          LockMode om=F::lockMode();
+          if(om==LockMode::None||om==LockMode::Update) {
+            F::lockMode(LockMode::None);
+            F::setPos(F::m_text_cursor_at);
+            F::lockMode(om);
+          }
           F::flush();
         }
       }

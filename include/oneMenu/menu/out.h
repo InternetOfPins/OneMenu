@@ -241,8 +241,14 @@ namespace oneMenu {
       }
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::EditCursor> fmtStart(const Ctx& ctx) {
-        m_text_cursor_at=F::obj().getPos();
-        m_editing=true;
+        // TextField::printItem (fields.h) emits Fmt::EditCursor whenever it's simply the
+        // selected item (ctx truthy), not only while actually being edited — so this must gate
+        // on NavMode::Edit itself, else merely navigating onto a text field mid-field-position
+        // clobbers the row-start position Fmt::Item already recorded.
+        if(ctx.mode==NavMode::Edit) {
+          m_text_cursor_at=F::obj().getPos();
+          m_editing=true;
+        }
         F::template fmtStart<tag>(ctx);
       }
     protected:

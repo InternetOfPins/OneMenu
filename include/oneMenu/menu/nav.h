@@ -31,6 +31,17 @@ namespace oneMenu {
     template<typename Out>
     bool doOutput(Out& out) {
       if(!Base::changed(out)) return false;
+      // A level change (open/close a submenu — Select/Choose entering their choice list,
+      // or Esc/close backing out) swaps in a whole different, unrelated set of items at the
+      // same rows. The normal Update-mode pass only force-unlocks items whose ctx.idx equals
+      // the old or new *selection index* (see ItemPrinter::printItem) — it has no idea the
+      // page's entire content changed, so it keeps skipping/leaving stale rows from the other
+      // level. changed() itself must stay a pure query (see its own comment), so the forced
+      // full redraw belongs here, the actual output-driving step.
+      if(Base::levelChanged()) {
+        out.lockMode(LockMode::None);
+        out.clear();
+      }
       Base::printTo(out);
       Base::sync(out);
       // printTo (via ScrollBodyPrinter) may have forced lockMode to None for a scroll — nothing
@@ -110,6 +121,11 @@ namespace oneMenu {
 
       void navMode(NavMode m) {m_navMode.set(m);}
       const NavMode navMode() const {return m_navMode.get();}
+
+      // entering/leaving a level swaps the whole displayed page for unrelated content (a
+      // submenu's items don't correspond 1:1 with the parent's) — doOutput() needs this to
+      // force a real clear+full redraw instead of the normal per-item selective Update pass.
+      bool levelChanged() const {return m_level.changed();}
 
       void sync() {
         m_level.sync();

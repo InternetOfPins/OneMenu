@@ -209,7 +209,17 @@ namespace oneMenu {
       bool printItem(I& i,Ctx& ctx) {
         LockMode om=lockMode();
         if(om==LockMode::Update
-          &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel())))
+          &&(i.changed()||(ctx.prev!=ctx.sel()&&(ctx.idx==ctx.prev||ctx.idx==ctx.sel()))
+            // ctx.prev/ctx.sel() are relative to ctx.at (this recursion depth) — a selection
+            // move *inside* an already-open pad (e.g. SelectBehave/RecallNavPos browsing
+            // choices via padOpen(), not a fresh Menu::open() level push) never changes the
+            // *top-level* selection those compare, so it never trips this far. TreeNav::changed()
+            // already sees it correctly (m_prevSel!=sel() at the true, current m_level), which is
+            // why doOutput() redraws at all — but nothing here told this specific collapsed row
+            // (RecallNavPos::printItem picks ctx.path.last() live while ctx.after()>1) that it's
+            // the one that needs to actually reach the device. ctx is true only for the item that
+            // owns the currently open path, so this only affects that one row.
+            ||(ctx&&ctx.after()>1))
         ) {
           lockMode(LockMode::None);
           // Body-level setPos(x,y) that opens this pass was itself Gate-suppressed (it ran
