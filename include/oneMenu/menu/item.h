@@ -561,6 +561,40 @@ namespace oneMenu {
     };
   };
 
+  /// @brief item claims the rest of the current page: after printing its own content it
+  /// pads down to the bottom of the free area (Cursor::clearFree()) so the enclosing
+  /// body's per-item free().y accounting sees this item as having consumed the whole
+  /// page. Requires ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — its
+  /// scroll-to-fit loop is what turns "this item eats all remaining room" into
+  /// single-item-per-screen paging as the selection moves; under a non-scrolling body
+  /// (FullPrinter/NoTitlePrinter) this would just pad trailing blank lines with no
+  /// paging effect. Unlike Liquid/LiquidPos this never jumps the cursor backward — it
+  /// only pads forward — so it doesn't corrupt ScrollBodyPrinter's sequential position
+  /// measurement the way a decal that warps away and back would.
+  struct FullScreen {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {
+        static_assert(hapi::Requires<IsScrollBody,typename Out::Types>,
+          "FullScreen: requires ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — "
+          "use one of those instead of FullPrinter/NoTitlePrinter");
+        Base::printItem(out,ctx);
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          // Runs before the enclosing ItemPrinter's own fmtStop<Fmt::Item> (clearToEOL()+nl(),
+          // same shape as Cursor::clearLine()) finalizes *this* row — so free().y here still
+          // counts the still-open current row as "free". Padding down to free().y>1 (not >0)
+          // leaves exactly that one row for the outer finalization's own nl() to consume;
+          // padding to 0 here would double-nl() this row and overshoot by one (verified via a
+          // scroll-loop trace: every top setting converged one row over budget, f=-1 instead
+          // of 0, until this fix).
+          while(out.free().y>1) out.clearLine();
+        }
+      }
+    };
+  };
+
   // output partition tag -------------------------------------------------------
   /// @brief marks an item as belonging to output partition Tag.
   /// - SkipOutId<Tag> in the main OutDef skips these items on the main output.
