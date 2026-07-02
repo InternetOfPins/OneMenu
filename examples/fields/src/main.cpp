@@ -60,7 +60,7 @@ using oneMenu::Action;
 #elif defined(__arm__)
   using namespace onePin;
   using namespace oneBit;
-  using SysTick = chip::SysTick<>;
+  using SysTick = chip::SysClk<>;
   using Led1    = STM32::InvOutPin<Pins<13>, chip::PortC>;
   using Board   = STM32::Board<Boot<>, Led1>;
   #ifdef IOP
