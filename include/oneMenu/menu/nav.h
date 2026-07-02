@@ -177,6 +177,27 @@ namespace oneMenu {
                        : doCmd<false>(cke.cmd, cke.key, cke.ext);
       }
 
+      // Drains up to maxCount pending events in one call instead of one per poll — a fast
+      // encoder spin or held button otherwise trickles out at one event per ~30ms tick.
+      // maxCount bounds it (AM4's inputBurst counter — no timer needed, just a counter) so a
+      // stuck/noisy input source can't starve the redraw. Returns how many were processed;
+      // callers doing partial/differential redraw may want to treat >1 like a bigger change
+      // (see LockMode::None "scroll => full redraw" precedent in ScrollPrinter::printMenu).
+      //
+      // NOTE: loop condition is in.available(), NOT this->in(in)'s return value. A single
+      // in() call can legitimately return false while there's still more to read — e.g.
+      // PCKbd's escape-sequence parser (pcKbdIn.h) absorbs ESC and '[' across two separate
+      // in() calls before the third byte finally yields a real CKE. available() reflects
+      // "more raw input queued" independent of whether the current byte completed a command.
+      template<typename In>
+      Sz inBurst(In& in, Sz maxCount=8) {
+        Sz count=0;
+        while(count<maxCount && in.available()) {
+          if(this->in(in)) count++;
+        }
+        return count;
+      }
+
       void go(Sz i,Depth delta=0) {
         assert(m_level+delta<depth());
         m_path.data[m_level+delta]=i;
