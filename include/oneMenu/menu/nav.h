@@ -22,6 +22,33 @@ namespace oneMenu {
     bool down() {return Base::template doCmd<false>(Cmd::Down);}
     bool enter() {return Base::template doCmd<false>(Cmd::Enter);}
     bool esc() {return Base::template doCmd<false>(Cmd::Esc);}
+
+    // AM4's poll(){doInput();doOutput();} half: self-gating output step — redraws (and syncs)
+    // only if something visible actually changed, else a no-op. Callers needing to react to
+    // *why* it redrew (e.g. gating a secondary output device on position vs. value changes)
+    // should check Base::changed() themselves before calling this, since sync() below clears
+    // the flags changed() reads.
+    template<typename Out>
+    bool doOutput(Out& out) {
+      if(!Base::changed(out)) return false;
+      Base::printTo(out);
+      Base::sync(out);
+      return true;
+    }
+
+    // Counterpart for a secondary/hidden-content device (e.g. a footer showing the focused
+    // item's Hidden<> text via printHiddenTo — see out.h/item.h). Gated on Base::changed()
+    // (position/editMode) rather than doOutput()'s changed(out) (any visible data): hidden
+    // content only depends on which item is focused, not on unrelated items' values ticking —
+    // conflating the two gates re-clears/redraws it every time anything changes anywhere.
+    template<typename Out>
+    bool doHiddenOutput(Out& out) {
+      if(!Base::changed()) return false;
+      out.resume();
+      out.clear();
+      Base::printHiddenTo(out);
+      return true;
+    }
   };
 
   /// @brief compose a navigation chain from nav components (TreeNav, Root, IndexGo, etc.)
@@ -175,27 +202,6 @@ namespace oneMenu {
         if (cke.cmd == Cmd::None) return false;
         return cke.kbd ? doCmd<true> (cke.cmd, cke.key, cke.ext)
                        : doCmd<false>(cke.cmd, cke.key, cke.ext);
-      }
-
-      // Drains up to maxCount pending events in one call instead of one per poll — a fast
-      // encoder spin or held button otherwise trickles out at one event per ~30ms tick.
-      // maxCount bounds it (AM4's inputBurst counter — no timer needed, just a counter) so a
-      // stuck/noisy input source can't starve the redraw. Returns how many were processed;
-      // callers doing partial/differential redraw may want to treat >1 like a bigger change
-      // (see LockMode::None "scroll => full redraw" precedent in ScrollPrinter::printMenu).
-      //
-      // NOTE: loop condition is in.available(), NOT this->in(in)'s return value. A single
-      // in() call can legitimately return false while there's still more to read — e.g.
-      // PCKbd's escape-sequence parser (pcKbdIn.h) absorbs ESC and '[' across two separate
-      // in() calls before the third byte finally yields a real CKE. available() reflects
-      // "more raw input queued" independent of whether the current byte completed a command.
-      template<typename In>
-      Sz inBurst(In& in, Sz maxCount=8) {
-        Sz count=0;
-        while(count<maxCount && in.available()) {
-          if(this->in(in)) count++;
-        }
-        return count;
       }
 
       void go(Sz i,Depth delta=0) {
