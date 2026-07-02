@@ -311,6 +311,44 @@ namespace oneMenu {
     };
   };
 
+  /// @brief tags a choice item with its real value, retrieved via RecallNavPos::visit(fn)
+  template<auto V>
+  struct EnumValue {
+    template<typename O>
+    struct Part : O {
+      using Base = O;
+      using Base::Base;
+      static constexpr decltype(V) value() noexcept { return V; }
+    };
+  };
+
+  /// @brief syncs the selected choice's EnumValue<V> out to an external storage W on Enter —
+  /// enum fields (Select/Choose/Toggle) otherwise only ever hold their own m_sel index
+  /// (RecallNavPos), with no equivalent to how NumField's value can be owned or externally
+  /// referenced/composed. W follows the same Data-chain shape as everywhere else — Data<T>
+  /// for an owned member, DataRef<&ext>/DataFn<Src> for external — so SyncValue<Data<T>>,
+  /// SyncValue<DataRef<&ext>>, SyncValue<DataFn<Src>> are all equally valid.
+  /// Place above a RecallNavPos-based field (SelectFieldDef/ChooseFieldDef/ToggleFieldDef).
+  template<typename W>
+  struct SyncValue {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      using Base::Base;
+      using Storage = typename W::template Part<oneData::DataAPI<>>;
+      Storage m_value{};
+
+      auto value() const noexcept { return m_value.get(); }
+
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path& path) {
+        bool r = Base::template nav<isKbd>(n,cke,path);
+        if(cke.cmd==Cmd::Enter) Base::visit([this](auto& item){ m_value.set(item.value()); });
+        return r;
+      }
+    };
+  };
+
   struct ItemNav; // forward — needed by ParentDraw::rules()
 
   struct ParentDraw {

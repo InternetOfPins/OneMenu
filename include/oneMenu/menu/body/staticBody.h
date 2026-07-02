@@ -90,9 +90,18 @@ namespace oneMenu {
   bool changed() const {return head.changed()||((const Tail&)tail).changed();}
   void sync() {head.sync();((Tail&)tail).sync();}
 
+  // sizeof...(OO)==0 means Tail is the empty StaticBody<>, which defines no visit() —
+  // terminate here instead: for any valid i (i.e. i within this body's size()), the
+  // recursion has already decremented i to 0 by the time it reaches the last element.
   template<typename Fn>
-  auto visit(Sz i, Fn&& fn)
-    {return i?((Tail&)tail).visit(i-1,std::forward<Fn>(fn)):fn(head);}
+  auto visit(Sz i, Fn&& fn) {
+    if constexpr (sizeof...(OO)==0) {
+      (void)i;
+      return fn(head);
+    } else {
+      return i?((Tail&)tail).visit(i-1,std::forward<Fn>(fn)):fn(head);
+    }
+  }
 
   };
 
