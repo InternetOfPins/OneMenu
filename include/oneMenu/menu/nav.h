@@ -400,11 +400,14 @@ namespace oneMenu {
   /// rather than getting them for free from doCmd.
   template<typename Nav>
   bool gotoPath(Nav& nav, const Sz* target, Depth len) {
+    // target[] indexed via (int) casts: Depth is `char` on AVR (base.h, memory-optimized),
+    // and a char-typed array subscript trips -Wchar-subscripts even though the values are
+    // always small non-negative indices — no actual bug, just satisfying the warning.
     Depth common = 0;
-    while(common<nav.level() && common<len && nav.pathSel(common)==target[common]) common++;
+    while(common<nav.level() && common<len && nav.pathSel(common)==target[(int)common]) common++;
     while(nav.level()>common) if(!nav.esc()) return false;
     for(Depth d=common; d<len; d++) {
-      while(nav.sel()!=target[d]) if(!(nav.sel()<target[d] ? nav.up() : nav.down())) return false;
+      while(nav.sel()!=target[(int)d]) if(!(nav.sel()<target[(int)d] ? nav.up() : nav.down())) return false;
       if(d<len-1) if(!nav.enter()) return false;
     }
     return true;

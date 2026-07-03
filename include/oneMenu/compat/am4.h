@@ -236,9 +236,14 @@ namespace am4compat {
 ///        ignored. in/out must be InGroup/OutGroup (from MENU_INPUTS/
 ///        MENU_OUTPUTS above), matching how real AM4 sketches always route
 ///        through those macros even for a single device. id.poll() works
-///        exactly like AM4's navRoot::poll().
+///        exactly like AM4's navRoot::poll(). Nav chain includes EventDispatch
+///        (nav.h) so EventAction/onEvent (item.h) fire for macro-built menus —
+///        found the hard way: NAVROOT predates the event system and silently
+///        built a plain TreeNav chain with no event dispatch at all until this
+///        was added (a real integration gap, not a logic bug in EventDispatch
+///        itself — see notes.md "AM4 compat layer").
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::am4compat::AM4Nav< \
-      ::oneMenu::INavDef<::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu>>, \
+      ::oneMenu::INavDef<::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu>>, \
       std::remove_reference_t<decltype(in)>, std::remove_reference_t<decltype(out)> \
     > id(in, out)
