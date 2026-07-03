@@ -11,11 +11,10 @@ namespace oneMenu {
   // resume() resets invert state and repositions to (0,0) without clearing.
   /// @brief raw output device adapter for SSD1306-style OLED and Nokia 5110 pixel displays
   template<typename Oled>
-  struct OledOut : aRawDevice {
+  struct OledOut : aRawDevice, aFillRect {
     template<typename O>
     struct _Part : O {
       using Base             = O;
-      using HasFillRect      = std::true_type;
       using HasDrawRoundRect = std::true_type;
       static void put(char c)               { Oled::print(c); }
       static void put(const char* s)        { Oled::print(s); }

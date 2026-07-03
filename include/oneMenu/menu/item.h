@@ -593,7 +593,24 @@ namespace oneMenu {
           // every top setting converged one row over budget, f=-1, until the first fix here;
           // a second, physical-vs-logical-position variant of the same mismatch turned into an
           // all-black OLED screen once big-font items were added — see notes.md).
-          while(out.free().y>out.lineHeight()) out.clearLine();
+          if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
+            // GFX outputs (HasFillRect via aFillRect, e.g. OledOut): one native-coord rect
+            // fill instead of a clearToEOL()+nl() per row — same reserved-row budget as the
+            // text-path loop below, computed in closed form so the final cursor position
+            // matches it exactly (steps = number of clearLine() calls the loop would have
+            // made): fills `steps*lineHeight()` rows in one call, then advances the cursor
+            // by that same amount via setPos() instead of `steps` individual nl()s.
+            Sz L = out.lineHeight();
+            Area f = out.free();
+            Sz steps = f.y>L ? (f.y-L-1)/L + 1 : 0;
+            if(steps>0) {
+              Pos p = out.getPos();
+              out.fillRect(out.orgX(), p.y, out.width(), steps*L);
+              out.setPos({0, p.y+steps*L});
+            }
+          } else {
+            while(out.free().y>out.lineHeight()) out.clearLine();
+          }
         }
       }
     };
