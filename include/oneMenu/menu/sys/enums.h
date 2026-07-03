@@ -21,6 +21,9 @@ namespace oneMenu {
   enum class NavMode {Nav,Edit,Tune};
   enum class AlignMethod {Left,Center,Right};
 
+  // Up/Down are index-paired (Down decrements, Up increments the selection), not visually
+  // paired to any physical key — a key mapped "up" on the device (e.g. an ANSI up-arrow) can
+  // legitimately map to Cmd::Down if that's how it's wired to move the index.
   enum class Cmd {None=0,Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
 
   template<typename T> inline constexpr int operator|(T   a,T   b){return (int)a|(int)b;}
