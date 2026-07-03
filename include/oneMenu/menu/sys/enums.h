@@ -26,6 +26,18 @@ namespace oneMenu {
   // legitimately map to Cmd::Down if that's how it's wired to move the index.
   enum class Cmd {None=0,Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
 
+  // AM4-parity semantic event bitmask — ported from AM4's eventMask (see
+  // oneMenu/compat/am4.h and notes.md "AM4 compat layer" for the full plan and which
+  // bits were verified against AM4's actual nav.cpp dispatch code, not just its enum's
+  // doc comments). v1 scope: only Enter/Exit/Focus/Blur are ever raised (by
+  // EventDispatch, nav.h). selFocus/selBlur/update/activate are real AM4 features too
+  // but not implemented yet — deliberately left out rather than declared-and-unused.
+  // Registration is a mask (e.g. Focus|Blur, or Any=~0); dispatch is "any bit overlaps"
+  // (raised & registeredMask), and the handler receives the single raised bit, not the
+  // mask — matches AM4's navNode::event() exactly. Gets |/& for free via the generic
+  // operator templates above (same pattern as Fmt).
+  enum class EventMask {None=0,Enter=1<<0,Exit=1<<1,Focus=1<<2,Blur=1<<3,Any=~0};
+
   template<typename T> inline constexpr int operator|(T   a,T   b){return (int)a|(int)b;}
   template<typename T> inline constexpr int operator|(int a,T   b){return (int)a|(int)b;}
   template<typename T> inline constexpr int operator|(T   a,int b){return (int)a|(int)b;}

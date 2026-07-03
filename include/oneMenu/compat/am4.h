@@ -202,20 +202,21 @@ namespace am4compat {
   };
   template<typename... Outs> OutGroup(Outs*...) -> OutGroup<Outs...>;
 
-  /// @brief AM4 navRoot equivalent: derives from the real Nav type (so
-  ///        id.up()/down()/enter()/esc()/level()/... all keep working via
-  ///        plain inheritance) and adds .poll() fusing doInput+doOutput
-  ///        across every device in the bound InGroup/OutGroup.
+  /// @brief AM4 navRoot equivalent: joins IO (an InGroup + an OutGroup) with
+  ///        a menu's Nav. Derives from the real Nav type (so id.up()/down()/
+  ///        enter()/esc()/level()/... all keep working via plain inheritance)
+  ///        and adds .poll() fusing doInput+doOutput across every device in
+  ///        the bound InGroup/OutGroup.
   /// Members are named m_in/m_out, NOT in/out — TreeNav::Part already has an
   /// inherited `in(In&)` *method*; a same-named data member here would hide
   /// it entirely (C++ name-hiding applies across kind, not just signature),
   /// turning `nav.in(*this)` inside InDef::inBurst into a bogus "call the
   /// InGroup member like a function" — found the hard way, not theoretical.
   template<typename NavT, typename InG, typename OutG>
-  struct NavRootBind : NavT {
+  struct AM4Nav : NavT {
     InG& m_in;
     OutG& m_out;
-    NavRootBind(InG& i, OutG& o) : m_in(i), m_out(o) {}
+    AM4Nav(InG& i, OutG& o) : m_in(i), m_out(o) {}
     void poll() { m_in.doInput(*this); m_out.doOutput(*this); }
   };
 }
@@ -237,7 +238,7 @@ namespace am4compat {
 ///        through those macros even for a single device. id.poll() works
 ///        exactly like AM4's navRoot::poll().
 #define NAVROOT(id, menu, maxDepth, in, out) \
-  ::am4compat::NavRootBind< \
+  ::am4compat::AM4Nav< \
       ::oneMenu::INavDef<::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu>>, \
       std::remove_reference_t<decltype(in)>, std::remove_reference_t<decltype(out)> \
     > id(in, out)

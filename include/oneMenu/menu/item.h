@@ -41,6 +41,10 @@ namespace oneMenu {
     template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     template<typename Nav,typename P> static constexpr bool setStr(Nav&,const char*,P) {return false;}
+    /// @brief AM4-parity semantic event hook (see enums.h EventMask). Default no-op,
+    /// same pattern as nav()/printItem() — override in a component that cares
+    /// (e.g. EventAction<mask,fn> below), not by patching every item.
+    static constexpr bool onEvent(EventMask) {return false;}
   };
 
   template<typename... OO>
@@ -136,8 +140,29 @@ namespace oneMenu {
       using Base::Base;
       static constexpr bool act(int i) {return action(i);}
       template<bool isKbd,typename Nav>
-      static constexpr bool nav(Nav& n,const CKE& cke,Path path) 
+      static constexpr bool nav(Nav& n,const CKE& cke,Path path)
         {return cke.cmd==Cmd::Enter&&action(path.sel());}
+    };
+  };
+
+  /// @brief AM4-parity event handler: fires fn(raisedEvent) when EventDispatch (nav.h)
+  /// raises any bit overlapping mask — mirrors AM4's navNode::event() exactly (masked
+  /// "any overlap" match, handler receives the raised bit not the registered mask; see
+  /// enums.h EventMask). Generalizes Action<fn> (which stays as the zero-cost
+  /// Enter-only default, unmodified) rather than replacing it — use EventAction when you
+  /// need Exit/Focus/Blur or a combined mask, Action for the plain Enter-only case.
+  using EventFunc=bool(&)(EventMask);
+
+  template<EventMask mask,EventFunc fn>
+  struct EventAction {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      bool onEvent(EventMask e) {
+        bool r=(e&mask)?fn(e):false;
+        return Base::onEvent(e)||r;
+      }
     };
   };
 

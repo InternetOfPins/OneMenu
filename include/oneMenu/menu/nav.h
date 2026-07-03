@@ -118,6 +118,9 @@ namespace oneMenu {
       Path focus(Sz i) {return m_path.focusAt(i);}
       Depth level() const {return m_level;}
       Sz sel() const {return m_path[m_level];}
+      /// @brief selection index at an arbitrary depth (not just the current level) —
+      /// needed by EventDispatch to reach items inside nested submenus.
+      Sz pathSel(Depth d) const {return m_path[d];}
 
       void navMode(NavMode m) {m_navMode.set(m);}
       const NavMode navMode() const {return m_navMode.get();}
@@ -288,5 +291,123 @@ namespace oneMenu {
       }
     };
   };
+
+  /// @brief AM4-parity event dispatch: detects nav-level state transitions (selection
+  /// and level changes) and raises EventMask events to the affected item's onEvent()
+  /// hook (item.h) — see notes.md "AM4 compat layer" for the full plan and which AM4
+  /// event kinds this targets. Place above TreeNav: NavDef<EventDispatch, TreeNav,
+  /// Root<...>>.
+  ///
+  /// v1 scope/limitations (deliberate, not oversights — see notes.md for the plan this
+  /// implements):
+  /// - Only Enter/Exit/Focus/Blur are raised. selFocus/selBlur (AM4 fires these on the
+  ///   *parent* when a *child's* selection changes — confirmed live in AM4's nav.cpp
+  ///   despite its own enum's stale "TODO" comment) and updateEvent/activateEvent are
+  ///   real AM4 features but not implemented here yet.
+  /// - Dispatches at any level (walks root().body down through the live path to reach
+  ///   items inside nested submenus — see detail::eventVisit below). AM4 itself has no
+  ///   separate multi-level event mechanism to match here: its own "walk back" (escTo(),
+  ///   nav.cpp:310) is just a while(level>lvl) loop calling the single-level exit()
+  ///   repeatedly, and its "walk to" (menuNode::async(), items.cpp:83) is a recursive
+  ///   per-level index-select-then-enter — both compositions of the *same* single-level
+  ///   primitives already wrapped here, called repeatedly/recursively. See gotoPath()
+  ///   below for the OneMenu equivalent of that composition.
+  /// - Wraps doCmd(), NOT in() — unlike IndexGo just above (which *must* override in(),
+  ///   per its own comment, because TreeNav::Part::in() calls doCmd from its own scope,
+  ///   unreachable by a more-derived override). doCmd works correctly for direct
+  ///   nav.up()/down()/enter()/esc() calls (DefinedNav calls Base::doCmd from outside
+  ///   TreeNav, which *does* reach a more-derived override). BUT real
+  ///   input-device-driven nav.in()/poll() calls go through TreeNav::in()'s *internal*
+  ///   doCmd call, bound to TreeNav's own scope — EventDispatch will NOT see those.
+  ///   Events currently only fire for direct nav method calls, not real polled input.
+  ///   Fixing this the way IndexGo does (owning in() itself) would need EventDispatch
+  ///   and IndexGo to cooperate on a single in() instead of each independently trying to
+  ///   own one — deferred, not done.
+  /// - Enter/Exit fire regardless of whether they also happened to change level (matches
+  ///   AM4: node().event(enterEvent) always fires on Enter, independently of whether the
+  ///   item also happens to be a submenu that then gets descended into).
+  namespace detail {
+    // Detects "does this item have a nested .body" (i.e. it's an ItemDef<Menu<...>>) —
+    // std::void_t/declval come from HAPI's avr_std.h shim on AVR (no <type_traits> there
+    // at all — see project_avr_no_libstdcxx), from real <type_traits> elsewhere.
+    template<typename T, typename = void> struct HasBody : std::false_type {};
+    template<typename T> struct HasBody<T, std::void_t<decltype(std::declval<T&>().body)>> : std::true_type {};
+
+    // Walks body down d=0..level (using nav's *current* pathSel(d) for every level
+    // except the final one, where idx is used instead — the final level's selection may
+    // be the old or new value depending on which event is being raised, not necessarily
+    // what's live in the path right now) and invokes fn on whatever item is found there.
+    template<typename Body, typename Nav, typename Fn>
+    void eventVisit(Body& body, Nav& nav, Depth d, Depth level, Sz idx, Fn&& fn) {
+      Sz i = (d==level) ? idx : nav.pathSel(d);
+      body.visit(i, [&](auto& item) {
+        if(d==level) fn(item);
+        else if constexpr (HasBody<std::decay_t<decltype(item)>>::value)
+          eventVisit(item.body, nav, (Depth)(d+1), level, idx, std::forward<Fn>(fn));
+      });
+    }
+  }
+
+  struct EventDispatch {
+    template<typename N>
+    struct Part : N {
+      using Base = N;
+      template<typename Fn>
+      void fireAt(Depth level, Sz idx, Fn&& fn) {
+        detail::eventVisit(Base::root().body, static_cast<Base&>(*this), (Depth)0, level, idx, std::forward<Fn>(fn));
+      }
+      template<bool isKbd>
+      bool doCmd(Cmd cmd, Key k=0, bool e=false) {
+        Sz oldSel = Base::sel();
+        Depth oldLevel = Base::level();
+        bool r = Base::template doCmd<isKbd>(cmd, k, e);
+        // NOTE: events fire on cmd *type* (Enter/Esc/index-change), not gated on r — a
+        // plain item with no Action/submenu legitimately returns r=false for Enter
+        // (nothing "handles" it in the OneMenu nav<>() sense), but AM4's enterEvent
+        // fires unconditionally on Enter regardless of whether the item goes on to do
+        // anything with it. Found the hard way: an early `if(!r) return r;` here
+        // silently ate every Enter/Exit event for exactly the plain-item case this is
+        // most needed for. Known v1 simplification: unlike AM4, this doesn't gate on
+        // the target item's enabled() — see file comment.
+        Sz newSel = Base::sel();
+        Depth newLevel = Base::level();
+        if(newLevel==oldLevel && newSel!=oldSel) {
+          fireAt(oldLevel, oldSel, [](auto& item){ item.onEvent(EventMask::Blur); });
+          fireAt(oldLevel, newSel, [](auto& item){ item.onEvent(EventMask::Focus); });
+        }
+        if(cmd==Cmd::Enter) fireAt(oldLevel, oldSel, [](auto& item){ item.onEvent(EventMask::Enter); });
+        if(cmd==Cmd::Esc) {
+          Depth targetLevel = newLevel<oldLevel ? newLevel : oldLevel;
+          Sz targetIdx = newLevel<oldLevel ? newSel : oldSel;
+          fireAt(targetLevel, targetIdx, [](auto& item){ item.onEvent(EventMask::Exit); });
+        }
+        return r;
+      }
+    };
+  };
+
+  /// @brief "esc to common base, then go to target" (Rui, 2026-07-03) — the OneMenu
+  /// equivalent of AM4's escTo()+menuNode::async() composition (see EventDispatch's file
+  /// comment above for the source references). Walks from wherever `nav` currently is to
+  /// `target` (an absolute path from root, `len` entries): finds the deepest common
+  /// ancestor level, escapes back to it, then descends to `target` one level at a time.
+  /// Deliberately built entirely from doCmd()-routed primitives (up/down/enter/esc, all
+  /// already observed correctly by EventDispatch) rather than AM4's O(1) index-jump
+  /// (go()) + hand-fired events — trades walk speed (O(steps) instead of O(1) per level)
+  /// for zero new event-firing code, since every step is a primitive already proven to
+  /// fire the right event. A faster jump-based version is possible later (mirroring how
+  /// IndexGo's Cmd::Go already jumps via go()) but would need to fire events itself
+  /// rather than getting them for free from doCmd.
+  template<typename Nav>
+  bool gotoPath(Nav& nav, const Sz* target, Depth len) {
+    Depth common = 0;
+    while(common<nav.level() && common<len && nav.pathSel(common)==target[common]) common++;
+    while(nav.level()>common) if(!nav.esc()) return false;
+    for(Depth d=common; d<len; d++) {
+      while(nav.sel()!=target[d]) if(!(nav.sel()<target[d] ? nav.up() : nav.down())) return false;
+      if(d<len-1) if(!nav.enter()) return false;
+    }
+    return true;
+  }
 
 };// namespace oneMenu
