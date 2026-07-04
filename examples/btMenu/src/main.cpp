@@ -1,14 +1,13 @@
 /**
  * @file main.cpp
- * @brief OneMenu field mirrored to a BLE GATT characteristic (ESP32 or nRF52).
- *        Power field is tagged BTRec<...,0> — editing it pushes the new value out via
- *        Ble::char_write(0,...) whenever Watch sees a change.
+ * @brief OneMenu fields mirrored to BLE GATT characteristics (ESP32 or nRF52).
+ *        Each channel field is tagged BTRec<...,id> — editing it pushes the new value
+ *        out via Ble::char_write(id,...) whenever Watch sees a change.
  *
- * On nRF52 (the LUXO breadboard — see project_luxo memory) Power also drives a real
- * PWM LED channel directly, and the board's own SEL/UP/DN buttons drive nav — real
- * hardware in both directions, not just a serial/BLE demo. Pins from the real LUXO
- * firmware's Boards.h, ARDUINO_NRF52840_FEATHER block (bare Feather on a breadboard,
- * not the dedicated NRF52_LUXO PCB).
+ * On nRF52 (the LUXO breadboard — see project_luxo memory) each channel also drives a
+ * real PWM LED directly, and the board's own SEL/UP/DN buttons drive nav — real
+ * hardware in both directions, not just a serial/BLE demo. No Exit/Quit item — MCU
+ * targets have nowhere to "exit" to, that's a PC/AM4-menu convention.
  */
 
 #include <oneMenu/oneMenu.h>
@@ -50,7 +49,7 @@ struct BleDevice {
   static constexpr const char* serviceUuid = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 };
 
-enum btIds { power_bt_id };
+enum btIds { ch1_bt_id, ch2_bt_id };
 
 // ── LUXO breadboard hardware (nRF52 only) ──────────────────────────────────────
 // Pins match HS_PWM_nChannels/lib/Boards.h's ARDUINO_NRF52840_FEATHER block.
@@ -70,9 +69,10 @@ enum btIds { power_bt_id };
   using Oled = oneIO::display::I2cOled<OledTwi, 0x3C>;
 #endif
 
-// Power's value lives here (DataRef, not owned) so loop() can drive the PWM pin
-// from the exact same storage the menu field edits — no find<>/duplication needed.
-int currentPower = 55;
+// Each channel's value lives here (DataRef, not owned) so loop() can drive the PWM
+// pin from the exact same storage the menu field edits — no find<>/duplication needed.
+int currentCh1 = 55;
+int currentCh2 = 55;
 
 // Nordic UART Service base — characteristic UUIDs are 6e4000XX-..., matching the service.
 using NusBase = oneBus::Uuid128<0x6e,0x40,0x00,0x00, 0xb5,0xa3, 0xf3,0x93,
@@ -84,7 +84,8 @@ using Ble = hw::nrf52::nrf52::Ble<
 using Ble = hw::esp32::esp32::Ble<
 #endif
   BleDevice,
-  oneBus::Characteristic<btIds::power_bt_id, oneBus::Uuid16<0x0002, NusBase>>
+  oneBus::Characteristic<btIds::ch1_bt_id, oneBus::Uuid16<0x0002, NusBase>>,
+  oneBus::Characteristic<btIds::ch2_bt_id, oneBus::Uuid16<0x0003, NusBase>>
 >;
 
 // ── I/O ───────────────────────────────────────────────────────────────────────
@@ -108,25 +109,32 @@ OutDef<
 > out;
 
 // ── Text strings ──────────────────────────────────────────────────────────────
+// No Exit/Quit item — that's a PC/AM4-menu convention with nowhere to "exit" to
+// on an MCU; dropped per Rui's note.
 namespace text {
-  static constexpr CText power {"Power"};
+  static constexpr CText ch1 {"Ch1"};
+  static constexpr CText ch2 {"Ch2"};
   static constexpr CText percent {"%"};
-  static constexpr CText quit {"Exit!"};
 }
 
-namespace action {
-  bool quit(Sz) { return true; }
-}
-
-using Quit = ItemDef<Action<action::quit>, AsLabel<StaticText<&text::quit>>>;
-
-// Power: numeric 0-100%, mirrored to BLE characteristic 0 on change, backed by
-// currentPower directly (DataRef) so loop() reads the live value with no lookup.
-using Power = NumFieldDef<
-  Chain<AsLabel<StaticText<&text::power>>>,
+// Ch1/Ch2: numeric 0-100%, each mirrored over its own BLE characteristic on change,
+// backed by currentCh1/currentCh2 directly (DataRef) so loop() reads the live value
+// with no lookup. Two separate, individually-named fields in a plain StaticBody —
+// no generic runtime-indexed dispatch across a template pack.
+using Ch1 = NumFieldDef<
+  Chain<AsLabel<StaticText<&text::ch1>>>,
   NumField<
     StaticNumRange<StaticRange<0,100,false>>,
-    AsField<BTRec<Watch<DataRef<&currentPower>>, btIds::power_bt_id>>
+    AsField<BTRec<Watch<DataRef<&currentCh1>>, btIds::ch1_bt_id>>
+  >,
+  AsUnit<StaticText<&text::percent>>
+>;
+
+using Ch2 = NumFieldDef<
+  Chain<AsLabel<StaticText<&text::ch2>>>,
+  NumField<
+    StaticNumRange<StaticRange<0,100,false>>,
+    AsField<BTRec<Watch<DataRef<&currentCh2>>, btIds::ch2_bt_id>>
   >,
   AsUnit<StaticText<&text::percent>>
 >;
@@ -134,8 +142,8 @@ using Power = NumFieldDef<
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"BT Menu"},
   staticBody(
-    Power{},
-    Quit{}
+    Ch1{},
+    Ch2{}
   )
 );
 
@@ -212,15 +220,19 @@ void loop() {
 
 #if defined(ARDUINO_ARCH_NRF52)
   pollLuxoButtons();
-  // Confirmed working on real hardware (A0/A2) — Power now drives real brightness.
-  analogWrite(LUXO_PWM_CH1, map(currentPower, 0, 100, 0, 255));
+  // Confirmed working on real hardware (A0/A2).
+  analogWrite(LUXO_PWM_CH1, map(currentCh1, 0, 100, 0, 255));
+  analogWrite(LUXO_PWM_CH2, map(currentCh2, 0, 100, 0, 255));
 
   static AppTick::Period<500> oledTick;
   if (oledTick) {
     oledTick.reset();
     char buf[17];
-    snprintf(buf, sizeof buf, "Power: %3d%%", currentPower);
+    snprintf(buf, sizeof buf, "Ch1: %3d%%", currentCh1);
     Oled::setCursor(0, 1);
+    Oled::print(buf);
+    snprintf(buf, sizeof buf, "Ch2: %3d%%", currentCh2);
+    Oled::setCursor(0, 2);
     Oled::print(buf);
   }
 #endif
