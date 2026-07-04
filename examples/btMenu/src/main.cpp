@@ -214,9 +214,30 @@ void pollLuxoButtons() {
 
 #endif
 
+// Inbound direction: peer BLE write -> field value. BTRec only mirrors outbound
+// (field edit -> notify); this closes the loop the other way. Wire format matches
+// BTRec's own outbound encoding exactly (raw bytes of the int, same byte order) —
+// a real client would need to know that convention; this is just enough to prove
+// the round trip, not a general parser.
+void pollBleWrites() {
+  uint8_t buf[8];
+  if (Ble::char_written(ch1_bt_id)) {
+    uint8_t n = Ble::char_read(ch1_bt_id, buf, sizeof buf);
+    int v;
+    if (n == sizeof(v)) { memcpy(&v, buf, sizeof v); if (v>=0 && v<=100) currentCh1 = v; }
+  }
+  if (Ble::char_written(ch2_bt_id)) {
+    uint8_t n = Ble::char_read(ch2_bt_id, buf, sizeof buf);
+    int v;
+    if (n == sizeof(v)) { memcpy(&v, buf, sizeof v); if (v>=0 && v<=100) currentCh2 = v; }
+  }
+}
+
 void loop() {
   static AppTick::Period<500> heartbeat;
   if (heartbeat) { heartbeat.reset(); digitalToggle(LED_BUILTIN); }
+
+  pollBleWrites();
 
 #if defined(ARDUINO_ARCH_NRF52)
   pollLuxoButtons();
