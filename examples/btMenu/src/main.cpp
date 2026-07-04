@@ -1,8 +1,14 @@
 /**
  * @file main.cpp
- * @brief Smoke test: OneMenu field mirrored to a BLE GATT characteristic (ESP32 or nRF52).
- *        Power field is tagged BTRec<...,0> — editing it over the serial/ANSI menu
- *        pushes the new value out via Ble::char_write(0,...) whenever Watch sees a change.
+ * @brief OneMenu field mirrored to a BLE GATT characteristic (ESP32 or nRF52).
+ *        Power field is tagged BTRec<...,0> — editing it pushes the new value out via
+ *        Ble::char_write(0,...) whenever Watch sees a change.
+ *
+ * On nRF52 (the LUXO breadboard — see project_luxo memory) Power also drives a real
+ * PWM LED channel directly, and the board's own SEL/UP/DN buttons drive nav — real
+ * hardware in both directions, not just a serial/BLE demo. Pins from the real LUXO
+ * firmware's Boards.h, ARDUINO_NRF52840_FEATHER block (bare Feather on a breadboard,
+ * not the dedicated NRF52_LUXO PCB).
  */
 
 #include <oneMenu/oneMenu.h>
@@ -44,6 +50,22 @@ struct BleDevice {
 
 enum btIds { power_bt_id };
 
+// ── LUXO breadboard hardware (nRF52 only) ──────────────────────────────────────
+// Pins match HS_PWM_nChannels/lib/Boards.h's ARDUINO_NRF52840_FEATHER block.
+#if defined(ARDUINO_ARCH_NRF52)
+  // As actually wired on this board (not Boards.h's digital-pin assignment —
+  // confirmed by Rui: this 2-channel board uses the A0/A2 analog-labeled headers).
+  #define LUXO_PWM_CH1 A0  // Ch1 Out
+  #define LUXO_PWM_CH2 A2  // Ch2 Out
+  #define LUXO_SEL     11  // Select button
+  #define LUXO_UP      12  // Value Up
+  #define LUXO_DN      13  // Value Down
+#endif
+
+// Power's value lives here (DataRef, not owned) so loop() can drive the PWM pin
+// from the exact same storage the menu field edits — no find<>/duplication needed.
+int currentPower = 55;
+
 // Nordic UART Service base — characteristic UUIDs are 6e4000XX-..., matching the service.
 using NusBase = oneBus::Uuid128<0x6e,0x40,0x00,0x00, 0xb5,0xa3, 0xf3,0x93,
                                  0xe0,0xa9, 0xe5,0x0e,0x24,0xdc,0xca,0x9e>;
@@ -60,8 +82,13 @@ using Ble = hw::esp32::esp32::Ble<
 // ── I/O ───────────────────────────────────────────────────────────────────────
 InDef<SerialIn, IdParser, PCKbd> in;
 
+// FullPrinter, not ScrollPrinter: ScrollPrinter needs real position feedback from
+// the device to compute its scroll window (that's why the earlier ANSIFmt+ANSIOut
+// version worked — real ANSI cursor addressing). Plain TextFmt+SerialOut has a
+// no-op setPos(), so ScrollPrinter's body never rendered — same tradeoff already
+// documented in the liquid example (FullPrinter required for Liquid/LiquidPos).
 OutDef<
-  ScrollPrinter,
+  FullPrinter,
   TextFmt,
   DataParser<>,
   CtrlChars,
@@ -85,12 +112,13 @@ namespace action {
 
 using Quit = ItemDef<Action<action::quit>, AsLabel<StaticText<&text::quit>>>;
 
-// Power: numeric 0-100%, default 55, mirrored to BLE characteristic 0 on change.
+// Power: numeric 0-100%, mirrored to BLE characteristic 0 on change, backed by
+// currentPower directly (DataRef) so loop() reads the live value with no lookup.
 using Power = NumFieldDef<
   Chain<AsLabel<StaticText<&text::power>>>,
   NumField<
     StaticNumRange<StaticRange<0,100,false>>,
-    AsField<BTRec<Watch<Default<Int,55>>, btIds::power_bt_id>>
+    AsField<BTRec<Watch<DataRef<&currentPower>>, btIds::power_bt_id>>
   >,
   AsUnit<StaticText<&text::percent>>
 >;
@@ -98,7 +126,7 @@ using Power = NumFieldDef<
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"BT Menu"},
   staticBody(
-    Power{55},
+    Power{},
     Quit{}
   )
 );
@@ -111,42 +139,78 @@ INavDef<
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);  // on as soon as setup() is reached at all
 
   Serial.begin(115200);
-  Serial.println("[bt] 1 serial up");
-  Serial.flush();
-
   delay(500);
-  Serial.println("[bt] 2 after delay");
-  Serial.flush();
 
-#ifndef BT_DISABLE_BLE_FOR_TEST
   Ble::begin();
+
+#if defined(ARDUINO_ARCH_NRF52)
+  Bluefruit.autoConnLed(false);  // no longer strictly needed on A0/A2, kept off regardless
+
+  pinMode(LUXO_PWM_CH1, OUTPUT);
+  pinMode(LUXO_PWM_CH2, OUTPUT);
+  pinMode(LUXO_SEL, INPUT_PULLUP);
+  pinMode(LUXO_UP,  INPUT_PULLUP);
+  pinMode(LUXO_DN,  INPUT_PULLUP);
 #endif
-  Serial.println("[bt] 3 ble done");
-  Serial.flush();
 
   out.lockMode(LockMode::None);
   out.clear();
-  Serial.println("[bt] 4 out cleared");
-  Serial.flush();
-
   nav.printTo(out);
-  Serial.println("[bt] 5 first printTo done");
-  Serial.flush();
-
-  digitalWrite(LED_BUILTIN, LOW);  // off once setup() fully completes
 }
+
+#if defined(ARDUINO_ARCH_NRF52)
+// SEL/UP/DN are active-low (INPUT_PULLUP); this breadboard has been in a drawer
+// for years, so debounce generously rather than trust clean edges.
+void pollLuxoButtons() {
+  static bool lastSel=false, lastUp=false, lastDn=false;
+  static AppTick::Period<40> debounce;
+  if (!debounce) return;
+  debounce.reset();
+
+  bool sel = !digitalRead(LUXO_SEL);
+  bool up  = !digitalRead(LUXO_UP);
+  bool dn  = !digitalRead(LUXO_DN);
+
+  if (sel && !lastSel) {
+    Serial.println("[luxo] SEL edge -> nav.enter() ..."); Serial.flush();
+    nav.enter();
+    Serial.println("[luxo] nav.enter() returned"); Serial.flush();
+  }
+  if (up  && !lastUp) {
+    Serial.println("[luxo] UP edge -> nav.up() ..."); Serial.flush();
+    nav.up();
+    Serial.println("[luxo] nav.up() returned"); Serial.flush();
+  }
+  if (dn  && !lastDn) {
+    Serial.println("[luxo] DN edge -> nav.down() ..."); Serial.flush();
+    nav.down();
+    Serial.println("[luxo] nav.down() returned"); Serial.flush();
+  }
+
+  lastSel=sel; lastUp=up; lastDn=dn;
+}
+
+#endif
 
 void loop() {
   static AppTick::Period<500> heartbeat;
   if (heartbeat) { heartbeat.reset(); digitalToggle(LED_BUILTIN); }
 
+#if defined(ARDUINO_ARCH_NRF52)
+  pollLuxoButtons();
+  // Confirmed working on real hardware (A0/A2) — Power now drives real brightness.
+  analogWrite(LUXO_PWM_CH1, map(currentPower, 0, 100, 0, 255));
+#endif
+
   static AppTick::Period<30> fps;
   if (fps) {
     fps.reset();
     nav.in(in);
-    if (nav.changed(out)) { nav.printTo(out); nav.sync(out); }
+    // doOutput() (not hand-rolled changed()+printTo()+sync()) — it also restores
+    // lockMode to Update after a full redraw and force-clears on a level change,
+    // both of which the hand-rolled version was silently skipping.
+    nav.doOutput(out);
   }
 }
