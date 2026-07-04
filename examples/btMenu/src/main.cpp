@@ -27,6 +27,8 @@
 #include <oneChip/clock.h>
 #if defined(ARDUINO_ARCH_NRF52)
   #include <chips/nrf52/nrf52Ble.h>
+  #include <oneBus/arduinoI2C.h>
+  #include <oneIO/display/i2cOled.h>
 #else
   #include <chips/esp32/esp32Ble.h>
 #endif
@@ -60,6 +62,12 @@ enum btIds { power_bt_id };
   #define LUXO_SEL     11  // Select button
   #define LUXO_UP      12  // Value Up
   #define LUXO_DN      13  // Value Down
+
+  // OLED I2C pins — the Feather's own dedicated SDA/SCL header pins (D22=P0.12=SDA,
+  // D23=P0.11=SCL per variant.cpp's g_ADigitalPinMap), confirmed by Rui, not
+  // Boards.h's SSD_SDA=25/SSD_SCL=26 (same pattern as the A0/A2 PWM channel fix).
+  using OledTwi = oneBus::ArduinoWire<Wire, 22, 23>;
+  using Oled = oneIO::display::I2cOled<OledTwi, 0x3C>;
 #endif
 
 // Power's value lives here (DataRef, not owned) so loop() can drive the PWM pin
@@ -153,6 +161,10 @@ void setup() {
   pinMode(LUXO_SEL, INPUT_PULLUP);
   pinMode(LUXO_UP,  INPUT_PULLUP);
   pinMode(LUXO_DN,  INPUT_PULLUP);
+
+  Oled::begin();
+  Oled::setCursor(0, 0);
+  Oled::print("LUXO OLED test");
 #endif
 
   out.lockMode(LockMode::None);
@@ -202,6 +214,15 @@ void loop() {
   pollLuxoButtons();
   // Confirmed working on real hardware (A0/A2) — Power now drives real brightness.
   analogWrite(LUXO_PWM_CH1, map(currentPower, 0, 100, 0, 255));
+
+  static AppTick::Period<500> oledTick;
+  if (oledTick) {
+    oledTick.reset();
+    char buf[17];
+    snprintf(buf, sizeof buf, "Power: %3d%%", currentPower);
+    Oled::setCursor(0, 1);
+    Oled::print(buf);
+  }
 #endif
 
   static AppTick::Period<30> fps;
