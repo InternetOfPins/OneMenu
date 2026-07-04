@@ -768,6 +768,92 @@ namespace oneMenu {
     };
   };
 
+  /// @brief vertical layout: Top, then Body anchored (Left=top/Center/Right=bottom) within
+  /// whatever free vertical space remains after Bottom's `bottomLines` are reserved — a
+  /// header+body+footer stack where Body's own placement in the free space is a **vertical
+  /// Align, applied to lines the same way Align/Row apply to characters on one line**. Top
+  /// and Bottom are structural (a free-space partition: how much room each edge gets),
+  /// exactly mirroring Row's Left/Right; `vMethod` is the internal-alignment half — unlike
+  /// horizontal Align (which has a coherent standalone no-op meaning: "print, wherever the
+  /// cursor is"), vertical anchoring is meaningless without knowing the region's free height
+  /// vs Body's own height, so it can't be a separable tag the way Align is — it only exists
+  /// as a mode here, on the thing that actually partitions the space.
+  /// vMethod==Left needs no measurement (print Body immediately, same as today); Center/Right
+  /// need Body's own line count first, via a LockMode::Measure dry run — the vertical twin of
+  /// Row::measure, over lines instead of pixel width. Bottom's `bottomLines` stays a compile-
+  /// time NTTP (static: usually known up front); a fully dynamic sibling (Bottom's height also
+  /// measured at runtime) is the natural next tier if that stops being true.
+  /// On non-cursor (streaming) devices neither the footer-pin nor vMethod mean anything (no
+  /// known height to measure against), so Rows falls back to plain sequential printing — same
+  /// fallback Row uses for its own horizontal centering.
+  template<Sz bottomLines,AlignMethod vMethod,typename Top,typename Body,typename Bottom>
+  struct Rows {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      Top    topItem{};
+      Body   bodyItem{};
+      Bottom bottomItem{};
+
+      template<typename Out,typename PrintFn>
+      static Sz measureLines(Out& out,PrintFn&& printFn) {
+        Pos start=out.getPos();
+        LockMode om=out.lockMode();
+        out.lockMode(LockMode::Measure);
+        printFn();
+        Sz used=(out.getPos().y-start.y)/out.lineHeight();
+        out.setPos(start);
+        out.lockMode(om);
+        return used;
+      }
+
+      template<typename Out,typename BodyFn>
+      static void rowsPrint(Out& out,BodyFn&& bodyFn) {
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          Sz availLines=out.free().y/out.lineHeight();
+          availLines=availLines>bottomLines ? availLines-bottomLines : 0;
+          Sz bodyLines=measureLines(out,bodyFn);
+          Sz topPad =
+            vMethod==AlignMethod::Center ? (availLines>bodyLines?(availLines-bodyLines)/2:0) :
+            vMethod==AlignMethod::Right  ? (availLines>bodyLines? availLines-bodyLines  :0) :
+            0;
+          for(Sz i=0;i<topPad;i++) out.clearLine();
+          bodyFn();
+          out.nl();
+          Sz remainLines=out.free().y/out.lineHeight();
+          while(remainLines-->bottomLines) out.clearLine();
+        } else {
+          bodyFn();
+          out.nl();
+        }
+      }
+
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {
+        topItem.printItem(out,ctx);
+        out.nl();
+        rowsPrint(out,[&]{bodyItem.printItem(out,ctx);});
+        bottomItem.printItem(out,ctx);
+        Base::printItem(out,ctx);
+      }
+      template<typename Out>
+      void print(Out& out) const {
+        topItem.print(out);
+        out.nl();
+        rowsPrint(out,[&]{bodyItem.print(out);});
+        bottomItem.print(out);
+        Base::print(out);
+      }
+    };
+  };
+
+  template<Sz bottomLines,typename Top,typename Body,typename Bottom>
+  using RowsTop    = Rows<bottomLines,AlignMethod::Left,Top,Body,Bottom>;
+  template<Sz bottomLines,typename Top,typename Body,typename Bottom>
+  using RowsCenter = Rows<bottomLines,AlignMethod::Center,Top,Body,Bottom>;
+  template<Sz bottomLines,typename Top,typename Body,typename Bottom>
+  using RowsBottom = Rows<bottomLines,AlignMethod::Right,Top,Body,Bottom>;
+
   // output partition tag -------------------------------------------------------
   /// @brief marks an item as belonging to output partition Tag.
   /// - SkipOutId<Tag> in the main OutDef skips these items on the main output.
