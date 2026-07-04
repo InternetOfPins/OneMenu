@@ -1,14 +1,12 @@
 /**
  * @file main.cpp
- * @brief Smoke test: OneMenu field mirrored to a BLE GATT characteristic (ESP32).
+ * @brief Smoke test: OneMenu field mirrored to a BLE GATT characteristic (ESP32 or nRF52).
  *        Power field is tagged BTRec<...,0> — editing it over the serial/ANSI menu
  *        pushes the new value out via Ble::char_write(0,...) whenever Watch sees a change.
  */
 
 #include <oneMenu/oneMenu.h>
-#include <oneMenu/menu/IO/ansiOut.h>
-#include <oneMenu/menu/fmt/textFmt.h>  // must precede ansiFmt.h (defines MenuChars)
-#include <oneMenu/menu/fmt/ansiFmt.h>
+#include <oneMenu/menu/fmt/textFmt.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
 #include <oneMenu/menu/IO/idParser.h>
 #include <oneMenu/menu/IO/arduino/serialOut.h>
@@ -20,14 +18,20 @@
 #include <oneOutput/oneOutput.h>
 
 #include <oneBus/uuid.h>
-#include <chips/esp32/esp32Ble.h>
 #include <oneChip/clock.h>
+#if defined(ARDUINO_ARCH_NRF52)
+  #include <chips/nrf52/nrf52Ble.h>
+#else
+  #include <chips/esp32/esp32Ble.h>
+#endif
 
 using namespace hapi;
 using namespace oneMenu;
 using namespace oneData;
 
-struct SysTick {
+// named AppTick, not SysTick — CMSIS (core_cm4.h, pulled in on ARM/nRF52) #defines
+// SysTick as a register-struct macro, which would clash with a same-named type here.
+struct AppTick {
   template<uint32_t Ms>
   using Period = hw::Period<Ms>;
 };
@@ -44,7 +48,11 @@ enum btIds { power_bt_id };
 using NusBase = oneBus::Uuid128<0x6e,0x40,0x00,0x00, 0xb5,0xa3, 0xf3,0x93,
                                  0xe0,0xa9, 0xe5,0x0e,0x24,0xdc,0xca,0x9e>;
 
+#if defined(ARDUINO_ARCH_NRF52)
+using Ble = hw::nrf52::nrf52::Ble<
+#else
 using Ble = hw::esp32::esp32::Ble<
+#endif
   BleDevice,
   oneBus::Characteristic<btIds::power_bt_id, oneBus::Uuid16<0x0002, NusBase>>
 >;
@@ -54,13 +62,11 @@ InDef<SerialIn, IdParser, PCKbd> in;
 
 OutDef<
   ScrollPrinter,
-  ANSIFmt,
+  TextFmt,
   DataParser<>,
   CtrlChars,
-  ColorTrack<int>,
   Cursor<>,
   Gate,
-  ANSIOut,
   SerialOut,
   StaticPos<0,0>,
   StaticArea<40,10>
@@ -104,19 +110,40 @@ INavDef<
 > nav;
 
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);  // on as soon as setup() is reached at all
+
   Serial.begin(115200);
+  Serial.println("[bt] 1 serial up");
+  Serial.flush();
+
   delay(500);
-  Serial.println("[bt] begin...");
+  Serial.println("[bt] 2 after delay");
+  Serial.flush();
+
+#ifndef BT_DISABLE_BLE_FOR_TEST
   Ble::begin();
-  Serial.println("[bt] advertising started");
+#endif
+  Serial.println("[bt] 3 ble done");
+  Serial.flush();
+
   out.lockMode(LockMode::None);
-  out.setColors(WHITE, BLACK);
   out.clear();
+  Serial.println("[bt] 4 out cleared");
+  Serial.flush();
+
   nav.printTo(out);
+  Serial.println("[bt] 5 first printTo done");
+  Serial.flush();
+
+  digitalWrite(LED_BUILTIN, LOW);  // off once setup() fully completes
 }
 
 void loop() {
-  static SysTick::Period<30> fps;
+  static AppTick::Period<500> heartbeat;
+  if (heartbeat) { heartbeat.reset(); digitalToggle(LED_BUILTIN); }
+
+  static AppTick::Period<30> fps;
   if (fps) {
     fps.reset();
     nav.in(in);
