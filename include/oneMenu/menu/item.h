@@ -666,63 +666,107 @@ namespace oneMenu {
     };
   };
 
-  /// @brief horizontal text alignment (Left/Center/Right) within the item's own field width.
-  /// Idea salvaged from AM22/AM24's Align<Method,margin> (a two-pass measure-then-pad-then-print
-  /// component) — not the code: those used a separate CanMeasure/lock() capability trait that
-  /// silently no-op'd when missing; this uses LockMode::Measure + Gate, already present for
-  /// exactly this "simulate without writing" purpose (see ScrollBodyPrinter's own scroll-fit
-  /// measurement in printers.h). Dry-run the content once under LockMode::Measure to learn its
-  /// rendered width, rewind X only (same row — unlike Liquid/LiquidPos this never touches Y, so
-  /// it stays compatible with ScrollBodyPrinter's sequential row measurement even though it also
-  /// repositions the cursor), pad, then print for real.
-  /// margin is a genuine no-op for Center, not a bug: insetting the measured field by `margin`
-  /// on *both* sides before centering algebraically cancels out — margin+(freeW-2*margin-used)/2
-  /// == (freeW-used)/2 for any margin. It only does anything for Left/Right, where the inset is
-  /// one-sided. AM22 had a real version of this (margin silently ignored for its Left case too,
-  /// commented "just ignored for now" — an actual bug there, not the mathematical wash this is).
-  /// AM never implemented vertical alignment (open @todo in AM22, never done) — out of scope
-  /// here too. Single-line content only: measuring getPos().x-start.x assumes the dry run never
-  /// wrapped/nl()'d.
-  /// Overrides both printItem (Ctx&-bearing, used for body items via ItemBodyPrinter) and print
-  /// (no Ctx&, used for the menu title via TitlePrinter) — two distinct entry points in this
-  /// codebase for "render this item's own content," so aligning a title needs the print()
-  /// override too, not just printItem().
-  template<AlignMethod method,Sz margin=0>
+  /// @brief horizontal text alignment (Left/Center/Right) tag/grouping — no rendering logic of
+  /// its own. Align used to carry its own measure-then-pad-then-print implementation (a
+  /// standalone dry-run against the full out.free()), but that's now Row's job exclusively —
+  /// having two copies of the same algorithm was duplicate code for no benefit, and Align's own
+  /// version couldn't coordinate with siblings sharing a line the way Row does. Whoever wants
+  /// aligned content composes Row directly (Row<Left,Center,Right>) — Align just groups/labels
+  /// its II... the same way Hidden<II...>/Decor<II...> do (hapi::Chain<II...> wrapped below),
+  /// e.g. AlignCenter<Watch<Default<Int,0>>>, as a plain marker of intent. An Align used on its
+  /// own (nothing routing it through Row) just prints its content plain/unaligned — it's a tag,
+  /// not a printer.
+  template<AlignMethod method,typename... II>
   struct Align {
     template<typename I>
-    struct Part:I {
-      using Base=I;
-      template<typename Out,typename PrintFn>
-      static void alignedPrint(Out& out,PrintFn&& printFn) {
-        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
-          Pos start=out.getPos();
-          LockMode om=out.lockMode();
-          out.lockMode(LockMode::Measure);
-          printFn();
-          Sz used=out.getPos().x-start.x;
-          out.setPos(start);
-          out.lockMode(om);
-          Sz offset = method==AlignMethod::Center ? (out.free().x-used)/2
-                    : method==AlignMethod::Right  ? out.free().x-used-margin
-                    : margin;
-          if(offset>0) out.padWith(offset/out.glyphWidth(' '));
-        }
-        printFn();
-      }
-      template<typename Out>
-      void printItem(Out& out,Ctx& ctx) {
-        alignedPrint(out,[&]{Base::printItem(out,ctx);});
-      }
-      template<typename Out>
-      void print(Out& out) const {
-        alignedPrint(out,[&]{Base::print(out);});
-      }
+    struct Part:hapi::Chain<II...>::template Part<I> {
+      using Base=typename hapi::Chain<II...>::template Part<I>;
+      using Base::Base;
     };
   };
 
-  template<Sz margin=0> using AlignLeft  = Align<AlignMethod::Left,margin>;
-  using AlignCenter                       = Align<AlignMethod::Center>;
-  template<Sz margin=0> using AlignRight = Align<AlignMethod::Right,margin>;
+  template<typename... II> using AlignLeft   = Align<AlignMethod::Left,II...>;
+  template<typename... II> using AlignCenter = Align<AlignMethod::Center,II...>;
+  template<typename... II> using AlignRight  = Align<AlignMethod::Right,II...>;
+
+  /// @brief coordinates 3 independently-printable items on one line: Left prints at the current
+  /// position, Right ends flush with the far right edge, Center fills the *gap* between them —
+  /// not the full line width. Unlike Align (which only knows its own content vs whatever's left
+  /// after prior siblings), Row measures all three up front (LockMode::Measure dry runs, no
+  /// printing) before printing any of them for real, so Center's position correctly accounts for
+  /// Right's width too — the thing a plain Chain<Text,AlignCenter<Text>,AlignRight<Text>> can't
+  /// do, since each Align only ever sees out.free() *at the moment it runs*, never what a later
+  /// sibling will still consume.
+  /// Left/Center/Right must each be a standalone printable+constructible type (print(out) const,
+  /// printItem(out,ctx)) — typically an ItemDef<...>. No special partial-redraw invalidation
+  /// needed: Row lives inside one ItemDef, so changed() is checked (and the whole thing redrawn)
+  /// at the whole-item level — there's no path that redraws only one member in isolation.
+  /// Adequate for small (single-line) devices; a fuller layout (rows of Rows, VAlign, etc.) can
+  /// be built on top later.
+  template<typename Left,typename Center,typename Right>
+  struct Row {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      Left   leftItem{};
+      Center centerItem{};
+      Right  rightItem{};
+
+      template<typename Out,typename PrintFn>
+      static Sz measure(Out& out,PrintFn&& printFn) {
+        Pos start=out.getPos();
+        LockMode om=out.lockMode();
+        out.lockMode(LockMode::Measure);
+        printFn();
+        Sz used=out.getPos().x-start.x;
+        out.setPos(start);
+        out.lockMode(om);
+        return used;
+      }
+
+      // Pads with spaces (like Align's own padWith use) rather than setPos() jumps —
+      // setPos() is a no-op on plain streaming devices (no real cursor addressing),
+      // exactly the trap that bit ScrollPrinter+TextFmt+SerialOut earlier; padWith
+      // works on any device since it's just characters, not real positioning.
+      template<typename Out,typename LeftFn,typename CenterFn,typename RightFn>
+      static void rowPrint(Out& out,LeftFn&& leftFn,CenterFn&& centerFn,RightFn&& rightFn) {
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          Sz leftW  =measure(out,leftFn);
+          Sz rightW =measure(out,rightFn);
+          Sz centerW=measure(out,centerFn);
+          Sz lineW=out.free().x;
+          Sz gapW =lineW>(leftW+rightW) ? lineW-leftW-rightW : 0;
+          Sz centerOffset=gapW>centerW ? (gapW-centerW)/2 : 0;
+          Sz trailing=gapW>(centerOffset+centerW) ? gapW-centerOffset-centerW : 0;
+
+          leftFn();
+          if(centerOffset>0) out.padWith(centerOffset/out.glyphWidth(' '));
+          centerFn();
+          if(trailing>0) out.padWith(trailing/out.glyphWidth(' '));
+          rightFn();
+        } else {
+          leftFn(); centerFn(); rightFn();
+        }
+      }
+
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {
+        rowPrint(out,
+          [&]{leftItem.printItem(out,ctx);},
+          [&]{centerItem.printItem(out,ctx);},
+          [&]{rightItem.printItem(out,ctx);});
+        Base::printItem(out,ctx);
+      }
+      template<typename Out>
+      void print(Out& out) const {
+        rowPrint(out,
+          [&]{leftItem.print(out);},
+          [&]{centerItem.print(out);},
+          [&]{rightItem.print(out);});
+        Base::print(out);
+      }
+    };
+  };
 
   // output partition tag -------------------------------------------------------
   /// @brief marks an item as belonging to output partition Tag.
