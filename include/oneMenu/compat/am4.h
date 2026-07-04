@@ -22,19 +22,19 @@
  *    escape hatch — a *compat-only* vtable cost, opt-in, never the default
  *    OneMenu path. Not built yet. Declare `in`/`out` the native OneMenu way
  *    (InDef<...>/OutDef<...>) and bind them to `nav` yourself for now.
- *  - Full AM4 eventMask (activate/enter/exit/return/focus/blur/selFocus/
- *    selBlur/update). OneMenu's Action<fn> only fires on Cmd::Enter, which is
- *    the one AM4 event class handled here (via OP's `fn`). Real focus/blur
- *    parity needs TreeNav itself to detect the transition (it already tracks
- *    m_prevSel/levelChanged() for its own redraw logic) and dispatch to the
- *    newly-focused item — nav-level plumbing, not just a new item Part. MENU()
- *    and FIELD()'s own `fn`/`mask`/`style` handler args are therefore accepted
- *    syntactically (so real AM4 call sites compile without editing arg lists)
- *    but ignored — only OP()'s `fn` is actually wired, via Action<fn>.
- *  - AM4 handler signature `result(*)(eventMask)` (and the 2/3-arg overloads).
- *    OP()'s `fn` must already match OneMenu's ActionFunc: `bool(&)(int)`. A
- *    macro can't synthesize an adapter function *inside* a nested expression
- *    (no local function definitions in C++) — bridging real AM4 signatures
+ *  - AM4's eventMask now has a real counterpart (EventMask, item.h/enums.h/nav.h —
+ *    Enter/Exit/Focus/Blur, dispatched by EventDispatch; see notes.md "AM4 compat
+ *    layer" for the full plan). OP()'s `fn` fires on Cmd::Enter via Action<fn> (the
+ *    zero-cost default). FIELD()'s `fn`/`mask` are wired to a real EventCall<mask,fn>
+ *    (fn must be a plain void() — AM4's most common FIELD handler shape). MENU()'s own
+ *    `fn`/`mask` (title-level events) are still accepted syntactically but not wired to
+ *    anything — nothing calls it yet, unlike FIELD/OP.
+ *    selFocusEvent/selBlurEvent/updateEvent/activateEvent have no dispatch yet either
+ *    (see nav.h EventDispatch's own scope comment).
+ *  - AM4 handler signature `result(*)(eventMask)` (and the 2/3-arg overloads) beyond
+ *    the plain `void()`/`bool(int)` shapes EventCall/Action cover. A macro can't
+ *    synthesize an adapter function *inside* a nested expression (no local function
+ *    definitions in C++) — bridging the richer AM4 signatures
  *    needs a named wrapper declared before the MENU() call, out of scope here.
  *  - FIELD()'s `step`/`tune` (accel) params are accepted but ignored — value
  *    always steps by 1. AM4's per-key step isn't wired to NumField yet.
@@ -76,24 +76,37 @@ namespace am4compat {
 
 // AM4's `using namespace Menu;` surface — just enough for existing call sites
 // (MENU(...,Menu::doNothing,Menu::noEvent,Menu::wrapStyle,...)) to compile.
-// None of eventMask's bits beyond Cmd::Enter are dispatched yet (see file
-// comment above) — activateEvent/exitEvent/focusEvent/etc are placeholders.
+// noEvent/enterEvent/exitEvent/focusEvent/blurEvent/anyEvent are defined to be
+// bit-identical to oneMenu::EventMask's own values (not AM4's real bit positions —
+// this is a source-compat shim, not binary compat with AM4) so that
+// FIELD()'s mask arg (see EventCall wiring below) can be cast straight across with no
+// translation table. activateEvent/returnEvent/selFocusEvent/selBlurEvent/updateEvent
+// get distinct placeholder bits so call sites compile, but nothing dispatches them yet
+// (see EventDispatch's v1 scope in nav.h).
 namespace Menu {
   enum EventMask : int {
-    noEvent = 0,
-    activateEvent = 1 << 0,
-    enterEvent    = 1 << 1,
-    exitEvent     = 1 << 2,
-    returnEvent   = 1 << 3,
-    focusEvent    = 1 << 4,
-    blurEvent     = 1 << 5,
+    noEvent       = (int)oneMenu::EventMask::None,
+    enterEvent    = (int)oneMenu::EventMask::Enter,
+    exitEvent     = (int)oneMenu::EventMask::Exit,
+    focusEvent    = (int)oneMenu::EventMask::Focus,
+    blurEvent     = (int)oneMenu::EventMask::Blur,
+    activateEvent = 1 << 4,
+    returnEvent   = 1 << 5,
     selFocusEvent = 1 << 6,
     selBlurEvent  = 1 << 7,
     updateEvent   = 1 << 8,
-    anyEvent      = ~0
+    anyEvent      = (int)oneMenu::EventMask::Any
   };
   enum SystemStyles : int { noStyle = am4compat::noStyle, wrapStyle = am4compat::wrapStyle };
-  inline bool doNothing(int) noexcept { return false; }  // placeholder — never invoked in v1
+  inline bool doNothing(int) noexcept { return false; }
+  // NOTE: deliberately NOT also overloading doNothing() as void() here — tried it,
+  // reverted. avr-g++ 7.3 rejects an *overloaded* function name used directly as a
+  // void(&)() template argument ("not a valid template argument for type void(&)()...
+  // must be the name of a function with external linkage") even though the same
+  // overload set resolves fine on native g++ 13. FIELD()'s fn (wired to EventCall,
+  // item.h) therefore needs a real, non-overloaded void() handler — which is what every
+  // actual AM4 field handler already is in practice (e.g. Fielduino's updateWave); this
+  // only ever bit placeholder/no-op field handlers, not real ports.
 }
 
 // ── item-tree macros — each expands to a value expression ──────────────────
@@ -111,7 +124,15 @@ namespace Menu {
 
 /// @brief AM4 FIELD(var,label,unit,lo,hi,step,tune,fn,mask,style) — var is bound
 ///        directly via DataRef (zero-copy, same edit-by-reference semantics as
-///        AM4's menuField). step/tune/fn/mask/style accepted but ignored (v1).
+///        AM4's menuField). fn/mask now wired to a real EventCall<mask,fn> (fn must be
+///        a plain void() — AM4's most common FIELD handler shape, e.g. Fielduino's
+///        updateWave; see item.h's EventCall for why this is a separate component from
+///        EventAction rather than one signature trying to cover every AM4 handler
+///        shape). step/tune (AM4's accel) still accepted but ignored — always steps by
+///        1. One known behavioral difference from AM4: fires on *both* directions of
+///        the Cmd::Enter edit-mode toggle (entering AND leaving edit), not just on
+///        commit — harmless for an idempotent handler like updateWave (redraws the same
+///        still-unchanged value) but not identical to AM4's commit-only firing.
 #define FIELD(var, label, unit, lo, hi, step, tune, fn, mask, style) \
   ::oneMenu::NumFieldDef< \
       ::oneMenu::AsLabel<::oneData::Text>, \
@@ -119,7 +140,8 @@ namespace Menu {
           ::oneData::StaticNumRange<::oneData::StaticRange<(lo), (hi)>>, \
           ::oneMenu::AsField<::oneData::Watch<::oneData::DataRef<&(var)>>> \
       >, \
-      ::oneMenu::AsUnit<::oneData::Text> \
+      ::oneMenu::AsUnit<::oneData::Text>, \
+      ::oneMenu::EventCall<(::oneMenu::EventMask)(mask), fn> \
     >{label, unit}
 
 /// @brief AM4 MENU(id,text,fn,mask,style,...items) — single statement, whole

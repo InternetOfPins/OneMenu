@@ -166,6 +166,31 @@ namespace oneMenu {
     };
   };
 
+  /// @brief AM4-parity event handler for the plain zero-arg void() handler shape — AM4's
+  /// `action` class accepts several handler signatures (result(eventMask),
+  /// result(eventMask,navNode&), result(eventMask,navNode&,prompt&) — menuBase.h ~169-171)
+  /// via constructor overloads; a real AM4 sketch's FIELD/MENU handler is very commonly
+  /// just `void fn()` though (e.g. neu-rah/Fielduino's `updateWave`). EventAction above
+  /// needs `bool(EventMask)`; this sibling component exists so that exact shape can be
+  /// used unmodified rather than requiring every ported handler to be rewritten — "other
+  /// action components to match AM4 features" (Rui), not one signature trying to cover
+  /// every AM4 handler shape.
+  using VoidFunc=void(&)();
+
+  template<EventMask mask,VoidFunc fn>
+  struct EventCall {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      bool onEvent(EventMask e) {
+        bool r=false;
+        if(e&mask) {fn();r=true;}
+        return Base::onEvent(e)||r;
+      }
+    };
+  };
+
   //attach an action on enter
   template <ActionFunc f>
   struct BodyAction {
