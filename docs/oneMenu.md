@@ -11,7 +11,7 @@ Menu system for embedded C++. Zero overhead, composable, cross-platform (AVR, ST
 using namespace oneMenu;
 
 InDef<LinuxKeyIn, PCKbd> in;
-IOutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars, ANSIOut, ConsoleOut,
+IOutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars, Cursor<>, Gate, ANSIOut, ConsoleOut,
         StaticPos<20,10>, StaticArea<30,8>> out;
 
 bool quit(Sz) { running=false; return true; }
@@ -348,6 +348,52 @@ vertical twin of `Row`'s width measurement). `bottomLines` is a compile-time con
 runtime-adjustable — same static-partition rule as `Row`. Falls back to plain sequential
 printing on non-cursor devices, where every item already spans the full row width anyway.
 
+### `Liquid<x,y>` / `LiquidPos` — jump an item to a fixed screen position
+
+```cpp
+ItemDef<Liquid<10,3>, StaticText<&text::corner>>{}   // compile-time position
+
+ItemDef<LiquidPos, StaticText<&text::badge>> badge{};
+badge.liquidPos({10,3});                              // runtime-settable position
+```
+
+Both save the cursor position, jump, print, then restore — so the next sequential item
+isn't displaced. Meaningless on non-cursor (streaming) devices, so both fall back to a
+plain in-sequence print there. **Incompatible with `ScrollPrinter`/`NoTitleScrollPrinter`**
+(scroll measurement assumes items advance the cursor sequentially — enforced via
+`static_assert`, not just documented); use `FullPrinter`/`NoTitlePrinter` instead.
+
+### Cascading color/font tables — `Color<Cor>`/`ColorTable<...>`, `Font<Fnt>`/`FontTable<...>`
+
+`ANSIFmt`/`GfxFmt` resolve colors (and `GfxFmt` also fonts) from a compile-time table that
+cascades: set one value at the root and it applies everywhere, override only the branch
+that needs to differ.
+
+```cpp
+using MyPalette = Color<int>::Table<
+  /*Title*/   Color<int>::Colors<BLUE,WHITE>,
+  /*Default*/ Color<int>::Colors<WHITE,BLACK>   // Default cascades to View, Nav, everything
+>;
+
+IOutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars,
+        ColorTable<MyPalette>,                  // placed below ANSIFmt/GfxFmt
+        Cursor<>, Gate, ANSIOut, ConsoleOut,
+        StaticPos<0,0>, StaticArea<40,10>> out;
+```
+
+Table shape (same for `Color<Cor>` and `Font<Fnt>`, just `Colors<f,b>` vs `Value<v>` leaves):
+
+| Level | Meaning | Defaults from |
+|---|---|---|
+| `Table<Tit,Def,Vw,Nv>` | whole table | `Def`/`Vw`/`Nv` default to `Tit` |
+| `Nav<En,Dis>` | enabled vs disabled | `Dis` defaults to `En` |
+| `Enabled<It,Sel>` | item vs selected/focused | `Sel` defaults to `It::Body` |
+| `Item<Bd,Fld,Ed>` | body/field/edit-mode role | `Fld`/`Ed` default to `Bd` |
+
+Omit `ColorTable<...>`/`FontTable<...>` entirely to use the format's own built-in default
+(`ANSIFmt`'s reproduces the original hardcoded ANSI palette; `GfxFmt`'s uses `bool` for
+big/normal font selection, title big by default).
+
 ---
 
 ## Navigation
@@ -399,16 +445,19 @@ nav.printTo(out);
 
 ### `IOutDef` vs `OutDef`
 
-`IOutDef` — auto-injects `Gate`/`ColorTrack`/`Cursor` at the head. Use for your primary output device.
-
-`OutDef` — no auto-injection. Use for secondary outputs (overlays, footers). Add tracking components explicitly if using ANSI:
+Neither auto-injects anything — both need the same explicit component list (printer,
+format, parsers, `Cursor<>`/`Gate`/`ColorTrack<>` if the format needs them, device,
+geometry). The only difference is `IOutDef` also implements the virtual `IOut` interface,
+for code that needs to hold/pass an output by a common runtime-polymorphic type without
+knowing its concrete component chain; `OutDef` has no virtual dispatch. Use `OutDef` unless
+something specifically needs that runtime interface (e.g. a secondary output reached through
+type-erased code).
 
 ```cpp
-// primary — auto-injected
-IOutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars, ANSIOut, ConsoleOut,
+IOutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars, Cursor<>, Gate, ANSIOut, ConsoleOut,
         StaticPos<20,10>, StaticArea<30,8>> out;
 
-// secondary overlay — explicit
+// secondary overlay, same shape, ColorTrack<> added for independent ANSI color state
 OutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars,
        ColorTrack<int>, Cursor<>, Gate, ANSIOut, ConsoleOut,
        StaticPos<24,12>, StaticArea<22,4>> promptOut;
