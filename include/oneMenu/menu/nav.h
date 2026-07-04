@@ -51,7 +51,14 @@ namespace oneMenu {
       // has happened) instead of resting at the normal per-item-selective Update mode. Every other
       // caller that forces None for a manual full redraw (setup(), idleRun(), action::ok() in the
       // demo) explicitly restores Update afterward — doOutput() is the one path that didn't.
-      out.lockMode(LockMode::Update);
+      //
+      // But Update mode itself ("draw only changed") only makes sense for a device that can
+      // actually overwrite just the changed part — a device with no real partial-draw capability
+      // (no PartialDraw in its chain, e.g. a plain non-ANSI serial stream) can only ever append,
+      // so "selective" redraw there just means silently dropping everything except the one
+      // changed item instead of showing the whole menu. Gate to PartialDraw capability instead
+      // of assuming every device supports it.
+      out.lockMode(hapi::TagIs<PartialDraw>::Check<Out>::value ? LockMode::Update : LockMode::None);
       return true;
     }
 
