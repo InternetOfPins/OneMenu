@@ -301,6 +301,55 @@ using EdgeMode = ToggleFieldDef<
 
 ---
 
+## Layout
+
+`Row`/`Rows` arrange several independently-printable items (typically `ItemDef<...>`) on
+one line or across a header/body/footer stack. Both are compile-time-static (partition
+sizes are template params, not runtime state) — see [Cross-platform setup](#cross-platform-setup)
+for the general zero-overhead philosophy this follows.
+
+### `Align<method,II...>` — grouping tag, no layout by itself
+
+```cpp
+AlignLeft<II...>    // = Align<AlignMethod::Left, II...>
+AlignCenter<II...>  // = Align<AlignMethod::Center, II...>
+AlignRight<II...>   // = Align<AlignMethod::Right, II...>
+```
+
+Groups `II...` the same way `Hidden<II...>`/`Decor<II...>` do — used on its own (nothing
+routing it through `Row`) it just prints its content plain, unaligned. `Align` carries no
+rendering logic; the method only takes effect inside a `Row`.
+
+### `Row<Left,Center,Right>` — 3 items on one line
+
+```cpp
+using Test = ItemDef<Row<LeftItem,CenterItem,RightItem>>;
+```
+
+`Left`/`Center`/`Right` must each be a standalone printable+constructible type (typically
+an `ItemDef<...>`). Measures all three with `LockMode::Measure` dry runs before printing any
+for real, so `Center` correctly lands in the gap between `Left` and `Right` — something a
+plain `Chain<Text,AlignCenter<Text>,AlignRight<Text>>` can't do, since each `Align` only
+ever sees `out.free()` at the moment it runs, never what a later sibling will still consume.
+Falls back to plain sequential printing on non-cursor (streaming) devices.
+
+### `Rows<bottomLines,vMethod,Top,Body,Bottom>` — header/body/footer stack
+
+```cpp
+using Screen = ItemDef<Rows<1, AlignMethod::Center, HeaderItem, BodyItem, FooterItem>>;
+// sugars: RowsTop<bottomLines,...>, RowsCenter<...>, RowsBottom<...>
+```
+
+Partitions the vertical space: `Top` prints, `Bottom` is pinned to the last `bottomLines`
+rows (a footer), and `Body` is anchored within whatever's left via `vMethod` (`Left`=top,
+`Center`, `Right`=bottom — reusing `AlignMethod`). `Left`/top needs no measurement; `Center`/
+`Right` measure `Body`'s own line count first via a `LockMode::Measure` dry run (the
+vertical twin of `Row`'s width measurement). `bottomLines` is a compile-time constant, not
+runtime-adjustable — same static-partition rule as `Row`. Falls back to plain sequential
+printing on non-cursor devices, where every item already spans the full row width anyway.
+
+---
+
 ## Navigation
 
 ### `INavDef` — the navigator
