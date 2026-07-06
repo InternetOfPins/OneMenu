@@ -852,13 +852,35 @@ namespace oneMenu {
           Sz lineW=out.free().x;
           Sz gapW =lineW>(leftW+rightW) ? lineW-leftW-rightW : 0;
           Sz centerOffset=gapW>centerW ? (gapW-centerW)/2 : 0;
-          Sz trailing=gapW>(centerOffset+centerW) ? gapW-centerOffset-centerW : 0;
 
-          leftFn();
-          if(centerOffset>0) out.padWith(centerOffset/out.glyphWidth(' '));
-          centerFn();
-          if(trailing>0) out.padWith(trailing/out.glyphWidth(' '));
-          rightFn();
+          if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
+            // GFX outputs: clean the whole row with one native-coord rect fill first, then
+            // position each of Left/Center/Right by its exact measured pixel offset — same
+            // "clear background first, text always has the last word on its own pixels"
+            // idiom as FullScreen's own fillRect (see notes.md's FullScreen bug writeup),
+            // rather than approximating position via padWith(N space glyphs), which floors
+            // to whole-glyph increments and can leave up to one glyph-width of visible
+            // off-center error on a real pixel-addressable device (confirmed: a 5-char,
+            // 12px/glyph label on a 128px screen landed ~10px off true center).
+            Pos start=out.getPos();
+            out.fillRect(start.x, start.y, lineW, out.lineHeight());
+            leftFn();
+            out.setPos({start.x+leftW+centerOffset, start.y});
+            centerFn();
+            out.setPos({start.x+lineW-rightW, start.y});
+            rightFn();
+          } else {
+            // Non-GFX cursor devices (e.g. ANSI terminal): no fillRect capability, and a
+            // bare setPos() jump would leave stale characters from a previous, differently-
+            // sized frame sitting in the gap — padWith(' ') both positions and erases in one
+            // step, the only way to guarantee a clean gap without a real rect-fill primitive.
+            Sz trailing=gapW>(centerOffset+centerW) ? gapW-centerOffset-centerW : 0;
+            leftFn();
+            if(centerOffset>0) out.padWith(centerOffset/out.glyphWidth(' '));
+            centerFn();
+            if(trailing>0) out.padWith(trailing/out.glyphWidth(' '));
+            rightFn();
+          }
         } else {
           leftFn(); centerFn(); rightFn();
         }
