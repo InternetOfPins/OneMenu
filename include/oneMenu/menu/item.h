@@ -13,7 +13,7 @@
 
 #include "oneData/oneData.h"
 using oneData::Bool;
-#ifdef MENU_DEBUG_FULLSCREEN
+#if defined(MENU_DEBUG_FULLSCREEN) || defined(MENU_DEBUG_ROWS)
 #include <cstdio>
 #endif
 
@@ -916,7 +916,16 @@ namespace oneMenu {
         LockMode om=out.lockMode();
         out.lockMode(LockMode::Measure);
         printFn();
-        Sz used=(out.getPos().y-start.y)/out.lineHeight();
+        Pos end=out.getPos();
+        Sz used=(end.y-start.y)/out.lineHeight();
+        // A body that never calls its own trailing nl() (the normal case — a plain
+        // single-line StaticText/Decimals/value item, same as any of Row's own
+        // Left/Center/Right members) leaves end.x>0 with end.y unchanged, undercounting
+        // by exactly one real line (confirmed via direct instrumentation: a 1-line body
+        // measured as bodyLines=0, pushing AlignMethod::Right's placement a full line too
+        // far — availLines-bodyLines came out 5 instead of 4). Same "N newlines vs N+1
+        // lines" accounting any line-counter needs: count a trailing partial row too.
+        if(end.x>0) used++;
         out.setPos(start);
         out.lockMode(om);
         return used;
@@ -932,6 +941,9 @@ namespace oneMenu {
             vMethod==AlignMethod::Center ? (availLines>bodyLines?(availLines-bodyLines)/2:0) :
             vMethod==AlignMethod::Right  ? (availLines>bodyLines? availLines-bodyLines  :0) :
             0;
+          #ifdef MENU_DEBUG_ROWS
+          printf("[Rows] availLines=%d bodyLines=%d topPad=%d\n",(int)availLines,(int)bodyLines,(int)topPad);
+          #endif
           for(Sz i=0;i<topPad;i++) out.clearLine();
           bodyFn();
           out.nl();
