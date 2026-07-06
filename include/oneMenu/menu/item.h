@@ -813,9 +813,10 @@ namespace oneMenu {
   /// do, since each Align only ever sees out.free() *at the moment it runs*, never what a later
   /// sibling will still consume.
   /// Left/Center/Right must each be a standalone printable+constructible type (print(out) const,
-  /// printItem(out,ctx)) — typically an ItemDef<...>. No special partial-redraw invalidation
-  /// needed: Row lives inside one ItemDef, so changed() is checked (and the whole thing redrawn)
-  /// at the whole-item level — there's no path that redraws only one member in isolation.
+  /// printItem(out,ctx)) — typically an ItemDef<...>. nav()/setStr()/changed()/sync()/etc. are
+  /// forwarded to Center (2026-07-06 — see Part below) so an editable field placed there works
+  /// correctly, matching CenterRow's own established convention (Left/Right empty, real content
+  /// in Center); Left/Right stay structural/display-only.
   /// Adequate for small (single-line) devices; a fuller layout (rows of Rows, VAlign, etc.) can
   /// be built on top later.
   template<typename Left,typename Center,typename Right>
@@ -826,6 +827,30 @@ namespace oneMenu {
       Left   leftItem{};
       Center centerItem{};
       Right  rightItem{};
+
+      // Forward the interactive surface to centerItem — same fix, same reasoning, as
+      // Rows's forwarding to bodyItem below: Left/Right are structural (matching
+      // CenterRow's own established convention of empty Left/Right placeholders, real
+      // content always in Center), and without this an editable field placed in Center
+      // would silently never receive nav()/setStr() (feedback_row_breaks_field_editing),
+      // NOR would its own changed() reach the outer redraw-gating — the latter isn't just
+      // cosmetic: TreeNav::changed(out) only re-probes the print tree when nav-level state
+      // (level/navMode/selection) is unchanged, which is exactly the case for adjusting an
+      // already-open field's value via up/down without also toggling edit mode — without
+      // this forward, that value change would never be detected as needing a redraw.
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path p) {return centerItem.template nav<isKbd>(n,cke,p);}
+      template<typename Nav,typename P>
+      bool setStr(Nav& n,const char* s,P p) {return centerItem.setStr(n,s,p);}
+      bool changed() const {return centerItem.changed();}
+      void sync() {centerItem.sync();}
+      template<typename Out> void sync(Out& out) {centerItem.sync(out);}
+      bool enabled() const {return centerItem.enabled();}
+      void enable(bool o=true) {centerItem.enable(o);}
+      bool up() {return centerItem.up();}
+      bool down() {return centerItem.down();}
+      bool onEvent(EventMask e) {return centerItem.onEvent(e);}
+      bool tick() {return centerItem.tick();}
 
       template<typename Out,typename PrintFn>
       static Sz measure(Out& out,PrintFn&& printFn) {
@@ -864,6 +889,14 @@ namespace oneMenu {
             // 12px/glyph label on a 128px screen landed ~10px off true center).
             Pos start=out.getPos();
             out.fillRect(start.x, start.y, lineW, out.lineHeight());
+            // fillRect moves the *driver's own* internal cursor to the far edge of
+            // whatever it just filled (Ssd1306::fillRect, OneIO) — separate from the
+            // logical Cursor's own m_at, which fillRect never touches. Resync explicitly
+            // before leftFn() rather than assume it's still at `start` (found the hard
+            // way — see gfxFmt.h's roleBig-tagged fmtStart comment for the same bug in a
+            // different spot). Currently harmless here since every real Left is empty,
+            // but latent otherwise.
+            out.setPos(start);
             leftFn();
             out.setPos({start.x+leftW+centerOffset, start.y});
             centerFn();
@@ -932,6 +965,29 @@ namespace oneMenu {
       Body   bodyItem{};
       Bottom bottomItem{};
 
+      // Forward the interactive surface to bodyItem — Top/Bottom are structural chrome
+      // (a header/footer partition of the space, per the file comment above), never meant
+      // to be interactive themselves. Without this, an editable field (NumField/EditField)
+      // placed as Body would print correctly but silently never receive nav()/setStr(),
+      // and its own changed()/sync() would never reach the outer redraw-gating — same
+      // "display-only, editing silently doesn't work" restriction already documented for
+      // Row's Left/Center/Right (feedback_row_breaks_field_editing) — fixed here rather
+      // than left as a limitation, since a real editable field vertically laid out under
+      // its own label is the actual motivating case (see notes.md "lolin32 demo styling").
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path p) {return bodyItem.template nav<isKbd>(n,cke,p);}
+      template<typename Nav,typename P>
+      bool setStr(Nav& n,const char* s,P p) {return bodyItem.setStr(n,s,p);}
+      bool changed() const {return bodyItem.changed();}
+      void sync() {bodyItem.sync();}
+      template<typename Out> void sync(Out& out) {bodyItem.sync(out);}
+      bool enabled() const {return bodyItem.enabled();}
+      void enable(bool o=true) {bodyItem.enable(o);}
+      bool up() {return bodyItem.up();}
+      bool down() {return bodyItem.down();}
+      bool onEvent(EventMask e) {return bodyItem.onEvent(e);}
+      bool tick() {return bodyItem.tick();}
+
       template<typename Out,typename PrintFn>
       static Sz measureLines(Out& out,PrintFn&& printFn) {
         Pos start=out.getPos();
@@ -964,13 +1020,38 @@ namespace oneMenu {
             vMethod==AlignMethod::Right  ? (availLines>bodyLines? availLines-bodyLines  :0) :
             0;
           #ifdef MENU_DEBUG_ROWS
-          printf("[Rows] availLines=%d bodyLines=%d topPad=%d\n",(int)availLines,(int)bodyLines,(int)topPad);
+          if(out.lockMode()!=LockMode::Changed&&out.lockMode()!=LockMode::Sync&&out.lockMode()!=LockMode::Measure)
+            printf("[Rows] availLines=%d bodyLines=%d topPad=%d\n",(int)availLines,(int)bodyLines,(int)topPad);
           #endif
-          for(Sz i=0;i<topPad;i++) out.clearLine();
+          // padWith(' ')/clearLine() erase by *printing* space glyphs — fine on a real
+          // character-cell device (ANSI/text), but not adequate on GFX: whether printing
+          // a space glyph actually blanks the underlying pixels depends on the font
+          // renderer's own background-fill behavior, not guaranteed the way a real
+          // fillRect is. Same "clean via rectangle, then reposition" fix as FullScreen's
+          // own padding (item.h, printed-with-one-fillRect-not-a-clearLine-loop).
+          if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
+            if(topPad>0) {
+              Pos p=out.getPos();
+              Sz h=topPad*out.lineHeight();
+              out.fillRect(out.orgX(),p.y,out.width(),h);
+              out.setPos({out.orgX(),p.y+h});
+            }
+          } else {
+            for(Sz i=0;i<topPad;i++) out.clearLine();
+          }
           bodyFn();
           out.nl();
           Sz remainLines=out.free().y/out.lineHeight();
-          while(remainLines-->bottomLines) out.clearLine();
+          if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
+            if(remainLines>bottomLines) {
+              Pos p=out.getPos();
+              Sz h=(remainLines-bottomLines)*out.lineHeight();
+              out.fillRect(out.orgX(),p.y,out.width(),h);
+              out.setPos({out.orgX(),p.y+h});
+            }
+          } else {
+            while(remainLines-->bottomLines) out.clearLine();
+          }
         } else {
           bodyFn();
           out.nl();
