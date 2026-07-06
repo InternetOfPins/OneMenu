@@ -24,8 +24,8 @@ enum ids { op3_id };
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"Main menu"},
   staticBody(
-    ItemDef<Action<action::op2>, StaticText<&text::op2>>{},
-    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, StaticText<&text::op3>>{}
+    ItemDef<Action<action::op2>, Text>{"Option 2"},
+    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, Text>{"Option 3"}
     // ...
   )
 );
