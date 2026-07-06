@@ -83,6 +83,11 @@ namespace oneMenu {
         O::template fmtStart<Fmt::Title>(ctx);
         i.print(O::obj(),ctx);
         O::template fmtStop<Fmt::Title>(ctx);
+#ifdef MENU_DEBUG_FULLSCREEN
+        if(O::lockMode()!=LockMode::Changed&&O::lockMode()!=LockMode::Sync) {
+          Pos p=O::getPos(); printf("[TitlePrinter] after title: pos=(%d,%d) lockMode=%d\n",(int)p.x,(int)p.y,(int)O::lockMode());
+        }
+#endif
         return O::printMenu(i,ctx)||i.changed();
       }
     };
@@ -148,6 +153,9 @@ namespace oneMenu {
         if(om==LockMode::Changed||om==LockMode::Sync) return Base::printMenu(i,ctx);
         Sz x=Base::getPos().x;
         Sz y=Base::getPos().y;
+#ifdef MENU_DEBUG_FULLSCREEN
+        printf("[ScrollBodyPrinter] entry anchor: pos=(%d,%d) lockMode=%d top=%d sel=%d\n",(int)x,(int)y,(int)om,(int)ctx.top(),(int)ctx.sel(ctx.pAt));
+#endif
         if(ctx.sel(ctx.pAt)<0) ctx.path.data[(int)ctx.pAt]=0;
         else if(ctx.sel(ctx.pAt)>=i.size()) ctx.path.data[(int)ctx.pAt]=i.size()-1;
         if(ctx.sel(ctx.pAt)<ctx.top()) {
@@ -162,7 +170,15 @@ namespace oneMenu {
           Sz f=free().y;
           Sz ci=ctx.idx;
           ctx.idx=0;
-          if(ctx.sel(ctx.pAt)<ci&&(!(ctx.sel(ctx.pAt)==(ci-1)&&f<0))) break;
+          // Bound by the last item: top can never usefully scroll past it. Without this,
+          // a page that always measures as "the selected item didn't fully fit" (f<0 at
+          // ci-1) never breaks on its own — e.g. a FullScreen item deliberately consumes
+          // the *entire* remaining page, so free().y reads negative (fmtStop<Body> adds
+          // its own nl() on top of FullScreen's own padding) for every top, permanently
+          // vetoing the "fits" check below and spinning forever. Once top reaches the
+          // last item there's nowhere further to scroll, so stop regardless — this is
+          // also the exactly-correct landing spot for a FullScreen page (top==sel).
+          if((ctx.sel(ctx.pAt)<ci&&(!(ctx.sel(ctx.pAt)==(ci-1)&&f<0)))||ctx.top()>=i.size()-1) break;
           setPos(Pos{x,y});
           ctx.top(ctx.top()+1);//--scroll down
           om=LockMode::None;//scroll => full redraw
@@ -183,6 +199,48 @@ namespace oneMenu {
         LockMode m=Base::lockMode();
         if(m==LockMode::Changed||m==LockMode::Sync) return Base::printItem(i,ctx);
         return Base::free().y>0?Base::printItem(i,ctx):false;
+      }
+    };
+  };
+
+  /// @brief like ScrollBodyPrinter, but skips the scroll-search entirely — top is always
+  /// exactly ctx.sel(). There's no window to search for: a FullScreen item (item.h)
+  /// always consumes the whole page, so "increasing top eventually fits more items"
+  /// (ScrollBodyPrinter::printMenu's own search invariant) can never become true here.
+  /// Forcing FullScreen through that search produced a real, unconditional infinite loop
+  /// and a stale-position bug (both found+fixed 2026-07-05 — see notes.md/
+  /// [[project_fullscreen_nav_redraw_bug]] in memory) — rather than keep patching around
+  /// a function built for a different case, this gives the case its own dedicated path
+  /// (see [[feedback_dedicated_over_extended_function]]).
+  /// Deliberately reuses ScrollBodyPrinter::Part's own printItem unchanged (its
+  /// skip-before-top / stop-when-full gating was always correct — only the *search* for
+  /// top was ever the bug) by inheriting from it and overriding only printMenu, then
+  /// calling straight through to BodyPrinter::Part::printMenu (ScrollBodyPrinter's own
+  /// Base) instead of ScrollBodyPrinter::Part::printMenu — skipping its search loop.
+  struct SelectBodyPrinter : aPrinter, aScrollBody {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Requires<IsCursor, After>, "SelectBodyPrinter: Cursor must be placed below SelectBodyPrinter — scroll measurement needs tracked position");
+      return true;
+    }
+    template<typename P>
+    struct Part:ScrollBodyPrinter::template Part<P> {
+      using Base=typename ScrollBodyPrinter::template Part<P>;
+      using Super=typename Base::Base;// BodyPrinter::Part<P> — bypasses Base's own scroll-search
+      using Base::lockMode;
+
+      template<typename I>
+      bool printMenu(I& i,Ctx& ctx) {
+        if(i.size()==0) return false;
+        LockMode om=lockMode();
+        // Changed/Sync are read-only traversals — mirrors ScrollBodyPrinter's own guard
+        if(om!=LockMode::Changed&&om!=LockMode::Sync) {
+          Sz sel=ctx.sel(ctx.pAt);
+          if(sel<0) sel=0; else if(sel>=i.size()) sel=(Sz)i.size()-1;
+          ctx.path.data[(int)ctx.pAt]=sel;
+          ctx.top(sel);// the whole fix: top IS sel, always — nothing to search for
+        }
+        return Super::printMenu(i,ctx);
       }
     };
   };
@@ -389,5 +447,17 @@ namespace oneMenu {
   using NoTitleScrollPrinter=Chain<
     ViewPrinter,
     MenuPrinter<ScrollBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+  >;
+
+  // Single-item-per-page variants: always shows exactly ctx.sel(), nothing else — the
+  // dedicated FullScreen printer (see SelectBodyPrinter above), not ScrollPrinter/
+  // NoTitleScrollPrinter's general multi-item scroll-search.
+  using SelectPrinter=Chain<
+    ViewPrinter,
+    MenuPrinter<TitlePrinter,SelectBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+  >;
+  using NoTitleSelectPrinter=Chain<
+    ViewPrinter,
+    MenuPrinter<SelectBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
   >;
 };//oneMenu

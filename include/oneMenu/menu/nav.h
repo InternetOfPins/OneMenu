@@ -184,11 +184,19 @@ namespace oneMenu {
 
       template<typename Out>
       bool printTo(Out& out) {
+        // Re-anchor to the declared origin before each frame — printMenu()/TitlePrinter's
+        // own fmtStop only ever call a *relative* nl(), assuming the cursor already sits at
+        // (orgX,orgY). That's true after a plain sequential frame, but a FullScreen item
+        // (item.h) deliberately pads all the way to the *bottom* of the page, so the next
+        // frame would otherwise inherit that stale bottom position as its baseline — one
+        // relative nl() from there lands nowhere near row 1, and everything downstream
+        // (ScrollBodyPrinter's own anchor capture included) silently corrupts from there.
+        // resume() alone doesn't fix this: it re-syncs the *physical* device to whatever
+        // the *logical* position (m_at) already is — useless when m_at itself is wrong.
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) out.setPos({out.orgX(),out.orgY()});
         ///track scroll top for each level, this is output device specific
         static Sz tops[root().depth()]{0};//TODO: check if ScrollBody is in output part, or store this there with an API call fallback.
         Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
-        // dout<<xy<0,1><<colors<BLACK,RED><<ctx<<padWith<10><<flush;out.resume();
-        // dout<<xy<0,2><<" level:"<<level()<<" path:"<<path()<<padWith<10><<flush;
         bool r=root().printMenu(out,ctx);
         out.flush();
         return r;

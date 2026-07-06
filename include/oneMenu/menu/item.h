@@ -13,6 +13,9 @@
 
 #include "oneData/oneData.h"
 using oneData::Bool;
+#ifdef MENU_DEBUG_FULLSCREEN
+#include <cstdio>
+#endif
 
 namespace oneMenu {
 
@@ -630,7 +633,20 @@ namespace oneMenu {
         static_assert(hapi::Requires<IsScrollBody,typename Out::Types>,
           "FullScreen: requires ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — "
           "use one of those instead of FullPrinter/NoTitlePrinter");
+#ifdef MENU_DEBUG_FULLSCREEN
+        if(out.lockMode()!=LockMode::Changed&&out.lockMode()!=LockMode::Sync) {
+          Pos p0=out.getPos();
+          printf("[FullScreen] before content print: pos=(%d,%d) lockMode=%d\n",(int)p0.x,(int)p0.y,(int)out.lockMode());
+        }
+#endif
         Base::printItem(out,ctx);
+#ifdef MENU_DEBUG_FULLSCREEN
+        if(out.lockMode()!=LockMode::Changed&&out.lockMode()!=LockMode::Sync) {
+          Pos p1=out.getPos();
+          Area f1=out.free();
+          printf("[FullScreen] after content print: pos=(%d,%d) free=(%d,%d)\n",(int)p1.x,(int)p1.y,(int)f1.x,(int)f1.y);
+        }
+#endif
         if constexpr(hapi::query<IsCursor,typename Out::Types>) {
           // Runs before the enclosing ItemPrinter's own fmtStop<Fmt::Item> (clearToEOL()+nl(),
           // same shape as Cursor::clearLine()) finalizes *this* row — so free().y here still
@@ -645,18 +661,26 @@ namespace oneMenu {
           // all-black OLED screen once big-font items were added — see notes.md).
           if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
             // GFX outputs (HasFillRect via aFillRect, e.g. OledOut): one native-coord rect
-            // fill instead of a clearToEOL()+nl() per row — same reserved-row budget as the
-            // text-path loop below, computed in closed form so the final cursor position
-            // matches it exactly (steps = number of clearLine() calls the loop would have
-            // made): fills `steps*lineHeight()` rows in one call, then advances the cursor
-            // by that same amount via setPos() instead of `steps` individual nl()s.
+            // fill instead of a clearToEOL()+nl() per row. free().y here still includes the
+            // current (just-printed, not yet closed) row — fill only what's *below* it
+            // (p.y+L onward), never the row itself: text was drawn there via
+            // Base::printItem(out,ctx) just above, and fillRect must never re-touch pixels
+            // the item's own content already owns (see notes.md/
+            // [[project_fullscreen_nav_redraw_bug]] bug #3 — fillRect starting *at* p.y
+            // instead of p.y+L silently painted over the just-drawn text on real hardware).
             Sz L = out.lineHeight();
             Area f = out.free();
-            Sz steps = f.y>L ? (f.y-L-1)/L + 1 : 0;
-            if(steps>0) {
+            if(f.y>L) {
               Pos p = out.getPos();
-              out.fillRect(out.orgX(), p.y, out.width(), steps*L);
-              out.setPos({0, p.y+steps*L});
+              Sz fillH = f.y-L;
+#ifdef MENU_DEBUG_FULLSCREEN
+              if(out.lockMode()!=LockMode::Changed&&out.lockMode()!=LockMode::Sync) {
+                printf("[FullScreen] fillRect(x=%d,y=%d,w=%d,h=%d) L=%d f=(%d,%d)\n",
+                  (int)out.orgX(),(int)(p.y+L),(int)out.width(),(int)fillH,(int)L,(int)f.x,(int)f.y);
+              }
+#endif
+              out.fillRect(out.orgX(), p.y+L, out.width(), fillH);
+              out.setPos({0, p.y+f.y});
             }
           } else {
             while(out.free().y>out.lineHeight()) out.clearLine();

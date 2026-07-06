@@ -86,6 +86,13 @@ namespace oneMenu {
       template<typename Out>
       bool printBody(Out& out,Ctx& ctx) {return body.printBody(out,ctx);}
 
+      // Jump straight to one item, skipping every sibling — same primitive RecallNavPos
+      // already uses for inline pad display (Base::body.printItem(out,ctx,m_sel), item.h).
+      // Exposed here so an output-side body printer (e.g. SelectBodyPrinter, printers.h)
+      // can reach it the same way printBody() is already exposed for the sequential walk.
+      template<typename Out>
+      bool printBodyAt(Out& out,Ctx& ctx,Sz idx) {return body.printItem(out,ctx,idx);}
+
       template<typename Out>
       bool printHiddenMenu(Out& out,Ctx& ctx) {
         if(ctx.pAt>ctx.at) {
