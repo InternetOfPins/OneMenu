@@ -24,11 +24,13 @@ enum ids { op3_id };
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"Main menu"},
   staticBody(
+    ItemDef<Action<action::op2>, StaticText<&text::op2>>{},
     ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, StaticText<&text::op3>>{}
     // ...
   )
 );
 
+// "Option 2" toggles "Option 3"'s enabled state at runtime:
 bool action::op2(Sz) {
   auto& op3 = mainMenu.find<SameAs<Id<ids::op3_id>>>();  // or: mainMenu.find(byId<ids::op3_id>)
   op3.enable(!op3.enabled());
