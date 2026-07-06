@@ -75,4 +75,76 @@ namespace oneMenu {
     }
   };
 
+  /// @brief input interface base for runtime-polymorphic input dispatch (mirrors out.h's IOut)
+  struct IIn {
+    virtual bool available()=0;
+    virtual CKE  cmd()=0;
+  };
+
+  /// @brief InDef variant with virtual dispatch for runtime-polymorphic input
+  template<typename... KK>
+  struct IInDef:IIn,InDef<KK...> {
+    using Base=InDef<KK...>;
+    virtual bool available() override {return Base::available();}
+    virtual CKE  cmd()       override {return Base::cmd();}
+  };
+
+  // Runtime *list* of independent IIn* sources, polled in sequence, first with an event
+  // wins. Distinct from the compat layer's InGroup (am4.h), which polls every member
+  // unconditionally every call ("poll everything") — this stops at the first source that
+  // actually has something pending, same one-event-per-poll contract InDef's own compiled
+  // chain gives (whichever component is listed first gets first refusal there; here,
+  // whichever IIn* was add()ed first gets first refusal). Meant for a device set only
+  // known/changeable at runtime (hot-swappable input, or heterogeneous devices picked at
+  // startup) — when the set is fixed at compile time, prefer plain InDef<KK...> composition
+  // (zero vtables) or InGroup (compat layer) instead.
+  //
+  // Fixed-capacity array, not a dynamic container — no heap, no std:: dependency (AVR has
+  // no libstdc++; see notes.md). Capacity N is a compile-time bound; add() silently ignores
+  // sources past N (mirrors AVR-wide "no exceptions" convention elsewhere in IOP).
+  /// @brief runtime list of IIn* sources; inBurst()/doInput()/poll() mirror InDef's own surface
+  template<Sz N>
+  struct InList {
+    Sz add(IIn& in) {
+      Sz i=m_count;
+      if(i<N) m_items[m_count++]=&in;
+      return i;
+    }
+    bool available() const {
+      for(Sz i=0;i<m_count;i++) if(m_items[i]->available()) return true;
+      return false;
+    }
+    CKE cmd() {
+      for(Sz i=0;i<m_count;i++) {
+        if(m_items[i]->available()) {
+          CKE r=m_items[i]->cmd();
+          if(r.cmd!=Cmd::None) return r;
+        }
+      }
+      return {};
+    }
+
+    // Same shape/semantics as InDef::inBurst/doInput/poll (see their comments above) —
+    // InList is a drop-in "in" object wherever InDef<...> is used today.
+    template<typename Nav>
+    Sz inBurst(Nav& nav, Sz maxCount=8) {
+      Sz count=0;
+      while(count<maxCount && available()) {
+        if(nav.in(*this)) count++;
+      }
+      return count;
+    }
+    template<typename Nav>
+    bool doInput(Nav& nav, Sz maxCount=8) { return inBurst(nav,maxCount)>0; }
+    template<typename Nav,typename Out>
+    bool poll(Nav& nav, Out& out, Sz maxCount=8) {
+      bool i=doInput(nav,maxCount);
+      bool o=nav.doOutput(out);
+      return i||o;
+    }
+  protected:
+    IIn* m_items[N]{};
+    Sz m_count{0};
+  };
+
 };//namespace oneMenu
