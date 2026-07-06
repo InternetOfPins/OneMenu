@@ -132,11 +132,3 @@ webServer.on("/", []() {
 webServer.on("/menu.xsl", []() { webServer.send(200, "text/xsl", WebOut::xsl()); });
 ```
 
-## Dependencies
-
-- [HAPI](https://github.com/InternetOfPins/HAPI)
-- [OneChip](https://github.com/InternetOfPins/OneChip)
-- [OneData](https://github.com/InternetOfPins/OneData)
-- [OneItem](https://github.com/InternetOfPins/OneItem)
-- [OneOutput](https://github.com/InternetOfPins/OneOutput)
-- [OneParse](https://github.com/InternetOfPins/OneParse)
