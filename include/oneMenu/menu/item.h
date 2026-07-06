@@ -48,6 +48,11 @@ namespace oneMenu {
     /// same pattern as nav()/printItem() — override in a component that cares
     /// (e.g. EventAction<mask,fn> below), not by patching every item.
     static constexpr bool onEvent(EventMask) {return false;}
+    /// @brief per-frame animation hook, dispatched only to the currently-focused item
+    /// (see TickFocus, nav.h). Default no-op — returns false (nothing to redraw), same
+    /// pattern as onEvent()/nav(). Override in a component that animates (e.g. TextRoll
+    /// below) to advance internal state and report whether a redraw is needed.
+    static constexpr bool tick() {return false;}
   };
 
   template<typename... OO>
@@ -190,6 +195,92 @@ namespace oneMenu {
         bool r=false;
         if(e&mask) {fn();r=true;}
         return Base::onEvent(e)||r;
+      }
+    };
+  };
+
+  /// @brief scrolling/marquee text for a long item label — animates only while the item
+  /// is focused (matches AM22's `TextRoller`/`TextRoll`, the one working prior-art
+  /// implementation across the whole AM4/AM5/AM22-AM26 lineage — see notes.md
+  /// "Animation"). Wraps a text component (StaticText, MultiLangText, ...) that provides
+  /// get(): const char* — same "measure then decide how to print" shape as
+  /// oneData::Decimals, not a plain pass-through decorator.
+  ///
+  /// @tparam cps scroll speed in characters per second (advance one character every
+  ///             1000/cps ms, via OneChip's hw::Period — see clock.h)
+  /// @tparam pad right margin, in characters, reserved when scrolling (space before wrap)
+  ///
+  /// Behavior, only decided by (a) whether the text overflows the available print width
+  /// and (b) whether this exact instance currently has focus (`ctx`'s own bool operator —
+  /// same "is this the selected item" check GfxFmt::itemInverted already uses):
+  ///   - fits (len<=free width): plain full print, always, focused or not.
+  ///   - overflows + focused: scroll a `rollPos`-relative window, ticker-tape wrap at the
+  ///     end (one trailing space then restart from character 0), same shape as AM22's.
+  ///   - overflows + not focused: static clip to the available width, no animation —
+  ///     avoids corrupting layout on outputs with no line-wrap of their own.
+  /// rollPos is genuine per-item state (not the shared/static state AM22 used) — a
+  /// blurred item simply stops advancing (tick() is only ever dispatched to the
+  /// currently-focused item by TickFocus, nav.h) and resumes mid-scroll on refocus,
+  /// deliberately not reset — same "no reset on blur" behavior notes.md's research found
+  /// in AM22, just achieved by dispatch instead of a shared static.
+  template<Sz cps, Sz pad=1>
+  struct TextRoll {
+    template<typename O>
+    struct Part : O {
+      using Base = O;
+      using Base::Base;
+
+      mutable Sz rollPos = 0;
+      mutable bool m_overflow = false;// cached by the last printItem(): does text need scrolling?
+      mutable bool m_ticked = false;  // set by tick(), cleared by sync() — drives changed()
+      hw::Period<(cps>0 ? 1000/cps : 1000)> roller;
+
+      // Gated on m_overflow: an item whose text currently fits never even calls roller()
+      // (so its Period<> doesn't accumulate elapsed time it'll never use), and never marks
+      // itself dirty — ticking a short label forever would otherwise cost a wasted
+      // single-row Update-mode reprint every period, for a label that never visibly changes.
+      bool tick() {
+        bool r=false;
+        if(m_overflow && roller()) {rollPos++; m_ticked=true; r=true;}
+        return Base::tick()||r;
+      }
+
+      // Update-mode's per-row redraw gate (printers.h's ItemPrinter) only unlocks a row
+      // when *this item's* changed() is true — TickFocus's own changed(Out&) (nav.h) only
+      // decides whether a redraw pass happens *at all*, not which rows within it actually
+      // get re-sent to the device. Cleared by sync() below, same contract as Watch<>.
+      bool changed() const {return Base::changed()||m_ticked;}
+      void sync() {m_ticked=false; Base::sync();}
+
+      template<typename Out,typename Ctx>
+      void printItem(Out& out,Ctx& ctx) noexcept {
+        const char* t=Base::get();
+        Sz len=(Sz)strlen(t);
+        Sz fx=out.free().x;
+        bool wasOverflow=m_overflow;
+        m_overflow=len>fx;
+        // hw::Period<> fires true on its very first call regardless of elapsed time
+        // (clock.h's own documented "First call returns true immediately" — last starts
+        // at 0). Since roller() is only ever called once overflow is true (tick()'s own
+        // gate), that freebie first-fire would otherwise land on whatever tick() call
+        // happens to be first after scrolling starts — one frame after the real initial
+        // redraw, reading as a spurious extra redraw rather than a real period elapsing.
+        // Resetting exactly on the false->true transition re-baselines it to "now".
+        if(m_overflow&&!wasOverflow) roller.reset();
+        if(!m_overflow) {Base::printItem(out,ctx); return;}// fits: normal print, continue chain
+        Sz w=fx>pad?fx-pad:fx;
+        if(ctx) {// focused + overflowing: scroll window
+          if(rollPos>=len) rollPos=0;
+          Sz n=len-rollPos;
+          if(n>=w) out.put(t+rollPos,w);
+          else {
+            out.put(t+rollPos,n);
+            if(w>n) out.put(' ');
+            if(w>n+1) out.put(t,w-n-1);
+          }
+        } else out.put(t,w);// blurred + overflowing: static clip, no animation
+        Base::Base::printItem(out,ctx);// Base's own print already replaced above — skip
+                                        // it but still continue whatever's chained beneath
       }
     };
   };

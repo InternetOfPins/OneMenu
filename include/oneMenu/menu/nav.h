@@ -401,6 +401,47 @@ namespace oneMenu {
     };
   };
 
+  /// @brief drives per-frame animation (AM22's `TickFocus`, the one working prior-art
+  /// implementation across the whole AM4/AM5/AM22-AM26 lineage — see notes.md
+  /// "Animation"). Every output poll, dispatches tick() (item.h) to whichever item is
+  /// currently focused — reusing EventDispatch's own detail::eventVisit walker, so
+  /// composition order relative to EventDispatch doesn't matter, neither depends on the
+  /// other.
+  ///
+  /// Overrides changed(Out&), NOT doOutput() — unlike IndexGo/EventDispatch (which
+  /// override doCmd()/in(), methods DefinedNav actually delegates to), doOutput() is
+  /// defined directly on DefinedNav itself (this file, above) and never calls
+  /// Base::doOutput() at all, so a chain component overriding doOutput() is silently
+  /// unreachable (the same static-dispatch trap documented elsewhere in this codebase —
+  /// see feedback_hapi_static_dispatch). changed(Out&) IS one of the primitives
+  /// DefinedNav::doOutput actually composes from Base, so overriding it here correctly
+  /// makes tick()-driven animation feed the same redraw decision a real data change would.
+  /// Reports true if tick() advanced anything, in addition to (not instead of) whatever
+  /// Base::changed(out) already found — an animating item's own changed() (item.h's
+  /// TextRoll) must independently report true too, since Update-mode's per-row gate
+  /// (printers.h's ItemPrinter) only unlocks a row when *that item's* changed() is true,
+  /// not just the nav-level aggregate probed here.
+  ///
+  /// Place above TreeNav: NavDef<TickFocus, TreeNav, Root<...>>.
+  struct TickFocus {
+    template<typename N>
+    struct Part : N {
+      using Base = N;
+      // Defining changed(Out&) here hides ALL of Base's changed overloads by name, not
+      // just that one signature (ordinary C++ name hiding, not overload resolution) —
+      // doHiddenOutput() calls the no-arg changed(), which would otherwise vanish from
+      // this chain's scope entirely. Bring it back unchanged.
+      using Base::changed;
+      template<typename Out>
+      bool changed(Out& out) {
+        bool ticked=false;
+        detail::eventVisit(Base::root().body, static_cast<Base&>(*this), (Depth)0,
+          Base::level(), Base::sel(), [&](auto& item){ if(item.tick()) ticked=true; });
+        return Base::changed(out)||ticked;
+      }
+    };
+  };
+
   /// @brief "esc to common base, then go to target" (Rui, 2026-07-03) — the OneMenu
   /// equivalent of AM4's escTo()+menuNode::async() composition (see EventDispatch's file
   /// comment above for the source references). Walks from wherever `nav` currently is to
