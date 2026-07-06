@@ -72,11 +72,15 @@ using namespace oneIO::display;
 
 using MyOled = I2cOledWire<Wire, SDA, SCL>;
 
+namespace action {
+  bool op2(Sz) { /* ... */ return true; }
+}
+
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"Main menu"},
   staticBody(
     ItemDef<StaticText<&text::op1>>{},
-    ItemDef<StaticText<&text::op2>>{}
+    ItemDef<Action<action::op2>, StaticText<&text::op2>>{}
   )
 );
 
