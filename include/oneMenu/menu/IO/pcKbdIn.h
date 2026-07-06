@@ -63,8 +63,7 @@ namespace oneMenu {
           }
 
         } else if (esc == 2) {
-          term = 0x7E;
-          esc  = 0;
+          esc = 0;
           switch (k) {
             case 'A': return {Cmd::Down};
             case 'B': return {Cmd::Up};
@@ -73,6 +72,11 @@ namespace oneMenu {
             default: {
               // Unknown escape sequence (e.g. Home=H, End=F, Del=3~): let inner chain try,
               // else emit as extended key so text fields can distinguish from typed chars.
+              // Digit-prefixed codes (Del/Ins/PgUp/PgDown) end in a `~` terminator;
+              // arm `term` to swallow it. Letter-terminated codes (Home=H, End=F) have
+              // no trailing byte, so term stays unset — arming it here would risk
+              // swallowing an unrelated later `~` keystroke.
+              if (k >= '0' && k <= '9') term = 0x7E;
               CKE r = O::parseKey(k);
               return r.cmd != Cmd::None ? r : CKE{Cmd::Key, k, true, true};
             }
