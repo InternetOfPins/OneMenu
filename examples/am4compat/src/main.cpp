@@ -3,12 +3,21 @@
  * @author Rui Azevedo (ruihfazevedo@gmail.com)
  * @brief AM4 compat-macro proof: same MENU/FIELD/OP/EXIT/SUBMENU call syntax as
  *        AM4's own README example, expanded onto OneMenu via oneMenu/compat/am4.h.
- *        I/O + nav wiring is native OneMenu (NAVROOT/MENU_INPUTS/MENU_OUTPUTS
- *        device macros are explicitly out of scope for this compat layer — see
- *        am4.h's file comment and notes.md "AM4 compat layer").
+ *        I/O + nav wiring now also uses the AM4-syntax device macros
+ *        (ANSI_OUT/MENU_INPUTS/MENU_OUTPUTS/NAVROOT) instead of hand-wired
+ *        InDef/OutDef/INavDef — `nav.poll()` below is AM4's own device-fanout
+ *        call shape, and `devOut` is now declared via `ANSI_OUT(id,w,h)`
+ *        (am4.h's per-backend output macro, same spirit as AM4's own
+ *        `SERIAL_OUT`/`ANSISERIAL_OUT`, adapted for OneMenu's ANSI/console
+ *        backend — not byte-for-byte AM4 syntax since AM4 has no matching
+ *        native-console backend to mirror; see am4.h's ANSI_OUT doc comment).
+ *        `devIn` is still pre-declared the native OneMenu way — MENU_INPUTS
+ *        just wants a pointer to an already-built device, same as AM4.
  *
- * env:selftest drives nav.up()/nav.enter() directly (no PCKbd/ANSI parsing
+ * The selftest drives nav.up()/nav.enter() directly (no PCKbd/ANSI parsing
  * involved) — same verification style as the `fields` example's selftest.
+ * `devIn` is a deterministic no-op input source (see NoOpIn below): real
+ * interactive input isn't exercised here, only MENU_INPUTS'/NAVROOT's fanout.
  */
 
 #include <oneMenu/compat/am4.h>
@@ -16,6 +25,7 @@
 #include <oneMenu/menu/fmt/textFmt.h>
 #include <oneMenu/menu/fmt/ansiFmt.h>
 #include <oneMenu/menu/IO/streamOut.h>
+#include <oneMenu/menu/in.h>
 #include <hapi/hapi.h>
 #include <oneData/oneData.h>
 #include <oneItem/oneItem.h>
@@ -40,6 +50,10 @@ unsigned int timeOff = 90;
 namespace action {
   int op1Count = 0;
   bool op1(int) { op1Count++; return true; }
+  // FIELD()'s fn must be a real, non-overloaded void() (EventCall, item.h) —
+  // Menu::doNothing (bool(int)) doesn't fit that shape; see am4.h's
+  // Menu::doNothing comment for why it's kept single-overload on purpose.
+  void noField() {}
 }
 
 // ── menu tree, verbatim AM4 call syntax ─────────────────────────────────────
@@ -49,27 +63,39 @@ MENU(subMenu, "Sub-Menu", Menu::doNothing, Menu::anyEvent, Menu::noStyle
 );
 
 MENU(mainMenu, "Blink menu", Menu::doNothing, Menu::noEvent, Menu::wrapStyle
-  ,FIELD(timeOn,  "On",  "ms", 0, 1000,  10, 1, Menu::doNothing, Menu::noEvent, Menu::noStyle)
-  ,FIELD(timeOff, "Off", "ms", 0, 10000, 10, 1, Menu::doNothing, Menu::noEvent, Menu::noStyle)
+  ,FIELD(timeOn,  "On",  "ms", 0, 1000,  10, 1, action::noField, Menu::noEvent, Menu::noStyle)
+  ,FIELD(timeOff, "Off", "ms", 0, 10000, 10, 1, action::noField, Menu::noEvent, Menu::noStyle)
   ,OP("Op1", action::op1, Menu::anyEvent)
   ,SUBMENU(subMenu)
   ,EXIT("<Back")
 );
 
-// ── I/O + nav: native OneMenu wiring (not part of the AM4 compat surface) ──
-oneMenu::OutDef<
-  oneMenu::FullPrinter, oneMenu::ANSIFmt, oneMenu::DataParser<>, oneMenu::CtrlChars,
-  oneMenu::ColorTrack<int>, oneMenu::Cursor<>, oneMenu::Gate,
-  oneMenu::ANSIOut, oneMenu::ConsoleOut, oneMenu::StaticPos<0,0>, oneMenu::StaticArea<40,10>
-> out;
+// ── I/O + nav: AM4-syntax device wiring (ANSI_OUT/MENU_INPUTS/MENU_OUTPUTS/NAVROOT) ──
+// devIn is still pre-declared the native OneMenu way (see file comment); devOut now
+// comes from ANSI_OUT(id,w,h), am4.h's own per-backend device macro (AM4-syntax
+// equivalent of SERIAL_OUT/ANSISERIAL_OUT for OneMenu's ANSI/console backend).
+ANSI_OUT(devOut, 40, 10);
 
-oneMenu::INavDef<oneMenu::TreeNav, oneMenu::Root<decltype(mainMenu), mainMenu>> nav;
+// deterministic zero-op input source — this example's selftest drives nav
+// directly (nav.up()/nav.enter()), so MENU_INPUTS just needs something that
+// satisfies InDef's doInput() shape without ever producing a command.
+struct NoOpIn {
+  template<typename In> struct Part : In {
+    static bool available() { return false; }
+    static oneMenu::CKE cmd() { return {}; }
+  };
+};
+oneMenu::InDef<NoOpIn> devIn;
+
+MENU_INPUTS(in, &devIn);
+MENU_OUTPUTS(out, /*maxDepth*/2, &devOut);
+NAVROOT(nav, mainMenu, /*maxDepth*/2, in, out);
 
 int main() {
-  out.lockMode(oneMenu::LockMode::None);
-  out.setColors(WHITE, BLACK);
-  out.clear();
-  nav.printTo(out);
+  devOut.lockMode(oneMenu::LockMode::None);
+  devOut.setColors(WHITE, BLACK);
+  devOut.clear();
+  nav.printTo(devOut);
 
   // index 0=On, 1=Off, 2=Op1, 3=subMenu, 4=<Back>  (Cmd::Up increments, Down decrements)
   assert(action::op1Count == 0);

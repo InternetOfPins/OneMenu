@@ -254,18 +254,50 @@ namespace am4compat {
 #define MENU_OUTPUTS(id, maxDepth, ...) \
   auto id = ::am4compat::OutGroup{__VA_ARGS__}
 
-/// @brief AM4 NAVROOT(id,menu,maxDepth,in,out) — maxDepth accepted but
-///        ignored. in/out must be InGroup/OutGroup (from MENU_INPUTS/
-///        MENU_OUTPUTS above), matching how real AM4 sketches always route
-///        through those macros even for a single device. id.poll() works
-///        exactly like AM4's navRoot::poll(). Nav chain includes EventDispatch
-///        (nav.h) so EventAction/onEvent (item.h) fire for macro-built menus —
-///        found the hard way: NAVROOT predates the event system and silently
-///        built a plain TreeNav chain with no event dispatch at all until this
-///        was added (a real integration gap, not a logic bug in EventDispatch
+/// @brief AM4 NAVROOT(id,menu,maxDepth,in,out) — maxDepth is accepted but
+///        deliberately still ignored, not cross-checked. Tried static_assert-ing
+///        it against `decltype(menu)::depth()` (OneMenu's own real nesting-depth
+///        member, nav.h) and immediately hit a semantics mismatch, not a bug:
+///        OneMenu's depth() counts differently from AM4's maxDepth (e.g. this
+///        file's own `mainMenu` — one submenu deep by AM4's counting — reports
+///        `depth()==3`, not 2). The two aren't the same quantity, so comparing
+///        them isn't a meaningful correctness check, just a false alarm waiting
+///        to happen for every real port. OneMenu doesn't need `maxDepth` for
+///        anything anyway — `TreeNav`'s own buffers are already sized from its
+///        own `depth()` internally (nav.h), independent of whatever the caller
+///        passes here — so the argument stays a pure syntax-compat placeholder.
+///        in/out must be InGroup/OutGroup (from MENU_INPUTS/MENU_OUTPUTS
+///        above), matching how real AM4 sketches always route through those
+///        macros even for a single device. id.poll() works exactly like AM4's
+///        navRoot::poll(). Nav chain includes EventDispatch (nav.h) so
+///        EventAction/onEvent (item.h) fire for macro-built menus — found the
+///        hard way: NAVROOT predates the event system and silently built a
+///        plain TreeNav chain with no event dispatch at all until this was
+///        added (a real integration gap, not a logic bug in EventDispatch
 ///        itself — see notes.md "AM4 compat layer").
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::am4compat::AM4Nav< \
       ::oneMenu::INavDef<::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu>>, \
       std::remove_reference_t<decltype(in)>, std::remove_reference_t<decltype(out)> \
     > id(in, out)
+
+/// @brief AM4-style per-backend output-device macro for OneMenu's ANSI/console
+///        backend — `ANSI_OUT(id,w,h)` declares `id` as a ready-to-use device,
+///        same spirit as AM4's own `SERIAL_OUT(port)`/`ANSISERIAL_OUT(port,color,
+///        panels...)` (each hides a concrete menuIO type behind a one-line call).
+///        Not byte-for-byte AM4 syntax — AM4 has no console/native ANSI backend
+///        to match against (`ANSISERIAL_OUT` is Serial-port-specific, taking a
+///        port + explicit panel regions); this is the compat layer's own
+///        backend adapter for the one output stack the native examples actually
+///        use (`FullPrinter`/`ANSIFmt`/`ANSIOut`/`ConsoleOut`), following the
+///        "components first, macros only for the AM4-call-site translation on
+///        top" principle (see notes.md "AM4 compat layer"). Closes one instance
+///        of the still-open "per-backend MENU_OUTPUTS device-constructor macro"
+///        gap — U8G2_OUT/TFT_eSPI_OUT-equivalents for other OneMenu backends
+///        would each need their own macro here, not attempted yet.
+#define ANSI_OUT(id, w, h) \
+  ::oneMenu::OutDef< \
+      ::oneMenu::FullPrinter, ::oneMenu::ANSIFmt, ::oneMenu::DataParser<>, ::oneMenu::CtrlChars, \
+      ::oneMenu::ColorTrack<int>, ::oneMenu::Cursor<>, ::oneMenu::Gate, \
+      ::oneMenu::ANSIOut, ::oneMenu::ConsoleOut, ::oneMenu::StaticPos<0,0>, ::oneMenu::StaticArea<(w),(h)> \
+    > id
