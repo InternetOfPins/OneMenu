@@ -104,6 +104,44 @@ namespace am4compat {
     else
       return oneMenu::menuDef<>(std::forward<T>(t), std::forward<B>(b));
   }
+
+  // TOGGLE/SELECT/CHOOSE builders — SyncValue<W> (item.h) on top of a Behave
+  // component wrapping Menu<T,B,...>. Each option in the body is a plain
+  // ItemDef<EnumValue<val>,Text> (VALUE() below); SyncValue::nav() reads the
+  // currently-selected option's EnumValue<val>::value() via
+  // RecallNavPos::visit() and writes it into W (a DataRef<&var>, zero-copy,
+  // same binding style FIELD already uses) on every Enter. Verified this
+  // actually works end to end (RecallNavPos::visit() had zero real call
+  // sites anywhere before this — see notes.md "AM4 compat layer") with a
+  // dedicated native test before wiring these macros, not assumed.
+  // Three near-identical functions instead of one generalized one — each
+  // Behave needs its own fixed Menu<...> modifier list (ParentDraw+WrapNav
+  // for Toggle, EditField+ParentDraw for Select, none for Choose), and a
+  // template pack can't sit in the middle of a template parameter list next
+  // to the other explicit-only params (W) these need — matches this
+  // codebase's existing "duplication over cross-cutting generalization"
+  // precedent (InDef/InList's independent doInput, etc.).
+  template<typename W, typename T, typename B>
+  constexpr auto toggleDef(T&& t, B&& b) {
+    return oneMenu::ItemDef<
+        oneMenu::SyncValue<W>, oneMenu::ToggleBehave,
+        oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::ParentDraw, oneMenu::WrapNav>
+      >{std::forward<T>(t), std::forward<B>(b)};
+  }
+  template<typename W, typename T, typename B>
+  constexpr auto selectDef(T&& t, B&& b) {
+    return oneMenu::ItemDef<
+        oneMenu::SyncValue<W>, oneMenu::SelectBehave,
+        oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::EditField, oneMenu::ParentDraw>
+      >{std::forward<T>(t), std::forward<B>(b)};
+  }
+  template<typename W, typename T, typename B>
+  constexpr auto chooseDef(T&& t, B&& b) {
+    return oneMenu::ItemDef<
+        oneMenu::SyncValue<W>, oneMenu::RecallNavPos,
+        oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+      >{std::forward<T>(t), std::forward<B>(b)};
+  }
 }
 
 // AM4's `using namespace Menu;` surface — just enough for existing call sites
@@ -175,6 +213,41 @@ namespace Menu {
       ::oneMenu::AsUnit<::oneData::Text>, \
       ::oneMenu::EventCall<(::oneMenu::EventMask)(mask), fn> \
     >{label, unit}
+
+/// @brief AM4 VALUE(label,val,fn,mask) — one option inside TOGGLE/SELECT/CHOOSE.
+///        val must be a compile-time constant — same "static value on the leaf"
+///        shape oneMenu::EnumValue<V> (item.h) already provides; TOGGLE/SELECT/
+///        CHOOSE read it back via SyncValue on selection. fn/mask accepted but
+///        ignored (v1, matching every other value-less-handler macro here).
+#define VALUE(label, val, fn, mask) \
+  ::oneMenu::ItemDef<::oneMenu::EnumValue<(val)>, ::oneData::Text>{label}
+
+/// @brief AM4 TOGGLE(var,id,label,fn,mask,style,...values) — single Enter
+///        cycles to the next VALUE(...) and writes it into var (DataRef,
+///        zero-copy, same binding style as FIELD). fn/mask/style accepted but
+///        ignored (v1).
+#define TOGGLE(var, id, label, fn, mask, style, ...) \
+  auto id = ::am4compat::toggleDef<::oneData::DataRef<&(var)>>( \
+      ::oneMenu::ItemDef<::oneData::Text>{label}, \
+      ::oneMenu::staticBody(__VA_ARGS__))
+
+/// @brief AM4 SELECT(var,id,label,fn,mask,style,...values) — Enter opens an
+///        inline picker (stays on the parent's display row); a second Enter
+///        commits whichever VALUE(...) is highlighted into var (DataRef).
+///        fn/mask/style accepted but ignored (v1).
+#define SELECT(var, id, label, fn, mask, style, ...) \
+  auto id = ::am4compat::selectDef<::oneData::DataRef<&(var)>>( \
+      ::oneMenu::ItemDef<::oneMenu::AsLabel<::oneData::Text>, ::oneMenu::AsEditMode<>>{label}, \
+      ::oneMenu::staticBody(__VA_ARGS__))
+
+/// @brief AM4 CHOOSE(var,id,label,fn,mask,style,...values) — Enter opens a
+///        real nested level to browse VALUE(...) options; entering one
+///        commits it into var (DataRef). fn/mask/style accepted but ignored
+///        (v1).
+#define CHOOSE(var, id, label, fn, mask, style, ...) \
+  auto id = ::am4compat::chooseDef<::oneData::DataRef<&(var)>>( \
+      ::oneMenu::ItemDef<::oneData::Text>{label}, \
+      ::oneMenu::staticBody(__VA_ARGS__))
 
 /// @brief AM4 MENU(id,text,fn,mask,style,...items) — single statement, whole
 ///        body is one nested expression. fn/mask accepted but ignored (v1);
