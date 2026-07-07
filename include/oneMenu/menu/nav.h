@@ -18,6 +18,12 @@ namespace oneMenu {
   template <typename API,typename... NN>
   struct DefinedNav:APIOf<API, NN...> {
     using Base = APIOf<API, NN...>;
+    // Forwards whatever constructor APIOf ends up exposing (itself forwarded, link by
+    // link via each hapi::Chain::Part's own `using Base::Base;`, from the *one* stateful
+    // NN... link — if any — that declares its own constructor; see nav.h's Pool for the
+    // motivating case). Every existing NN... component stays purely default-constructible
+    // today, so this only *adds* reachability, it changes nothing for current chains.
+    using Base::Base;
     bool up() {return Base::template doCmd<false>(Cmd::Up);}
     bool down() {return Base::template doCmd<false>(Cmd::Down);}
     bool enter() {return Base::template doCmd<false>(Cmd::Enter);}
@@ -79,13 +85,17 @@ namespace oneMenu {
 
   /// @brief compose a navigation chain from nav components (TreeNav, Root, IndexGo, etc.)
   template<typename... II>
-  struct NavDef:DefinedNav<NavAPI<hapi::CRTP<NavDef<II...>>>,II...> {};
+  struct NavDef:DefinedNav<NavAPI<hapi::CRTP<NavDef<II...>>>,II...> {
+    using Base=DefinedNav<NavAPI<hapi::CRTP<NavDef<II...>>>,II...>;
+    using Base::Base;
+  };
 
   struct INav {};
 
   template<typename... II>
   struct INavDef:INav,DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...> {
     using Base=DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...>;
+    using Base::Base;
   };
 
   /// @brief binds a nav chain to an external menu instance as the navigation root
@@ -109,6 +119,76 @@ namespace oneMenu {
       M m_menu;
       inline constexpr M& root() {return m_menu;}
       static constexpr const Depth depth() {return M::depth();}
+    };
+  };
+
+  /// @brief fuses input+output for one nav: the small "poll everything, redraw if
+  ///        changed" cycle every sketch otherwise hand-writes itself in loop()/run()
+  ///        (see notes.md "AM4 compat layer" — this used to live only as
+  ///        am4compat::AM4Nav, a wrapper *outside* the nav chain; promoted here so
+  ///        it composes like any other nav component instead of needing its own
+  ///        separately-built Nav type to derive from).
+  ///
+  ///        Deliberately generic over InG/OutG, NOT type-erased (IIn&/IOut&) —
+  ///        m_in.doInput(...)/m_out.doOutput(...) are both template calls, so
+  ///        plugging in plain compile-time InDef<...>/OutDef<...> costs nothing
+  ///        extra, same as composing them directly. A device set that's
+  ///        heterogeneous but still fixed at compile time (AM4-compat's
+  ///        MENU_INPUTS/MENU_OUTPUTS) uses InGroup/OutGroup (in.h/out.h) —
+  ///        also zero vtable cost, a compile-time pack that keeps every
+  ///        device's own concrete type (needed: Menu::Part::printMenu is
+  ///        templated on the item type, so it can't cross a type-erased IOut&
+  ///        boundary at all — tried, see notes.md "AM4 compat layer" for the
+  ///        detour). InList<N>/OutList<N> (genuinely runtime-picked/
+  ///        hot-swappable devices) stay usable as InG, but OutList can't
+  ///        drive a real menu tree for the same reason — see its own comment
+  ///        (out.h).
+  ///
+  ///        Deliberately narrow: owns just this one fan-out+redraw fusion, not
+  ///        idle timers or which nav is "active" (examples/fields' activeRun
+  ///        state machine already does that, unaffected — Pool doesn't try to
+  ///        replace it, just gives it a reusable primitive to build multiple
+  ///        Pool instances from instead of hand-rolling each one's cycle).
+  ///
+  ///        Must be the FIRST component in the chain (`INavDef<Pool<...>,
+  ///        EventDispatch, TreeNav, Root<...>> id(in,out);`) for its constructor
+  ///        to be reachable: hapi::Chain forwards a component's own constructor
+  ///        upward via `using Base::Base;` at every wrapping layer (same
+  ///        mechanism Menu<T,B,OO...>::Part's 2-arg constructor already relies
+  ///        on), but only the outermost link's constructor is what a plain
+  ///        `using Base::Base;` two layers up (DefinedNav/INavDef, this file)
+  ///        actually exposes at the top.
+  template<typename InG,typename OutG>
+  struct Pool {
+    template<typename N>
+    struct Part:N {
+      using Base=N;
+      InG& m_in;
+      OutG& m_out;
+      Part(InG& i,OutG& o):m_in(i),m_out(o) {}
+      // m_out.doOutput(Base::obj()) — the OutG side drives Nav::doOutput, not
+      // the other way around. OutDef/IOutDef/OutGroup (out.h) each provide
+      // their own doOutput(Nav&) one-liner-or-loop that internally calls
+      // nav.doOutput(*device) with the device's own concrete type intact —
+      // required, not stylistic: Menu::Part::printMenu (menu.h) needs that
+      // concrete type to run the templated print walk, and Base::obj() is
+      // exactly what supplies "the fully-assembled Nav" as that argument.
+      // Base::obj() itself (hapi::CRTP, reachable via ordinary inheritance
+      // from the API terminal every Part in the chain derives from) is
+      // needed here rather than `*this` alone for a *different*, unrelated
+      // reason: doOutput() lives on DefinedNav, which *wraps* the whole
+      // component chain from outside (nav.h, top of file), not inside it —
+      // Base=N only reaches downward into the rest of the II... pack, the
+      // same static-dispatch trap documented elsewhere in this codebase
+      // (feedback_hapi_static_dispatch). obj() casts to the fully-assembled
+      // type, which *does* inherit doOutput, so `nav.doOutput(*device)`
+      // inside OutG's own doOutput(Nav&) resolves correctly once Base::obj()
+      // is what gets passed in as `nav`.
+      bool poll(Sz maxCount=8) {
+        bool i=m_in.doInput(*this,maxCount);
+        bool o=m_out.doOutput(Base::obj());
+        return i||o;
+      }
     };
   };
 

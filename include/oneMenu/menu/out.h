@@ -63,13 +63,35 @@ namespace oneMenu {
 
   /// @brief compose a complete output chain (printer + format + parsers + cursor + device + geometry)
   template<typename... OO>
-  struct OutDef:OutImpl<OutAPI<hapi::CRTP<OutDef<OO...>>>,Resume,OO...>{};
+  struct OutDef:OutImpl<OutAPI<hapi::CRTP<OutDef<OO...>>>,Resume,OO...>{
+    // Mirrors InDef's own doInput(Nav&,maxCount) — same "drop-in wherever a
+    // Nav wants to drive this" shape, one-line forward to Nav::doOutput. Lets
+    // Pool<InG,OutG> (nav.h) call m_out.doOutput(nav) uniformly whether OutG
+    // is a single device (this, just forwards) or an OutList (loops, below) —
+    // same duplication-over-shared-mixin precedent InDef/InList already use.
+    template<typename Nav> bool doOutput(Nav& nav) { return nav.doOutput(*this); }
+  };
 
-  /// @brief output interface base for runtime-polymorphic output dispatch
+  /// @brief output interface base for runtime-polymorphic output dispatch.
+  ///        Types=Chain<> — a type-erased Out can't statically claim any
+  ///        compile-time capability tag (IsCursor, PartialDraw via
+  ///        hapi::TagIs<...>::Check<Out>) since the concrete device behind the
+  ///        interface isn't known here; every tag-gated shortcut in nav.h
+  ///        (cursor repositioning, selective partial redraw) safely evaluates
+  ///        false and falls back to the plain always-full-redraw path instead
+  ///        — every device already has to support that path anyway.
   struct IOut {
+    using Types = hapi::Chain<>;
     virtual void lockMode(LockMode)=0;
     virtual LockMode lockMode()=0;
     virtual void resume()=0;
+    // clear()/flush(): DefinedNav::doOutput and TreeNav::printTo (nav.h) call
+    // these unconditionally on whatever Out they're given — not behind any
+    // compile-time tag gate — so they belong on the required interface itself,
+    // unlike the geometry queries (orgX/width/etc.) which only ever fire from
+    // inside a compile-time-gated branch and so never reach a type-erased Out.
+    virtual void clear()=0;
+    virtual void flush()=0;
     virtual void fmtStart(Fmt,const Ctx&)=0;
     virtual void fmtStop(Fmt,const Ctx&)=0;
     virtual void setPos(const Pos&)=0;
@@ -78,8 +100,15 @@ namespace oneMenu {
     virtual void put(const char)=0;
     virtual void put(const char*)=0;
     virtual void put(const char*,Sz)=0;
+    // No separate `const char* const*&` overload: it existed once but every
+    // concrete Base::put() it forwarded to (DataParser::put, e.g.) only ever
+    // took this by value, and grepping the whole codebase found no call site
+    // exploiting reference semantics — it was dead weight, and a genuine
+    // landmine: a plain lvalue argument matches both a by-value and a
+    // by-reference overload of the identical pointee type equally well,
+    // making put(const char* const*) ambiguous the moment anything (OutList,
+    // out.h) actually calls it through an IOut* — caught building OutList.
     virtual void put(const char* const*)=0;
-    virtual void put(const char* const*& str)=0;
 
     template<Fmt tag> void fmtStart(const Ctx& ctx) {fmtStart(tag,ctx);}
     template<Fmt tag> void fmtStop(const Ctx& ctx) {fmtStop(tag,ctx);}
@@ -89,9 +118,13 @@ namespace oneMenu {
   template<typename... OO>
   struct IOutDef:IOut,OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>{
     using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>;
+    // Same one-line forward as OutDef's own doOutput(Nav&) — see its comment.
+    template<typename Nav> bool doOutput(Nav& nav) { return nav.doOutput(*this); }
     virtual void lockMode(LockMode m) {Base::lockMode(m);}
     virtual LockMode lockMode() {return Base::lockMode();}
     virtual void resume() override {Base::resume();}
+    virtual void clear() override {Base::clear();}
+    virtual void flush() override {Base::flush();}
     using Base::fmtStart;
     using Base::fmtStop;
     virtual void fmtStart(Fmt tag,const Ctx& ctx) override {
@@ -145,11 +178,107 @@ namespace oneMenu {
     virtual void put(const char* str) override {Base::put(str);}
     virtual void put(const char* str,Sz n) override {Base::put(str,n);}
     virtual void put(const char* const* str) override {Base::put(str);}
-    virtual void put(const char* const*& str) override {Base::put(str);}
     // virtual bool printItem(IItem& item,Ctx& ctx) override {return Base::printItem(item,ctx);}
     // virtual bool printMenu(IItem& item,Ctx& ctx) override {return Base::printMenu(item,ctx);}
     // template<typename I> static constexpr bool printItem(I& item,Ctx& ctx) {return printItem(*reinterpret_cast<IItemDef<I>*>(&item),ctx);}
   };
+
+  // Runtime *list* of independent IOut* sinks — the output-side twin of
+  // InList (in.h) for the low-level device surface. Unlike InList's "first
+  // source wins" input semantics, output has no such concept: every
+  // registered device must be redrawn, so every IOut primitive
+  // (put/setPos/lockMode/clear/flush/fmtStart/fmtStop) broadcasts
+  // unconditionally to all N, not short-circuited — matches how a
+  // compile-time device chain fusing multiple physical sources already
+  // fires every put().
+  //
+  // Real limit, worth recording precisely (found building this, 2026-07-07):
+  // this canNOT drive a *whole menu tree* through nav.doOutput()/printTo() —
+  // not even one device at a time, once erased. Menu::Part::printMenu
+  // (menu.h) calls `out.printMenu(*this,ctx)`, templated on the concrete
+  // item type; a template method can't be virtual, so IOut fundamentally
+  // cannot expose it, and once a device is behind IOut& its concrete type is
+  // gone — nav.doOutput(*someIOutPtr) fails to compile regardless of what's
+  // actually behind the pointer. OutList is genuinely useful only for the
+  // low-level put-broadcast case (e.g. mirroring identical bytes to two same-
+  // format sinks), not for AM4-compat's MENU_OUTPUTS (heterogeneous devices,
+  // real menu tree) — that needs OutGroup (out.h, below), which keeps every
+  // device's concrete type via a compile-time pack instead of erasing it.
+  //
+  // Fixed-capacity array, not a dynamic container — no heap, no std::
+  // dependency (AVR has no libstdc++; see notes.md/project_avr_no_libstdcxx).
+  /// @brief runtime list of IOut* sinks; itself a valid IOut (mirrors InList).
+  ///        Low-level put-broadcast only — see class comment for why it can't
+  ///        drive a real menu tree; use OutGroup (below) for that instead.
+  template<Sz N>
+  struct OutList : IOut {
+    OutList() = default;
+    // Compile-time-count construction, for convenience alongside add()'s
+    // runtime growth. Each Outs* must already derive from IOut (e.g.
+    // IOutDef<...>, not plain OutDef<...>).
+    template<typename... Outs>
+    OutList(Outs*... outs) : m_items{static_cast<IOut*>(outs)...}, m_count((Sz)sizeof...(Outs)) {
+      static_assert(sizeof...(Outs)<=N, "OutList: more devices than capacity N");
+    }
+    Sz add(IOut& out) {
+      Sz i=m_count;
+      if(i<N) m_items[m_count++]=&out;
+      return i;
+    }
+    virtual void lockMode(LockMode m) override {m_lockMode=m; for(Sz i=0;i<m_count;i++) m_items[i]->lockMode(m);}
+    virtual LockMode lockMode() override {return m_lockMode;}
+    virtual void resume() override {for(Sz i=0;i<m_count;i++) m_items[i]->resume();}
+    virtual void clear()  override {for(Sz i=0;i<m_count;i++) m_items[i]->clear();}
+    virtual void flush()  override {for(Sz i=0;i<m_count;i++) m_items[i]->flush();}
+    using IOut::fmtStart;
+    using IOut::fmtStop;
+    virtual void fmtStart(Fmt tag,const Ctx& ctx) override {for(Sz i=0;i<m_count;i++) m_items[i]->fmtStart(tag,ctx);}
+    virtual void fmtStop (Fmt tag,const Ctx& ctx) override {for(Sz i=0;i<m_count;i++) m_items[i]->fmtStop(tag,ctx);}
+    virtual void setPos(const Pos& p) override {for(Sz i=0;i<m_count;i++) m_items[i]->setPos(p);}
+    virtual void put(const int n)              override {for(Sz i=0;i<m_count;i++) m_items[i]->put(n);}
+    virtual void put(const double n)           override {for(Sz i=0;i<m_count;i++) m_items[i]->put(n);}
+    virtual void put(const char c)             override {for(Sz i=0;i<m_count;i++) m_items[i]->put(c);}
+    virtual void put(const char* s)            override {for(Sz i=0;i<m_count;i++) m_items[i]->put(s);}
+    virtual void put(const char* s,Sz n)       override {for(Sz i=0;i<m_count;i++) m_items[i]->put(s,n);}
+    virtual void put(const char* const* s)     override {for(Sz i=0;i<m_count;i++) m_items[i]->put(s);}
+  protected:
+    // N?N:1 — a plain IOut*[N] is ill-formed for N=0 (zero-length arrays aren't
+    // standard C++); N==0 is a legitimate case (e.g. every real device elided
+    // as NONE — see am4.h), so this stays a valid, harmless 1-slot array that
+    // m_count (still 0) ensures is never touched, rather than special-casing
+    // an empty OutList<0> as a distinct type.
+    IOut* m_items[N?N:1]{};
+    Sz m_count{0};
+    LockMode m_lockMode{LockMode::None};
+  };
+  template<typename... Outs> OutList(Outs*...) -> OutList<(Sz)sizeof...(Outs)>;
+
+  // Compile-time-fixed pack of independent output devices — the tool
+  // OutList's own doc comment points to for AM4-compat's MENU_OUTPUTS: each
+  // Outs* keeps its own concrete type via recursive inheritance (no
+  // std::tuple/std::apply — neither exists on AVR, see notes.md/
+  // project_avr_no_libstdcxx), so nav.doOutput(*p) always sees the device's
+  // real chain and can run the full templated print walk — unlike OutList's
+  // IOut*, this never erases the type that walk needs. Zero vtable cost:
+  // devices can be plain OutDef<...>, no IOutDef<...> needed. doOutput(Nav&)
+  // evaluates every member unconditionally (not short-circuited by ||) —
+  // "poll everything" semantics, matching how a compile-time OutDef<KK...>
+  // chain already fuses multiple physical sources, and OutList's own.
+  template<typename... Outs> struct OutGroup {
+    template<typename Nav> bool doOutput(Nav&) { return false; }
+  };
+  template<typename O, typename... Outs>
+  struct OutGroup<O, Outs...> : OutGroup<Outs...> {
+    O* p;
+    OutGroup(O* p_, Outs*... rest) : OutGroup<Outs...>(rest...), p(p_) {}
+    template<typename Nav>
+    bool doOutput(Nav& nav) {
+      bool a = nav.doOutput(*p);
+      bool b = OutGroup<Outs...>::doOutput(nav);
+      return a || b;
+    }
+  };
+  template<typename... Outs> OutGroup(Outs*...) -> OutGroup<Outs...>;
 
   //generic stream to outputs -------------------------------------
     template<typename... OO,typename T> 

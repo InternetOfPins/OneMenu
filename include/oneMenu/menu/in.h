@@ -105,6 +105,15 @@ namespace oneMenu {
   /// @brief runtime list of IIn* sources; inBurst()/doInput()/poll() mirror InDef's own surface
   template<Sz N>
   struct InList {
+    InList() = default;
+    // Compile-time-count construction — for a device set fixed at the call site
+    // (AM4-compat's MENU_INPUTS(in,dev1,dev2,...), am4.h), not the runtime-growable
+    // case add() targets. Each Ins* must already derive from IIn (e.g. IInDef<...>,
+    // not plain InDef<...> — virtual dispatch accepted deliberately here).
+    template<typename... Ins>
+    InList(Ins*... ins) : m_items{static_cast<IIn*>(ins)...}, m_count((Sz)sizeof...(Ins)) {
+      static_assert(sizeof...(Ins)<=N, "InList: more devices than capacity N");
+    }
     Sz add(IIn& in) {
       Sz i=m_count;
       if(i<N) m_items[m_count++]=&in;
@@ -143,8 +152,36 @@ namespace oneMenu {
       return i||o;
     }
   protected:
-    IIn* m_items[N]{};
+    // N?N:1 — see OutList's identical comment (out.h): a plain IIn*[N] is
+    // ill-formed for N=0, and N==0 (every device elided as NONE) is legitimate.
+    IIn* m_items[N?N:1]{};
     Sz m_count{0};
   };
+  template<typename... Ins> InList(Ins*...) -> InList<(Sz)sizeof...(Ins)>;
+
+  // Compile-time-fixed pack of independent input devices — the input-side
+  // twin of OutGroup (out.h; see its own comment for the full rationale —
+  // this is symmetric with it, not driven by input having the same
+  // type-erasure problem output does, since IIn's available()/cmd() aren't
+  // templated on anything). "Poll everything" (unconditional, not
+  // short-circuited by ||), unlike InList's "first source wins" — matches
+  // AM4's own MENU_INPUTS semantics (every listed device gets polled every
+  // tick) and a compile-time InDef<KK...> chain's own behavior. Zero vtable
+  // cost: devices can be plain InDef<...>, no IInDef<...> needed.
+  template<typename... Ins> struct InGroup {
+    template<typename Nav> bool doInput(Nav&, Sz = 8) { return false; }
+  };
+  template<typename I, typename... Ins>
+  struct InGroup<I, Ins...> : InGroup<Ins...> {
+    I* p;
+    InGroup(I* p_, Ins*... rest) : InGroup<Ins...>(rest...), p(p_) {}
+    template<typename Nav>
+    bool doInput(Nav& nav, Sz maxCount = 8) {
+      bool a = p->doInput(nav, maxCount);
+      bool b = InGroup<Ins...>::doInput(nav, maxCount);
+      return a || b;
+    }
+  };
+  template<typename... Ins> InGroup(Ins*...) -> InGroup<Ins...>;
 
 };//namespace oneMenu

@@ -56,8 +56,40 @@
 // std::remove_reference_t etc. are already available via HAPI's own
 // hapi/platform/avr/avr_std.h shim (included transitively through
 // oneMenu.h -> hapi.h -> base.h on __AVR__ builds; real <type_traits> covers
-// it elsewhere). The pointer-pack holder below (PtrPack) is hand-rolled for
-// the same reason InGroup/OutGroup can't use std::tuple/std::apply.
+// it elsewhere).
+
+// oneMenu.h alone isn't self-sufficient for a real menu tree — every existing
+// example (native and AVR) also pulls in these four sibling libraries by hand
+// (color palette/DefaultPalette for ansiFmt.h, item/data machinery MENU/FIELD
+// expand into). Pulled in here too, for the same "genuinely zero extra
+// includes" reason as the backend headers below.
+#include <hapi/hapi.h>
+#include <oneData/oneData.h>
+#include <oneItem/oneItem.h>
+#include <oneOutput/oneOutput.h>
+
+// Backend headers ANSI_OUT/SERIAL_OUT/Menu::serialIn need — pulled in here
+// (not left for the calling sketch to add) so that swapping AM4's own
+// #include block for this single header is genuinely a zero-change drop-in,
+// not "zero change plus remember these four extra includes."
+// Order matters: ansiOut.h pulls in ansiCodes.h (BLUE/WHITE/etc, global
+// constants) that ansiFmt.h's own DefaultPalette needs already visible —
+// ansiOut.h must come first, matching the order every working example
+// (examples/am4compat/src/main.cpp) already uses.
+#include <oneMenu/menu/IO/ansiOut.h>
+#include <oneMenu/menu/fmt/textFmt.h>
+#include <oneMenu/menu/fmt/ansiFmt.h>
+#include <oneMenu/menu/IO/idParser.h>
+#include <oneMenu/menu/IO/pcKbdIn.h>
+#ifdef ARDUINO
+  #include <oneMenu/menu/IO/arduino/serialIn.h>
+  #include <oneMenu/menu/IO/arduino/serialOut.h>
+#else
+  // streamOut.h (ConsoleOut, ANSI_OUT's device) pulls in <iostream> — doesn't
+  // exist on AVR at all (no libstdc++ — see notes.md/project_avr_no_libstdcxx),
+  // and ANSI_OUT itself is a native/desktop-console-only macro anyway.
+  #include <oneMenu/menu/IO/streamOut.h>
+#endif
 
 namespace am4compat {
   // subset of AM4's systemStyles actually wired up (menuBase.h's full enum has
@@ -165,94 +197,48 @@ namespace Menu {
 /**
  * ── v2: MENU_INPUTS / MENU_OUTPUTS / NAVROOT (device wiring) ───────────────
  *
- * AM4 needs a *runtime* menuOut*[]/menuIn*[] list here because every single
- * AM4 device — even a sketch with exactly one Serial output — is
- * virtual-dispatch based; that's just how AM4's menuOut/menuIn hierarchy is
- * built. OneMenu's device set is fixed at compile time in real usage, so
- * fanning a poll out to N devices doesn't need runtime dispatch at all — a
- * fold expression over a compile-time-fixed pack of already-declared native
- * InDef<...>/OutDef<...> objects gets the same "multiple devices in
- * parallel" feature AM4 advertises, at zero vtable cost. (This superseded an
- * earlier plan to bridge through IOutDef/IOut's runtime-dispatch escape
- * hatch — that stays available for a genuinely runtime-swappable device set,
- * but real AM4 sketches don't need it: see notes.md "AM4 compat layer".)
+ * Built directly on native oneMenu machinery, not a separate am4compat-local
+ * reimplementation: InGroup/OutGroup (in.h/out.h) are oneMenu's own
+ * compile-time-fixed device packs, and oneMenu::Pool<InG,OutG> (nav.h) is a
+ * real nav chain component fusing one input source + one output sink for one
+ * nav — "we will have to move that cycle into OneMenu so that we have a
+ * compatible pool" (Rui, 2026-07-03; see notes.md "AM4 compat layer" for the
+ * full design discussion).
  *
- * Syntax fidelity note: MENU_INPUTS is byte-for-byte AM4 syntax — AM4's own
- * MENU_INPUTS already just takes addresses of pre-declared objects, same as
- * here. MENU_OUTPUTS is NOT byte-for-byte: AM4's per-backend device macros
- * (SERIAL_OUT(Serial), U8G2_OUT(...), TFT_eSPI_OUT(...), ...) each construct
- * a device inline — replicating those would need a matching OneMenu backend
- * adapter per AM4 output driver, out of scope here. Pre-declare each output
- * the native OneMenu way (`OutDef<...> out1;`) and pass `&out1` instead.
+ * Went through a detour worth recording here (2026-07-07): first tried
+ * building this on InList<N>/OutList<N> (a runtime, virtual-dispatch device
+ * *list* — in.h/out.h — "the output fan-out is in itself an output"), which
+ * seemed like the more unified answer since IOut let a whole pool be handed
+ * anywhere a single Out is expected. It doesn't work for this: Menu::Part::
+ * printMenu (menu.h) calls `out.printMenu(*this,ctx)`, templated on the
+ * concrete item type — a template method can't be virtual, so IOut
+ * fundamentally can't expose it, and once a device is behind IOut& its
+ * concrete type (and with it, the ability to run a real templated print
+ * walk) is gone for good, not recoverable even one device at a time.
+ * InGroup/OutGroup avoid this by construction: recursive inheritance over a
+ * compile-time pack keeps every device's concrete type, so nav.doOutput(*p)
+ * always sees the real chain — same approach the original v1/v2
+ * implementation already used, restored here after the detour. Devices stay
+ * plain OutDef<...>/InDef<...> — no vtables needed anywhere in this path.
+ *
+ * Syntax fidelity: MENU_INPUTS/NAVROOT are byte-for-byte AM4 syntax. NONE
+ * (AM4's own ">=2 items" placeholder) is an empty macro, same as AM4's own
+ * VAR_HEAD_NONE/REF_HEAD_NONE (macros.h) — it disappears at the token level,
+ * leaving a trailing comma before InGroup/OutGroup's closing brace; verified
+ * empirically that a braced-init-list's trailing comma stays legal even when
+ * it resolves to a variadic constructor call, not just aggregate init.
  */
 
-namespace am4compat {
-  // Minimal AVR-safe pointer-pack holder — recursive inheritance instead of
-  // std::tuple/std::apply (neither exists on AVR; see file comment above).
-  // Both doInput/doOutput evaluate every member unconditionally (not
-  // short-circuited by ||) — "poll everything" semantics, matching how a
-  // compile-time InDef<KK...> chain already fuses multiple physical sources.
-  template<typename... Ins> struct InGroup {
-    template<typename Nav> bool doInput(Nav&, oneMenu::Sz = 8) { return false; }
-  };
-  template<typename I, typename... Ins>
-  struct InGroup<I, Ins...> : InGroup<Ins...> {
-    I* p;
-    InGroup(I* p_, Ins*... rest) : InGroup<Ins...>(rest...), p(p_) {}
-    template<typename Nav>
-    bool doInput(Nav& nav, oneMenu::Sz maxCount = 8) {
-      bool a = p->doInput(nav, maxCount);
-      bool b = InGroup<Ins...>::doInput(nav, maxCount);
-      return a || b;
-    }
-  };
-  template<typename... Ins> InGroup(Ins*...) -> InGroup<Ins...>;
-
-  template<typename... Outs> struct OutGroup {
-    template<typename Nav> bool doOutput(Nav&) { return false; }
-  };
-  template<typename O, typename... Outs>
-  struct OutGroup<O, Outs...> : OutGroup<Outs...> {
-    O* p;
-    OutGroup(O* p_, Outs*... rest) : OutGroup<Outs...>(rest...), p(p_) {}
-    template<typename Nav>
-    bool doOutput(Nav& nav) {
-      bool a = nav.doOutput(*p);
-      bool b = OutGroup<Outs...>::doOutput(nav);
-      return a || b;
-    }
-  };
-  template<typename... Outs> OutGroup(Outs*...) -> OutGroup<Outs...>;
-
-  /// @brief AM4 navRoot equivalent: joins IO (an InGroup + an OutGroup) with
-  ///        a menu's Nav. Derives from the real Nav type (so id.up()/down()/
-  ///        enter()/esc()/level()/... all keep working via plain inheritance)
-  ///        and adds .poll() fusing doInput+doOutput across every device in
-  ///        the bound InGroup/OutGroup.
-  /// Members are named m_in/m_out, NOT in/out — TreeNav::Part already has an
-  /// inherited `in(In&)` *method*; a same-named data member here would hide
-  /// it entirely (C++ name-hiding applies across kind, not just signature),
-  /// turning `nav.in(*this)` inside InDef::inBurst into a bogus "call the
-  /// InGroup member like a function" — found the hard way, not theoretical.
-  template<typename NavT, typename InG, typename OutG>
-  struct AM4Nav : NavT {
-    InG& m_in;
-    OutG& m_out;
-    AM4Nav(InG& i, OutG& o) : m_in(i), m_out(o) {}
-    void poll() { m_in.doInput(*this); m_out.doOutput(*this); }
-  };
-}
-
 /// @brief AM4 MENU_INPUTS(id,&dev1,&dev2,...) — byte-for-byte AM4 syntax.
+///        Builds a native oneMenu::InGroup over the given devices.
 #define MENU_INPUTS(id, ...) \
-  auto id = ::am4compat::InGroup{__VA_ARGS__}
+  auto id = ::oneMenu::InGroup{__VA_ARGS__}
 
 /// @brief AM4 MENU_OUTPUTS(id,maxDepth,&dev1,&dev2,...) — maxDepth accepted
-///        but ignored (OneMenu derives depth from the menu type). Devices
-///        must be addresses of pre-declared native OutDef<...> objects, not
-///        AM4's inline *_OUT(...) constructor macros — see file comment.
+///        but ignored (OneMenu derives depth from the menu type). Builds a
+///        native oneMenu::OutGroup over the given devices.
 #define MENU_OUTPUTS(id, maxDepth, ...) \
-  auto id = ::am4compat::OutGroup{__VA_ARGS__}
+  auto id = ::oneMenu::OutGroup{__VA_ARGS__}
 
 /// @brief AM4 NAVROOT(id,menu,maxDepth,in,out) — maxDepth is accepted but
 ///        deliberately still ignored, not cross-checked. Tried static_assert-ing
@@ -266,20 +252,33 @@ namespace am4compat {
 ///        anything anyway — `TreeNav`'s own buffers are already sized from its
 ///        own `depth()` internally (nav.h), independent of whatever the caller
 ///        passes here — so the argument stays a pure syntax-compat placeholder.
-///        in/out must be InGroup/OutGroup (from MENU_INPUTS/MENU_OUTPUTS
-///        above), matching how real AM4 sketches always route through those
-///        macros even for a single device. id.poll() works exactly like AM4's
-///        navRoot::poll(). Nav chain includes EventDispatch (nav.h) so
-///        EventAction/onEvent (item.h) fire for macro-built menus — found the
-///        hard way: NAVROOT predates the event system and silently built a
-///        plain TreeNav chain with no event dispatch at all until this was
-///        added (a real integration gap, not a logic bug in EventDispatch
-///        itself — see notes.md "AM4 compat layer").
+///        in/out must be InGroup/OutGroup (from MENU_INPUTS/MENU_OUTPUTS above),
+///        matching how real AM4 sketches always route through those macros
+///        even for a single device. id.poll() works exactly like AM4's
+///        navRoot::poll() — now oneMenu::Pool's own poll(), reached through
+///        ordinary chain inheritance instead of a separate wrapper type
+///        deriving from an already-built Nav. Nav chain includes EventDispatch
+///        (nav.h) so EventAction/onEvent (item.h) fire for macro-built menus —
+///        found the hard way: NAVROOT predates the event system and silently
+///        built a plain TreeNav chain with no event dispatch at all until this
+///        was added (a real integration gap, not a logic bug in EventDispatch
+///        itself — see notes.md "AM4 compat layer"). Pool must stay the
+///        *first* component listed here for its constructor to be reachable —
+///        see Pool's own doc comment (nav.h) for why.
 #define NAVROOT(id, menu, maxDepth, in, out) \
-  ::am4compat::AM4Nav< \
-      ::oneMenu::INavDef<::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu>>, \
-      std::remove_reference_t<decltype(in)>, std::remove_reference_t<decltype(out)> \
+  ::oneMenu::INavDef< \
+      ::oneMenu::Pool<decltype(in), decltype(out)>, \
+      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu> \
     > id(in, out)
+
+/// @brief AM4 NONE — placeholder satisfying MENU_OUTPUTS'/MENU_INPUTS' AM4-side
+///        "at least 2 devices" macro quirk. Empty, same as AM4's own NONE
+///        (macros.h's VAR_HEAD_NONE/REF_HEAD_NONE expand to nothing too) — the
+///        slot just disappears, leaving InGroup/OutGroup's variadic constructor
+///        with one fewer real argument. Global, unscoped (like AM4's own —
+///        macros aren't namespace-scoped), so avoid this exact token elsewhere
+///        in a TU that includes am4.h.
+#define NONE
 
 /// @brief AM4-style per-backend output-device macro for OneMenu's ANSI/console
 ///        backend — `ANSI_OUT(id,w,h)` declares `id` as a ready-to-use device,
@@ -291,13 +290,67 @@ namespace am4compat {
 ///        backend adapter for the one output stack the native examples actually
 ///        use (`FullPrinter`/`ANSIFmt`/`ANSIOut`/`ConsoleOut`), following the
 ///        "components first, macros only for the AM4-call-site translation on
-///        top" principle (see notes.md "AM4 compat layer"). Closes one instance
-///        of the still-open "per-backend MENU_OUTPUTS device-constructor macro"
-///        gap — U8G2_OUT/TFT_eSPI_OUT-equivalents for other OneMenu backends
-///        would each need their own macro here, not attempted yet.
+///        top" principle (see notes.md "AM4 compat layer"). Plain OutDef<...>,
+///        not IOutDef<...> — MENU_OUTPUTS's OutGroup keeps each device's
+///        concrete type itself, no virtual dispatch needed here.
 #define ANSI_OUT(id, w, h) \
   ::oneMenu::OutDef< \
       ::oneMenu::FullPrinter, ::oneMenu::ANSIFmt, ::oneMenu::DataParser<>, ::oneMenu::CtrlChars, \
       ::oneMenu::ColorTrack<int>, ::oneMenu::Cursor<>, ::oneMenu::Gate, \
       ::oneMenu::ANSIOut, ::oneMenu::ConsoleOut, ::oneMenu::StaticPos<0,0>, ::oneMenu::StaticArea<(w),(h)> \
     > id
+
+#ifdef ARDUINO
+/// @brief AM4-style per-backend output-device macro, *inline* form — unlike
+///        ANSI_OUT (which declares a named variable), `SERIAL_OUT(port)` is
+///        used directly inside a MENU_OUTPUTS(...) argument list, matching
+///        AM4's own SERIAL_OUT call shape exactly. Expands to a pointer to a
+///        function-local static OutDef instance (Meyers-singleton) — C++
+///        doesn't allow declaring a named variable inside an expression, so
+///        this is what makes the inline placement work with zero change to
+///        the calling AM4 source. `port` is accepted for AM4 syntax fidelity
+///        but ignored: oneMenu::SerialOut (like every bottom-of-chain Arduino
+///        IO component here) is a compile-time component bound to the global
+///        Serial object (serialOut.h) — OneMenu's device set is fixed at
+///        compile time, so a *runtime* stream argument has nothing to bind
+///        to. Real AM4 sketches pass literal Serial here anyway; passing
+///        Serial1/Serial2 would silently still target Serial. Area is a fixed
+///        40x6 default (matches .RnD/am4compat's own SerialOut precedent) —
+///        AM4's own SERIAL_OUT has no area parameter to thread through either.
+///        Arduino-only (like the real oneMenu::SerialOut it wraps). Plain
+///        OutDef<...>, not IOutDef<...> — see ANSI_OUT's comment above.
+// NOTE: `return (dev);` — the extra parens are load-bearing, not decoration.
+// decltype(auto) deduces from the return *expression as written*: an
+// unparenthesized id-expression (`return dev;`) decltype's to the plain
+// declared type (T, a copy of the static — &-ing that copy is exactly the
+// "taking address of temporary" bug this tripped on first). Parenthesizing
+// it (`return (dev);`) turns it into an lvalue expression, so decltype(auto)
+// deduces T& instead — the actual persistent static, safe to take &of.
+#define SERIAL_OUT(port) \
+  (&[]() -> decltype(auto) { \
+      static ::oneMenu::OutDef< \
+          ::oneMenu::FullPrinter, ::oneMenu::TextFmt, ::oneMenu::DataParser<>, ::oneMenu::CtrlChars, \
+          ::oneMenu::Cursor<>, ::oneMenu::Gate, ::oneMenu::SerialOut, \
+          ::oneMenu::StaticPos<0,0>, ::oneMenu::StaticArea<40,6> \
+        > dev; \
+      return (dev); \
+    }())
+
+namespace Menu {
+  /// @brief AM4 serialIn(Stream&) — input device wrapper, real AM4 call shape
+  ///        (`serialIn serial(Serial); MENU_INPUTS(in,&serial);`). Wraps the
+  ///        same compile-time Serial+key-parser chain shape
+  ///        .RnD/am4compat/.RnD/fielduino hand-wire
+  ///        (InDef<SerialIn,IdParser,PCKbd>) — MENU_INPUTS's InGroup keeps
+  ///        each device's concrete type itself, no virtual dispatch needed
+  ///        here (plain InDef<...>, not IInDef<...>). The Stream&
+  ///        constructor arg is accepted for AM4 syntax fidelity but ignored —
+  ///        like SerialOut, oneMenu::SerialIn (serialIn.h) is a compile-time
+  ///        component bound to the global Serial object; a runtime Stream&
+  ///        has nothing to bind to. Real AM4 sketches pass literal Serial
+  ///        here anyway.
+  struct serialIn : ::oneMenu::InDef<::oneMenu::SerialIn, ::oneMenu::IdParser, ::oneMenu::PCKbd> {
+    serialIn(Stream&) {}
+  };
+}
+#endif
