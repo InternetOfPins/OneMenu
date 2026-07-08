@@ -41,16 +41,8 @@ namespace oneMenu {
     template<typename Out> static constexpr void printHidden(Out&,Ctx&) noexcept {}
     template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&) noexcept {return false;}
     using Base::print;
-    // printItem(Out&,Ctx&) used to be redeclared here with Ctx hardcoded to the
-    // concrete oneMenu::Ctx, shadowing oneData::DataAPI's own already-generic
-    // no-op (oneData.h: template<typename Out,typename Ctx> ... printItem(Out&,Ctx&)) —
-    // identical behavior (both a trivial no-op), so this was pure duplication that
-    // *lost* genericity for no reason, unlike print just above (which correctly
-    // just inherits via using Base::print). Left commented, not deleted, as the
-    // record of what was here. Kept `using Base::printItem;` off too — it's already
-    // reachable via ordinary inheritance same as any other non-hidden base member,
-    // no explicit using-declaration needed once the shadowing redeclaration is gone.
-    // template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
+    // printItem(Out&,Ctx&) is reached via ordinary inheritance from oneData::DataAPI's
+    // generic no-op — no redeclaration or using-declaration needed here.
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     template<typename Nav,typename P> static constexpr bool setStr(Nav&,const char*,P) {return false;}
     /// @brief AM4-parity semantic event hook (see enums.h EventMask). Default no-op,
@@ -552,7 +544,6 @@ namespace oneMenu {
   /// @brief alternative representation for a value
   /// @tparam Title title type
   /// @tparam Value value type
-  /// @todo why not derive from the target and redirect only the print? Enum depends on this!
   template<typename Title,typename Value>
   struct Alias {
     template<typename O>
@@ -752,10 +743,8 @@ namespace oneMenu {
           // renders this row big (e.g. GfxFmt's item-level big font) costs 2 — and at this point
           // big-font state (if any) is still active, so a Cursor<...,LnH> with a dynamic
           // line-height fn already reports the right number here. Reserving a fixed 1 for a
-          // big row under-reserves by one and overshoots (verified via a scroll-loop trace:
-          // every top setting converged one row over budget, f=-1, until the first fix here;
-          // a second, physical-vs-logical-position variant of the same mismatch turned into an
-          // all-black OLED screen once big-font items were added — see notes.md).
+          // big row under-reserves by one and overshoots — see notes.md for the
+          // FullScreen big-font bug this fixes.
           if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
             // GFX outputs (HasFillRect via aFillRect, e.g. OledOut): one native-coord rect
             // fill instead of a clearToEOL()+nl() per row. free().y here still includes the
@@ -891,8 +880,7 @@ namespace oneMenu {
             // idiom as FullScreen's own fillRect (see notes.md's FullScreen bug writeup),
             // rather than approximating position via padWith(N space glyphs), which floors
             // to whole-glyph increments and can leave up to one glyph-width of visible
-            // off-center error on a real pixel-addressable device (confirmed: a 5-char,
-            // 12px/glyph label on a 128px screen landed ~10px off true center).
+            // off-center error on a real pixel-addressable device.
             Pos start=out.getPos();
             out.fillRect(start.x, start.y, lineW, out.lineHeight());
             // fillRect moves the *driver's own* internal cursor to the far edge of
@@ -1005,10 +993,8 @@ namespace oneMenu {
         // A body that never calls its own trailing nl() (the normal case — a plain
         // single-line StaticText/Decimals/value item, same as any of Row's own
         // Left/Center/Right members) leaves end.x>0 with end.y unchanged, undercounting
-        // by exactly one real line (confirmed via direct instrumentation: a 1-line body
-        // measured as bodyLines=0, pushing AlignMethod::Right's placement a full line too
-        // far — availLines-bodyLines came out 5 instead of 4). Same "N newlines vs N+1
-        // lines" accounting any line-counter needs: count a trailing partial row too.
+        // by exactly one real line. Same "N newlines vs N+1 lines" accounting any
+        // line-counter needs: count a trailing partial row too.
         if(end.x>0) used++;
         out.setPos(start);
         out.lockMode(om);

@@ -68,7 +68,6 @@ namespace oneMenu {
       static void nl()                     { put('\n'); O::nl(); }
       static constexpr void setPos(const Pos&) {}
       static void clear()                  { O::clear(); }
-      // static void resume()                 { O::resume(); }
       static constexpr void flush()        {}
       static constexpr Sz charWidth()      { return 1; }
       static constexpr Sz lineSpacing()    { return 1; }

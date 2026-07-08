@@ -7,7 +7,6 @@
  * 
  */
 
-// #include "oneMenu/menu/sys/base.h"
 #include "oneMenu/menu/out.h"
 #include "oneMenu/menu/sys/platform/ansiCodes.h"
 
@@ -24,7 +23,6 @@ namespace oneMenu {
       using HasANSI=std::true_type;
       using Base=typename PartialDraw::template Part<O>;
       using Base::Base;
-      // void setPos(Sz x,Sz y) {xy(Base::orgX()+x,Base::orgY()+y);}
       void setPos(const Pos& o) {xy(Base::orgX()+o.x,Base::orgY()+o.y);}
       
       void nl() {
@@ -43,7 +41,6 @@ namespace oneMenu {
         Base::_put(x+1);Base::_put('H');
       }
 
-      // template<typename Cor> static void _setColors(Cor f,Cor b) {_setColors(f,b);}
       template<typename Cor>
       void setColors(Cor f,Cor b) {
         setForegroundColor(f);

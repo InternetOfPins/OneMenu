@@ -94,8 +94,8 @@ namespace oneMenu {
   };
 
   /// @brief start body printing process by redirecting to the item.
-  /// Chains to Base::printMenu so FooterPrinter (and any other post-body printers)
-  /// in the same MenuPrinter<...> pack are reached through the normal fmt pipeline.
+  /// Chains to Base::printMenu so any other post-body printers in the same
+  /// MenuPrinter<...> pack are reached through the normal fmt pipeline.
   struct BodyPrinter : aPrinter {
     template<typename O>
     struct Part:O {
@@ -111,23 +111,6 @@ namespace oneMenu {
       }
     };
   };
-
-  /// @brief footer boundary — emits fmtStart/fmtStop(Footer) so format layers
-  /// can draw a separator, colour band, or nl. No default content is printed here;
-  /// actual footer text is driven by OnFocus/Put::ToOut in individual items.
-  // struct FooterPrinter : aPrinter {
-  //   template<typename O>
-  //   struct Part:O {
-  //     using IsPrinter=std::true_type;
-  //     using Base=O;
-  //     template<typename I>
-  //     bool printMenu(I& i,Ctx& ctx) {
-  //       // Base::template fmtStart<Fmt::Footer>(ctx);
-  //       // Base::template fmtStop<Fmt::Footer>(ctx);
-  //       return Base::printMenu(i,ctx)||i.changed();
-  //     }
-  //   };
-  // };
 
   /// @brief print scroll menu body
   struct ScrollBodyPrinter : aPrinter, aScrollBody {
@@ -432,21 +415,21 @@ namespace oneMenu {
   // Full printers: title + body + footer
   using FullPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<TitlePrinter,BodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+    MenuPrinter<TitlePrinter,BodyPrinter,ItemsPrinter>
   >;
   using ScrollPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<TitlePrinter,ScrollBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+    MenuPrinter<TitlePrinter,ScrollBodyPrinter,ItemsPrinter>
   >;
 
   // No-title variants: body + footer only — default for small-display devices
   using NoTitlePrinter=Chain<
     ViewPrinter,
-    MenuPrinter<BodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+    MenuPrinter<BodyPrinter,ItemsPrinter>
   >;
   using NoTitleScrollPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<ScrollBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+    MenuPrinter<ScrollBodyPrinter,ItemsPrinter>
   >;
 
   // Single-item-per-page variants: always shows exactly ctx.sel(), nothing else — the
@@ -454,10 +437,10 @@ namespace oneMenu {
   // NoTitleScrollPrinter's general multi-item scroll-search.
   using SelectPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<TitlePrinter,SelectBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+    MenuPrinter<TitlePrinter,SelectBodyPrinter,ItemsPrinter>
   >;
   using NoTitleSelectPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<SelectBodyPrinter,/*FooterPrinter,*/ItemsPrinter>
+    MenuPrinter<SelectBodyPrinter,ItemsPrinter>
   >;
 };//oneMenu

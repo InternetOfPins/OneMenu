@@ -27,11 +27,10 @@ namespace oneMenu {
   enum class Cmd {None=0,Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
 
   // AM4-parity semantic event bitmask — ported from AM4's eventMask (see
-  // oneMenu/compat/am4.h and notes.md "AM4 compat layer" for the full plan and which
-  // bits were verified against AM4's actual nav.cpp dispatch code, not just its enum's
-  // doc comments). v1 scope: only Enter/Exit/Focus/Blur are ever raised (by
-  // EventDispatch, nav.h). selFocus/selBlur/update/activate are real AM4 features too
-  // but not implemented yet — deliberately left out rather than declared-and-unused.
+  // oneMenu/compat/am4.h and notes.md "AM4 compat layer" for the full plan). v1 scope:
+  // only Enter/Exit/Focus/Blur are ever raised (by EventDispatch, nav.h).
+  // selFocus/selBlur/update/activate are real AM4 features too but not implemented yet —
+  // deliberately left out rather than declared-and-unused.
   // Registration is a mask (e.g. Focus|Blur, or Any=~0); dispatch is "any bit overlaps"
   // (raised & registeredMask), and the handler receives the single raised bit, not the
   // mask — matches AM4's navNode::event() exactly. Gets |/& for free via the generic
@@ -68,14 +67,6 @@ namespace oneMenu {
 
     template<typename Out>
     Out& operator<<(Out& out, Pad o) {return out<<(o==Pad::yes?"yes":"no");}
-
-    // template<typename Out>
-    // Out& operator<<(Out& out,const Wraps& w) {
-    //   switch(w) {
-    //     case Wraps::no:return out<<"Wraps::no";break;
-    //     case Wraps::yes:return out<<"Wraps::yes";break;
-    //   }
-    // }
 
     template<typename Out>
     Out& operator<<(Out& out,const NavMode& mode) {

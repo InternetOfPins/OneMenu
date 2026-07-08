@@ -30,7 +30,6 @@ namespace oneMenu {
       static void nl()                     { LCD::setCursor(0, ++_row); O::nl(); }
       static void setPos(const Pos& p)     { _row = p.y; LCD::setCursor(p.x, p.y); }
       static void clear()                  { LCD::clear(); _row = 0; O::clear(); }
-      // static void resume()                 { _row = 0; LCD::setCursor(0, 0); O::resume(); }//Cursor will do this with setPos
       static constexpr void flush()        {}
       static constexpr Sz charWidth()      { return 1; }
       static constexpr Sz lineSpacing()    { return 1; }

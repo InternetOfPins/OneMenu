@@ -43,7 +43,6 @@ namespace oneMenu  {
         switch(tag) {
           case Fmt::View:       return "view";
           case Fmt::Title:      return "title";
-          // case Fmt::Footer:     return "footer";
           case Fmt::Menu:       return "menu";
           case Fmt::Body:       return "body";
           case Fmt::Item:       return "item";
@@ -61,8 +60,8 @@ namespace oneMenu  {
       }
 
       static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditCursor|Fmt::EditMode|Fmt::Accel;
-      static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;//|Fmt::Footer;
-      static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;//|Fmt::Footer;
+      static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
+      static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
 
       void putPath(const Path& p, Depth s, Depth l) {
         Depth end = (s+l < p.len) ? s+l : p.len-1;
@@ -175,7 +174,7 @@ namespace oneMenu  {
         Base::put("</");
         Base::put(tagName<tag>());
         Base::put('>');
-        if(tag&(Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Item|Fmt::Title/*|Fmt::Footer*/)) Base::nl();
+        if(tag&(Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Item|Fmt::Title)) Base::nl();
       }
     };
   };

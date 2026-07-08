@@ -57,8 +57,7 @@
 #pragma once
 
 #include <oneMenu/oneMenu.h>
-// NOTE: no <tuple>/<type_traits> — avr-gcc ships no libstdc++ headers at all
-// (confirmed empirically: neither exists anywhere under the AVR toolchain).
+// NOTE: no <tuple>/<type_traits> — avr-gcc ships no libstdc++ headers at all.
 // std::remove_reference_t etc. are already available via HAPI's own
 // hapi/platform/avr/avr_std.h shim (included transitively through
 // oneMenu.h -> hapi.h -> base.h on __AVR__ builds; real <type_traits> covers
@@ -116,10 +115,7 @@ namespace am4compat {
   // ItemDef<EnumValue<val>,Text> (VALUE() below); SyncValue::nav() reads the
   // currently-selected option's EnumValue<val>::value() via
   // RecallNavPos::visit() and writes it into W (a DataRef<&var>, zero-copy,
-  // same binding style FIELD already uses) on every Enter. Verified this
-  // actually works end to end (RecallNavPos::visit() had zero real call
-  // sites anywhere before this — see notes.md "AM4 compat layer") with a
-  // dedicated native test before wiring these macros, not assumed.
+  // same binding style FIELD already uses) on every Enter.
   // Three near-identical functions instead of one generalized one — each
   // Behave needs its own fixed Menu<...> modifier list (ParentDraw+WrapNav
   // for Toggle, EditField+ParentDraw for Select, none for Choose), and a
@@ -184,14 +180,12 @@ namespace Menu {
   // actual AM4 field handler already is in practice (e.g. Fielduino's updateWave); this
   // only ever bit placeholder/no-op field handlers, not real ports.
   //
-  // Same limitation hits OP()'s fn too (Action<fn>'s bool(&)(int) NTTP, found
-  // 2026-07-08 porting Confirm.ino — Blink/Button never called OP() with
-  // doNothing, only EXIT/FIELD): `OP("x",Menu::doNothing,...)` still fails on
-  // real avr-g++ 7.3 even though doNothing is already single-overload here —
-  // apparently `inline` alone is also enough to trip this limitation, not
-  // just overload-set ambiguity. Every real port needing a no-op OP() handler
-  // needs its own local non-inline bool(int) function, same shape as
-  // FIELD()'s noField() workaround.
+  // Same limitation hits OP()'s fn too (Action<fn>'s bool(&)(int) NTTP):
+  // `OP("x",Menu::doNothing,...)` still fails on real avr-g++ 7.3 even though
+  // doNothing is already single-overload here — apparently `inline` alone is
+  // also enough to trip this limitation, not just overload-set ambiguity.
+  // Every real port needing a no-op OP() handler needs its own local
+  // non-inline bool(int) function, same shape as FIELD()'s noField() workaround.
 }
 
 // ── item-tree macros — each expands to a value expression ──────────────────
@@ -312,9 +306,9 @@ namespace Menu {
  * Syntax fidelity: MENU_INPUTS/NAVROOT are byte-for-byte AM4 syntax. NONE
  * (AM4's own ">=2 items" placeholder) is an empty macro, same as AM4's own
  * VAR_HEAD_NONE/REF_HEAD_NONE (macros.h) — it disappears at the token level,
- * leaving a trailing comma before InGroup/OutGroup's closing brace; verified
- * empirically that a braced-init-list's trailing comma stays legal even when
- * it resolves to a variadic constructor call, not just aggregate init.
+ * leaving a trailing comma before InGroup/OutGroup's closing brace — a
+ * braced-init-list's trailing comma stays legal even when it resolves to a
+ * variadic constructor call, not just aggregate init.
  */
 
 /// @brief AM4 MENU_INPUTS(id,&dev1,&dev2,...) — byte-for-byte AM4 syntax.
@@ -347,10 +341,9 @@ namespace Menu {
 ///        ordinary chain inheritance instead of a separate wrapper type
 ///        deriving from an already-built Nav. Nav chain includes EventDispatch
 ///        (nav.h) so EventAction/onEvent (item.h) fire for macro-built menus —
-///        found the hard way: NAVROOT predates the event system and silently
-///        built a plain TreeNav chain with no event dispatch at all until this
-///        was added (a real integration gap, not a logic bug in EventDispatch
-///        itself — see notes.md "AM4 compat layer"). Pool must stay the
+///        NAVROOT predates the event system and originally built a plain
+///        TreeNav chain with no event dispatch at all (see notes.md "AM4
+///        compat layer"). Pool must stay the
 ///        *first* component listed here for its constructor to be reachable —
 ///        see Pool's own doc comment (nav.h) for why.
 #define NAVROOT(id, menu, maxDepth, in, out) \

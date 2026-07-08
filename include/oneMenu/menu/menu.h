@@ -24,7 +24,6 @@ namespace oneMenu {
     template<typename Q, typename... OO> decltype(auto) find(const ItemDef<OO...>&);
   }
 
-  //TODO: make this just a query target, it will give the boolean we need, we can generalize this type of tags here
   struct WrapNav {
     template<typename I>
     struct Part:I {

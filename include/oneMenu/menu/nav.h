@@ -241,23 +241,10 @@ namespace oneMenu {
       template<typename Out>
       bool changed(Out& out) {
         if(changed()) return true;
-        //changed should not modify the output NEVER, it has to remain faithful to the print  process
-        // if(m_level.changed()) {
-        //   out.lockMode(LockMode::None);
-        //   out.clear();           // resets m_at to {0,0} + hardware clear
-        //   return true;
-        // }
-        // if(m_navMode.changed()||m_prevSel!=sel()) {
-        //   // out.resume();          // resets m_at to {orgX,orgY} + device state (invert, cursor)
-        //   out.lockMode(hapi::TagIs<PartialDraw>::Check<Out>::value?LockMode::Update:LockMode::None); // resume forces None; set Update after
-        //   return true;
-        // }
+        // changed() must never modify the output — it has to remain faithful to the print process
         LockMode om=out.lockMode();
         out.lockMode(LockMode::Changed);
         bool r=printTo(out);    // probe: Gate suppresses all hardware, m_at drift is harmless
-        // out.setPos({0,0});//this is clear() job
-        // if(r) out.resume();     // data changed: reset for full redraw; resume sets None
-        // else 
         out.lockMode(om);
         return r;
       }
@@ -275,7 +262,7 @@ namespace oneMenu {
         // the *logical* position (m_at) already is — useless when m_at itself is wrong.
         if constexpr(hapi::query<IsCursor,typename Out::Types>) out.setPos({out.orgX(),out.orgY()});
         ///track scroll top for each level, this is output device specific
-        static Sz tops[root().depth()]{0};//TODO: check if ScrollBody is in output part, or store this there with an API call fallback.
+        static Sz tops[root().depth()]{0};
         Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
         bool r=root().printMenu(out,ctx);
         out.flush();
@@ -357,7 +344,7 @@ namespace oneMenu {
 
     protected: 
       Sz m_prevSel{};
-      PathData<depth()+1> m_path{};//TODO: why do we need +1? check depth calc!
+      PathData<depth()+1> m_path{};
       oneData::DataDef<Watch<oneData::Data<Depth>>> m_level{0};
       Depth m_print_level{0};
       oneData::DataDef<Watch<oneData::Data<NavMode>>> m_navMode{NavMode::Nav};
@@ -389,38 +376,19 @@ namespace oneMenu {
 
   /// @brief AM4-parity event dispatch: detects nav-level state transitions (selection
   /// and level changes) and raises EventMask events to the affected item's onEvent()
-  /// hook (item.h) — see notes.md "AM4 compat layer" for the full plan and which AM4
-  /// event kinds this targets. Place above TreeNav: NavDef<EventDispatch, TreeNav,
-  /// Root<...>>.
+  /// hook (item.h) — see notes.md "AM4 compat layer" for the AM4 event catalog this
+  /// targets. Place above TreeNav: NavDef<EventDispatch, TreeNav, Root<...>>.
   ///
-  /// v1 scope/limitations (deliberate, not oversights — see notes.md for the plan this
-  /// implements):
-  /// - Only Enter/Exit/Focus/Blur are raised. selFocus/selBlur (AM4 fires these on the
-  ///   *parent* when a *child's* selection changes — confirmed live in AM4's nav.cpp
-  ///   despite its own enum's stale "TODO" comment) and updateEvent/activateEvent are
-  ///   real AM4 features but not implemented here yet.
-  /// - Dispatches at any level (walks root().body down through the live path to reach
-  ///   items inside nested submenus — see detail::eventVisit below). AM4 itself has no
-  ///   separate multi-level event mechanism to match here: its own "walk back" (escTo(),
-  ///   nav.cpp:310) is just a while(level>lvl) loop calling the single-level exit()
-  ///   repeatedly, and its "walk to" (menuNode::async(), items.cpp:83) is a recursive
-  ///   per-level index-select-then-enter — both compositions of the *same* single-level
-  ///   primitives already wrapped here, called repeatedly/recursively. See gotoPath()
-  ///   below for the OneMenu equivalent of that composition.
-  /// - Wraps doCmd(), NOT in() — unlike IndexGo just above (which *must* override in(),
-  ///   per its own comment, because TreeNav::Part::in() calls doCmd from its own scope,
-  ///   unreachable by a more-derived override). doCmd works correctly for direct
-  ///   nav.up()/down()/enter()/esc() calls (DefinedNav calls Base::doCmd from outside
-  ///   TreeNav, which *does* reach a more-derived override). BUT real
-  ///   input-device-driven nav.in()/poll() calls go through TreeNav::in()'s *internal*
-  ///   doCmd call, bound to TreeNav's own scope — EventDispatch will NOT see those.
-  ///   Events currently only fire for direct nav method calls, not real polled input.
-  ///   Fixing this the way IndexGo does (owning in() itself) would need EventDispatch
-  ///   and IndexGo to cooperate on a single in() instead of each independently trying to
-  ///   own one — deferred, not done.
-  /// - Enter/Exit fire regardless of whether they also happened to change level (matches
-  ///   AM4: node().event(enterEvent) always fires on Enter, independently of whether the
-  ///   item also happens to be a submenu that then gets descended into).
+  /// v1 scope: only Enter/Exit/Focus/Blur are raised; selFocus/selBlur/updateEvent/
+  /// activateEvent are real AM4 features not implemented here yet.
+  /// - Dispatches at any level, walking root().body down through the live path to reach
+  ///   items inside nested submenus (see detail::eventVisit below).
+  /// - Wraps doCmd(), NOT in() — unlike IndexGo just above, which must own in() because
+  ///   TreeNav::Part::in() calls doCmd from its own scope, unreachable by a more-derived
+  ///   override. doCmd works for direct nav.up()/down()/enter()/esc() calls, but real
+  ///   input-device-driven nav.in()/poll() calls go through TreeNav::in()'s internal
+  ///   doCmd call, bound to TreeNav's own scope — EventDispatch does not see those yet.
+  /// - Enter/Exit fire regardless of whether they also changed level, matching AM4.
   namespace detail {
     // Detects "does this item have a nested .body" (i.e. it's an ItemDef<Menu<...>>) —
     // std::void_t/declval come from HAPI's avr_std.h shim on AVR (no <type_traits> there
@@ -457,13 +425,10 @@ namespace oneMenu {
         Depth oldLevel = Base::level();
         bool r = Base::template doCmd<isKbd>(cmd, k, e);
         // NOTE: events fire on cmd *type* (Enter/Esc/index-change), not gated on r — a
-        // plain item with no Action/submenu legitimately returns r=false for Enter
-        // (nothing "handles" it in the OneMenu nav<>() sense), but AM4's enterEvent
-        // fires unconditionally on Enter regardless of whether the item goes on to do
-        // anything with it. Found the hard way: an early `if(!r) return r;` here
-        // silently ate every Enter/Exit event for exactly the plain-item case this is
-        // most needed for. Known v1 simplification: unlike AM4, this doesn't gate on
-        // the target item's enabled() — see file comment.
+        // plain item with no Action/submenu legitimately returns r=false for Enter, but
+        // AM4's enterEvent fires unconditionally on Enter regardless of whether the item
+        // does anything with it. v1 simplification: unlike AM4, this doesn't gate on the
+        // target item's enabled() — see file comment.
         Sz newSel = Base::sel();
         Depth newLevel = Base::level();
         if(newLevel==oldLevel && newSel!=oldSel) {

@@ -11,14 +11,8 @@
 
 #pragma once
 
-// #ifdef ARDUINO
-//   #include <Arduino.h>
-//   #undef max
-// #endif
-
 #ifdef __AVR__
   #include <assert.h>
-  // #include "oneMenu/menu/sys/platform/avr/avr_std.h"
 #else
   // No <iostream> here — nothing in base.h uses it (only debug.h's
   // MENU_DEBUG-gated std::cerr does, and it includes it itself now;
@@ -42,7 +36,6 @@
 #include <oneChip/clock.h>
 
 #include <hapi/hapi.h>
-// #include <oneList/oneList.h>
 #include <oneOutput/oneOutput.h>
 #include <oneData/oneData.h>
 #include <oneItem/oneItem.h>
@@ -54,15 +47,11 @@ using hapi::Chain;
 
 namespace oneMenu {
 
-  // using oneData::DefaultDataDef;
   using oneData::CText;
   using oneData::Default;
   using oneData::Watch;
   using oneData::NumRange;
   using oneData::StaticNumRange;
-
-  // using oneOutput::Pos;
-  // using oneOutput::Area;
 
   using Sz=int;//must be signed
   #ifdef __AVR__
@@ -78,8 +67,6 @@ namespace oneMenu {
   /// @tparam b value
   /// @return Sz
   template<const Sz a,const Sz b> constexpr Sz staticMax() {return a>b?a:b;}
-
-  // struct Nil{};//moved to hapi
 
   struct IItem;
   struct IOut;
@@ -180,7 +167,6 @@ namespace oneMenu {
       <<" at:"<<o.at
       <<" pIdx:"<<o.pIdx
       <<" en:"<<o.enabled
-      // <<" tops:"<<o.tops
       <<" prev:"<<o.prev
       <<" pad:"<<o.pad;
     }

@@ -227,13 +227,6 @@ namespace oneMenu {
         }
       }
 
-      // Footer handling disabled to match Fmt::Footer being commented out in enums.h
-      // template<Fmt tag>
-      // std::enable_if_t<tag&Fmt::Footer>
-      // fmtStop(const Ctx& ctx) {
-      //   if(!ctx.pad) Base::obj().nl();
-      // }
-
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::Item>
       fmtStop(const Ctx& ctx) {

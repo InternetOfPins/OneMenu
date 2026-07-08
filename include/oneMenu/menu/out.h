@@ -30,8 +30,6 @@ namespace oneMenu {
     static constexpr void put(const char*,Sz) {}
   };
 
-  // template<typename API,typename... OO> struct OutImpl;
-
   template<typename API,typename... OO>
   struct OutImpl:APIOf<API,OO...>{
     using Base=APIOf<API,OO...>;
@@ -48,9 +46,6 @@ namespace oneMenu {
       return item.changed();
     }
   };
-
-  // template<typename API>
-  // struct OutImpl<API>:APIOf<API> {using Base=APIOf<API>;};
 
   /// @brief chain head injected by OutDef — propagates resume() down to Gate/Cursor/ColorTrack
   struct Resume {
@@ -144,9 +139,7 @@ namespace oneMenu {
         case Fmt::EditCursor: Base::template fmtStart<Fmt::EditCursor>(ctx);break;
         case Fmt::Data: Base::template fmtStart<Fmt::Data>(ctx);break;
         case Fmt::Unit: Base::template fmtStart<Fmt::Unit>(ctx);break;
-        // case Fmt::Footer: Base::template fmtStart<Fmt::Footer>(ctx);break;
       }
-      // Base::template fmtStart<tag>(ctx);
     }
     virtual void fmtStop(Fmt tag,const Ctx& ctx) override {
       switch(tag){
@@ -165,12 +158,8 @@ namespace oneMenu {
         case Fmt::EditCursor: Base::template fmtStop<Fmt::EditCursor>(ctx);break;
         case Fmt::Data: Base::template fmtStop<Fmt::Data>(ctx);break;
         case Fmt::Unit: Base::template fmtStop<Fmt::Unit>(ctx);break;
-        // case Fmt::Footer: Base::template fmtStop<Fmt::Footer>(ctx);break;
       }
-      // Base::template fmtStop<tag>(ctx);
     }
-    // virtual Sz posX() const override {return Base::posX();}
-    // virtual Sz posY() const override {return Base::posY();}
     virtual void setPos(const Pos& p) override {Base::setPos(p);}
     virtual void put(const int n) override {Base::put(n);}
     virtual void put(const double n) override {Base::put(n);}
@@ -178,9 +167,6 @@ namespace oneMenu {
     virtual void put(const char* str) override {Base::put(str);}
     virtual void put(const char* str,Sz n) override {Base::put(str,n);}
     virtual void put(const char* const* str) override {Base::put(str);}
-    // virtual bool printItem(IItem& item,Ctx& ctx) override {return Base::printItem(item,ctx);}
-    // virtual bool printMenu(IItem& item,Ctx& ctx) override {return Base::printMenu(item,ctx);}
-    // template<typename I> static constexpr bool printItem(I& item,Ctx& ctx) {return printItem(*reinterpret_cast<IItemDef<I>*>(&item),ctx);}
   };
 
   // Runtime *list* of independent IOut* sinks — the output-side twin of
@@ -323,7 +309,6 @@ namespace oneMenu {
       using IsParser=std::true_type;
       using HasGate=std::true_type;
       using Base=O;
-      // using Base::lockMode;
       void nl() {if(unlocked()) Base::nl();}
       void clear() {if(unlocked()) Base::clear();}
       template<typename T>
@@ -428,10 +413,7 @@ namespace oneMenu {
       using RawDevice=std::true_type;
       using Base=typename Gate::Part<O>;
       static void _nl() {Base::nl();}
-      // static void _flush() {Base::flush();}//not locked
       template<typename T> void _put(const T o) {Base::put(o);}
-      // void _setPos(Sz x,Sz y) {Base::setPos(x,y);}//old stuff
-      // void _setPos(const Pos& o) {Base::setPos(o);}
       void padWith(Sz n,const char o=' ') {for(;n>0;n--) Base::obj().put(o);}
     };
   };
@@ -594,18 +576,12 @@ namespace oneMenu {
   //         When non-null, CharW is ignored for x-advance. clearLine uses CharW as fallback
   //         for fill-width estimation when Adv is set (space advance should be known).
   // LnH:    optional dynamic line-height fn (()→Sz), the y-axis analogue of Adv — for a device
-  //         whose row height can change at *runtime* (e.g. GfxFmt's big-font item/title:
-  //         setBigFont(true) doubles the pixel height of the current row on the real driver,
-  //         but LineH is a fixed compile-time constant, so nl() would advance the logical
-  //         position by half of what was actually drawn). When non-null, LineH is ignored for
-  //         y-advance — every nl() (including the ones inside clearLine()/clearFree(), and
-  //         FullScreen's own padding loop in item.h) queries the device's *current* line height
-  //         instead of assuming it never changes, so free()/position stay honest in device
-  //         coordinates even while big-font state is toggling mid-body. Found needed 2026-07-02
-  //         chasing an all-black-screen bug: FullScreen's clearLine() padding ran while
-  //         setBigFont(true) was still active (GfxFmt only turns it off *after* FullScreen
-  //         returns), so physical (2x) and logical (LineH=1) row advancement silently diverged
-  //         and the padding fill overwrote the item's own just-drawn content.
+  //         whose row height can change at *runtime* (e.g. GfxFmt's big-font item/title
+  //         doubles the pixel height of the current row, but LineH is a fixed compile-time
+  //         constant). When non-null, LineH is ignored for y-advance — every nl() (including
+  //         clearLine()/clearFree(), and FullScreen's own padding loop in item.h) queries the
+  //         device's *current* line height instead of assuming it never changes, so
+  //         free()/position stay honest even while big-font state toggles mid-body.
   using AdvFn  = Sz(*)(char);
   using LineHFn = Sz(*)();
   template<Sz CharW=1, Sz LineH=1, AdvFn Adv=nullptr, LineHFn LnH=nullptr>
@@ -688,10 +664,6 @@ namespace oneMenu {
       using Base=O;
       using Base::width;
       using Base::height;
-      // using Base::posY;
-      // using Base::posX;
-      // using Base::freeX;
-      // using Base::freeY;
       using Base::free;
       using Base::pos;
       using Base::obj;
