@@ -41,7 +41,16 @@ namespace oneMenu {
     template<typename Out> static constexpr void printHidden(Out&,Ctx&) noexcept {}
     template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&) noexcept {return false;}
     using Base::print;
-    template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
+    // printItem(Out&,Ctx&) used to be redeclared here with Ctx hardcoded to the
+    // concrete oneMenu::Ctx, shadowing oneData::DataAPI's own already-generic
+    // no-op (oneData.h: template<typename Out,typename Ctx> ... printItem(Out&,Ctx&)) —
+    // identical behavior (both a trivial no-op), so this was pure duplication that
+    // *lost* genericity for no reason, unlike print just above (which correctly
+    // just inherits via using Base::print). Left commented, not deleted, as the
+    // record of what was here. Kept `using Base::printItem;` off too — it's already
+    // reachable via ordinary inheritance same as any other non-hidden base member,
+    // no explicit using-declaration needed once the shadowing redeclaration is gone.
+    // template<typename Out> static constexpr void printItem(Out&,Ctx&) noexcept {}
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     template<typename Nav,typename P> static constexpr bool setStr(Nav&,const char*,P) {return false;}
     /// @brief AM4-parity semantic event hook (see enums.h EventMask). Default no-op,
@@ -301,28 +310,25 @@ namespace oneMenu {
     };
   };
 
+  /// @brief oneMenu's own extension of oneData::Hidden<II...> (oneData.h) — the
+  /// print()/printItem() suppress-and-redirect logic itself now lives there (pure
+  /// blind forwarding, generic on Ctx, no oneMenu dependency needed to compile or
+  /// test it standalone). This layer derives Part<I> from it and adds exactly the
+  /// two pieces that genuinely need real oneMenu semantics, not just a type name:
+  ///  - printHidden(): pull-based "render II... on demand" (secondary/footer-device
+  ///    content) — its `if(!ctx)` relies on oneMenu::Ctx::operator bool() specifically
+  ///    (base.h: true iff this call targets the currently-focused path), a real
+  ///    navigation concept, not an opaque passthrough like print()/printItem() are.
+  ///  - nav(): routes Cmd/CKE navigation to I, oneMenu's own concrete CKE/Path types.
   template<typename... II>
   struct Hidden {
-    struct End {
-      template<typename O>
-      struct Part:O {
-        using Base=O;
-        using Base::Base;
-        template<typename Out> static void print(Out&) noexcept {}
-        template<typename Out> static void printItem(Out&,Ctx&) noexcept {}
-      };
-    };
     template<typename I>
-    struct Part:hapi::Chain<II...,End>::template Part<I> {
-      using Base=typename hapi::Chain<II...,End>::template Part<I>;
+    struct Part:oneData::Hidden<II...>::template Part<I> {
+      using Base=typename oneData::Hidden<II...>::template Part<I>;
       using Base::Base;
-      // skip II... in flat output chain
-      template<typename Out>
-      void print(Out& out) const noexcept {I::print(out);}
-      // skip II... in printItem chain
-      template<typename Out>
-      void printItem(Out& out,Ctx& ctx) noexcept {I::printItem(out,ctx);}
-      // render II... only — Base inherits from Chain<II...,End>::Part<I>; End stops before I
+      // render II... only — Base inherits from Chain<II...,End>::Part<I> (oneData.h);
+      // End stops before I, so this is the only path that actually reaches II...'s
+      // own printItem.
       template<typename Out>
       void printHidden(Out& out,Ctx& ctx) {
         if(!ctx) return;
