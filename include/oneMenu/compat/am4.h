@@ -4,6 +4,12 @@
  * @brief AM4-syntax compatibility macros over OneMenu's compile-time composition.
  * @version 0 (v1 scope — see notes.md "AM4 compat layer")
  *
+ * Canonical, uniquely-named location (not include/menu.h) so other packages
+ * can forward `<menu.h>` to this file by exact path without a self-named
+ * #include<menu.h> collision — see include/menu.h (this repo, a thin forward
+ * for direct OneMenu consumers) and the ArduinoMenu AM5 branch's src/menu.h
+ * (same forward, for real AM4-sketch consumers).
+ *
  * AM4 (github.com/neu-rah/ArduinoMenu) declares each item as a *named static
  * object* (MENU()/FIELD()/OP() each emit a declaration plus a pointer collected
  * into an array — see AM4's macros.h). OneMenu's staticBody() wants the same
