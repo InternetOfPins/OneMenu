@@ -183,6 +183,15 @@ namespace Menu {
   // item.h) therefore needs a real, non-overloaded void() handler — which is what every
   // actual AM4 field handler already is in practice (e.g. Fielduino's updateWave); this
   // only ever bit placeholder/no-op field handlers, not real ports.
+  //
+  // Same limitation hits OP()'s fn too (Action<fn>'s bool(&)(int) NTTP, found
+  // 2026-07-08 porting Confirm.ino — Blink/Button never called OP() with
+  // doNothing, only EXIT/FIELD): `OP("x",Menu::doNothing,...)` still fails on
+  // real avr-g++ 7.3 even though doNothing is already single-overload here —
+  // apparently `inline` alone is also enough to trip this limitation, not
+  // just overload-set ambiguity. Every real port needing a no-op OP() handler
+  // needs its own local non-inline bool(int) function, same shape as
+  // FIELD()'s noField() workaround.
 }
 
 // ── item-tree macros — each expands to a value expression ──────────────────
