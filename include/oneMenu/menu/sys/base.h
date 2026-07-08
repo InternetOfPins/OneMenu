@@ -20,7 +20,15 @@
   #include <assert.h>
   // #include "oneMenu/menu/sys/platform/avr/avr_std.h"
 #else
-  #include <iostream>
+  // No <iostream> here — nothing in base.h uses it (only debug.h's
+  // MENU_DEBUG-gated std::cerr does, and it includes it itself now;
+  // streamOut.h's ConsoleOut also self-includes it). Including it
+  // unconditionally here used to force libstdc++'s iostream/locale
+  // static-init machinery into every non-AVR build regardless of platform
+  // or actual usage — real cost on embedded non-AVR targets (ESP32/STM32
+  // under Arduino framework), see OneOutput's oneOutput.h for the other
+  // (bigger) half of this same fix and OneMenu/.RnD/mem.md for the measured
+  // effect.
   #include <cstdint>
   #include <cassert>
   #include <type_traits>

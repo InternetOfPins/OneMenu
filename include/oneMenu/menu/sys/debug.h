@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef MENU_DEBUG
+  #include <iostream>
   #include "oneMenu/menu/sys/enums.h"
   #include "oneMenu/menu/sys/platform/ansiCodes.h"
 
