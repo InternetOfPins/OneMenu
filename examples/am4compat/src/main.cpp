@@ -91,6 +91,59 @@ MENU_INPUTS(in, &devIn);
 MENU_OUTPUTS(out, /*maxDepth*/2, &devOut);
 NAVROOT(nav, mainMenu, /*maxDepth*/2, in, out);
 
+// ── Library-level regression checks, 2026-07-09: two EventDispatch fixes (nav.h,
+// notes.md "AM4 compat layer") — (1) Enter/Exit now gate on the target item's
+// enabled() (Focus/Blur deliberately don't — a disabled item stays selectable), and
+// (2) events fire via the real input-driven poll()/in() path, not just direct
+// nav.up()/down()/enter()/esc() calls. Native OneMenu component syntax, not AM4
+// macros — kept separate from the AM4-syntax proof above (same pattern as
+// .RnD/fields' extra selftestInBurst()/selftestTextRoll() functions).
+namespace regtest {
+  int enterCount = 0, exitCount = 0, focusCount = 0, blurCount = 0;
+  bool onEv(oneMenu::EventMask e) {
+    if(e & oneMenu::EventMask::Enter) enterCount++;
+    if(e & oneMenu::EventMask::Exit)  exitCount++;
+    if(e & oneMenu::EventMask::Focus) focusCount++;
+    if(e & oneMenu::EventMask::Blur)  blurCount++;
+    return true;
+  }
+}
+
+// item 0 starts disabled (Watch<EnDis<false>>, same idiom as examples/fields' op3);
+// item 1 is a plain second item so Up/Down has somewhere to move the selection to —
+// it also carries EventAction so a Focus landing on it is actually observable.
+auto regMenu = oneMenu::menuDef<>(
+  oneMenu::ItemDef<Text>{"Reg"},
+  oneMenu::staticBody(
+    oneMenu::ItemDef<oneMenu::Id<0>, Watch<oneMenu::EnDis<false>>,
+                      oneMenu::EventAction<oneMenu::EventMask::Any, regtest::onEv>>{},
+    oneMenu::ItemDef<oneMenu::EventAction<oneMenu::EventMask::Any, regtest::onEv>>{}
+  )
+);
+
+// Scripted input source: replays a fixed queue of CKE commands, one per cmd() call.
+// Driving it through InDef::inBurst() exercises the real Pool::poll() -> doInput() ->
+// inBurst() -> nav.in(*this) path, proving EventDispatch is reached from real input
+// dispatch and not just from direct nav.up()/down()/enter()/esc() calls.
+struct ScriptedIn {
+  template<typename In> struct Part : In {
+    static inline oneMenu::CKE queue[4]{};
+    static inline int head = 0, tail = 0;
+    static bool available() { return head < tail; }
+    static oneMenu::CKE cmd() { return head < tail ? queue[head++] : oneMenu::CKE{}; }
+    static void push(oneMenu::Cmd c) { if(tail < 4) queue[tail++] = oneMenu::CKE{c}; }
+  };
+};
+oneMenu::InDef<ScriptedIn> regIn;
+
+// Same composition NAVROOT/AM4Nav actually builds (EventDispatch directly above
+// TreeNav, no IndexGo) — the real-world-relevant shape for this check.
+oneMenu::INavDef<
+  oneMenu::EventDispatch,
+  oneMenu::TreeNav,
+  oneMenu::Root<decltype(regMenu), regMenu>
+> regNav;
+
 int main() {
   devOut.lockMode(oneMenu::LockMode::None);
   devOut.setColors(WHITE, BLACK);
@@ -122,6 +175,42 @@ int main() {
   assert(timeOff == 89 && "FIELD() did not edit the bound variable via DataRef");
   nav.enter();                  // leave edit mode
 
+  // ── Regression 1: Enter/Exit gate on enabled(); Focus/Blur don't ────────────────
+  assert(regtest::enterCount == 0 && regtest::focusCount == 0);
+  regNav.enter();                // item 0 starts disabled -> Enter must NOT fire
+  assert(regtest::enterCount == 0 && "Enter fired on a disabled item");
+  regNav.up();                   // 0 -> 1 (Cmd::Up increments): must still fire Focus/Blur
+  assert(regtest::blurCount == 1 && regtest::focusCount == 1 &&
+         "Focus/Blur must fire regardless of enabled() (disabled items stay selectable)");
+  regNav.down();                 // back to item 0
+  auto& regItem0 = regMenu.find<SameAs<oneMenu::Id<0>>>();
+  regItem0.enable(true);
+  regNav.enter();
+  assert(regtest::enterCount == 1 && "Enter did not fire once the item was enabled");
+
+  // ── Regression 2: events also fire via the real input-driven poll() path ───────
+  // (Pool::poll() -> InDef::doInput() -> inBurst() -> nav.in(*this)), not just direct
+  // nav.up()/down()/enter()/esc() calls — the actual fix for the in()/doCmd
+  // static-dispatch gap (TreeNav::Part::in(), nav.h).
+  regItem0.enable(false);
+  regtest::enterCount = regtest::exitCount = regtest::focusCount = regtest::blurCount = 0;
+  regIn.push(oneMenu::Cmd::Enter);  // sel is still item 0 (disabled) -> must not fire
+  regIn.inBurst(regNav);
+  assert(regtest::enterCount == 0 && "poll()-path Enter fired despite a disabled item");
+
+  regIn.push(oneMenu::Cmd::Up);     // 0 -> 1
+  regIn.inBurst(regNav);
+  assert(regtest::focusCount == 1 && regtest::blurCount == 1 &&
+         "poll()-path Focus/Blur did not fire (in()/doCmd static-dispatch gap not fixed?)");
+
+  regItem0.enable(true);
+  regIn.push(oneMenu::Cmd::Down);   // 1 -> 0, landing back on the now-enabled item
+  regIn.push(oneMenu::Cmd::Enter);
+  regIn.inBurst(regNav);
+  assert(regtest::enterCount == 1 &&
+         "poll()-path Enter did not fire through EventDispatch (in()/doCmd static-dispatch gap)");
+
   printf("OK: MENU/FIELD/OP/EXIT/SUBMENU compat macros all verified\n");
+  printf("OK: EventDispatch enabled()-gating + real poll()-path dispatch verified\n");
   return 0;
 }

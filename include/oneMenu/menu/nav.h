@@ -309,8 +309,13 @@ namespace oneMenu {
       bool in(In& in) {
         CKE cke = in.cmd();
         if (cke.cmd == Cmd::None) return false;
-        return cke.kbd ? doCmd<true> (cke.cmd, cke.key, cke.ext)
-                       : doCmd<false>(cke.cmd, cke.key, cke.ext);
+        // Base::obj() (hapi::CRTP) routes through the fully-assembled chain type instead
+        // of a bare doCmd() call statically bound to TreeNav::Part's own scope — lets a
+        // more-derived doCmd() override (e.g. EventDispatch, composed above TreeNav) see
+        // real input-driven nav.in()/poll() calls, not just direct nav.enter()/etc. calls.
+        // See EventDispatch's own doc comment.
+        return cke.kbd ? Base::obj().template doCmd<true> (cke.cmd, cke.key, cke.ext)
+                       : Base::obj().template doCmd<false>(cke.cmd, cke.key, cke.ext);
       }
 
       void go(Sz i,Depth delta=0) {
@@ -354,7 +359,10 @@ namespace oneMenu {
   // Handles Cmd::Go from IdParser: jumps to item N at current level then enters it.
   // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav, Root<...>>
   // NOTE: must override in(), not doCmd() — TreeNav::Part::in() uses static dispatch
-  // for doCmd and cannot reach a more-derived doCmd override without CRTP.
+  // for doCmd and cannot reach a more-derived doCmd override without CRTP. Its own
+  // internal doCmd calls route through Base::obj() (hapi::CRTP) for the same reason —
+  // so a more-derived doCmd() override (e.g. EventDispatch, composed above IndexGo) is
+  // still reached even though it dispatches from here, not from TreeNav::Part::in().
   /// @brief nav component that handles Cmd::Go: jumps to item N at the current level by index
   struct IndexGo {
     template<typename N>
@@ -366,10 +374,10 @@ namespace oneMenu {
         if (cke.cmd == Cmd::None) return false;
         if (cke.cmd == Cmd::Go) {
           Base::go(Sz(cke.key) - 1);  // IdParser emits 1-based; go() is 0-based
-          return Base::template doCmd<false>(Cmd::Enter);
+          return Base::obj().template doCmd<false>(Cmd::Enter);
         }
-        return cke.kbd ? Base::template doCmd<true> (cke.cmd, cke.key, cke.ext)
-                       : Base::template doCmd<false>(cke.cmd, cke.key, cke.ext);
+        return cke.kbd ? Base::obj().template doCmd<true> (cke.cmd, cke.key, cke.ext)
+                       : Base::obj().template doCmd<false>(cke.cmd, cke.key, cke.ext);
       }
     };
   };
@@ -383,12 +391,15 @@ namespace oneMenu {
   /// activateEvent are real AM4 features not implemented here yet.
   /// - Dispatches at any level, walking root().body down through the live path to reach
   ///   items inside nested submenus (see detail::eventVisit below).
-  /// - Wraps doCmd(), NOT in() — unlike IndexGo just above, which must own in() because
-  ///   TreeNav::Part::in() calls doCmd from its own scope, unreachable by a more-derived
-  ///   override. doCmd works for direct nav.up()/down()/enter()/esc() calls, but real
-  ///   input-device-driven nav.in()/poll() calls go through TreeNav::in()'s internal
-  ///   doCmd call, bound to TreeNav's own scope — EventDispatch does not see those yet.
+  /// - Wraps doCmd(), NOT in() — real input-device-driven nav.in()/poll() calls (and
+  ///   IndexGo's own in(), when composed) route through Base::obj() (hapi::CRTP) before
+  ///   calling doCmd, specifically so a more-derived doCmd() override like this one is
+  ///   still reached from those call sites — see TreeNav::Part::in()/IndexGo::Part::in().
   /// - Enter/Exit fire regardless of whether they also changed level, matching AM4.
+  /// - Enter/Exit are gated on the target item's enabled() (AM4 parity); Focus/Blur are
+  ///   not — a disabled item is still selectable (Menu::Part::nav's plain Up/Down never
+  ///   consults enabled() at all), so gating Focus/Blur too would suppress an event kind
+  ///   the rest of the codebase treats as enabled-agnostic.
   namespace detail {
     // Detects "does this item have a nested .body" (i.e. it's an ItemDef<Menu<...>>) —
     // std::void_t/declval come from HAPI's avr_std.h shim on AVR (no <type_traits> there
@@ -427,19 +438,18 @@ namespace oneMenu {
         // NOTE: events fire on cmd *type* (Enter/Esc/index-change), not gated on r — a
         // plain item with no Action/submenu legitimately returns r=false for Enter, but
         // AM4's enterEvent fires unconditionally on Enter regardless of whether the item
-        // does anything with it. v1 simplification: unlike AM4, this doesn't gate on the
-        // target item's enabled() — see file comment.
+        // does anything with it.
         Sz newSel = Base::sel();
         Depth newLevel = Base::level();
         if(newLevel==oldLevel && newSel!=oldSel) {
           fireAt(oldLevel, oldSel, [](auto& item){ item.onEvent(EventMask::Blur); });
           fireAt(oldLevel, newSel, [](auto& item){ item.onEvent(EventMask::Focus); });
         }
-        if(cmd==Cmd::Enter) fireAt(oldLevel, oldSel, [](auto& item){ item.onEvent(EventMask::Enter); });
+        if(cmd==Cmd::Enter) fireAt(oldLevel, oldSel, [](auto& item){ if(item.enabled()) item.onEvent(EventMask::Enter); });
         if(cmd==Cmd::Esc) {
           Depth targetLevel = newLevel<oldLevel ? newLevel : oldLevel;
           Sz targetIdx = newLevel<oldLevel ? newSel : oldSel;
-          fireAt(targetLevel, targetIdx, [](auto& item){ item.onEvent(EventMask::Exit); });
+          fireAt(targetLevel, targetIdx, [](auto& item){ if(item.enabled()) item.onEvent(EventMask::Exit); });
         }
         return r;
       }
