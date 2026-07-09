@@ -587,3 +587,48 @@ namespace Menu {
   };
 }
 #endif
+
+namespace am4compat {
+  /// @brief AM4's nav.timeOut/idleTask/nav.idleOn()/nav.sleepTask auto-idle
+  /// trigger — adapted onto oneMenu::RunLoop (nav.h) purely from this compat
+  /// layer, no OneMenu header touched (Rui, 2026-07-09: AM4-port machinery
+  /// should stay AM5/compat-side unless it brings value to OneMenu itself —
+  /// RunLoop already does, this doesn't need to). Platform-agnostic (unlike
+  /// SERIAL_OUT/serialIn above, not gated on ARDUINO): RunLoop/hw::Timeout
+  /// both already work natively too. TimeoutMs is AM4's nav.timeOut
+  /// (inactivity window, ms); Run is an already-built oneMenu::RunLoop<mainFn>
+  /// *type* (not mainFn itself, re-templated) — avr-g++ 7.3 rejects
+  /// re-deriving a RunFn (bool(&)()) NTTP through a nested template
+  /// instantiation like this one ("not a valid template argument... must be
+  /// the name of a function with external linkage"), the same family of
+  /// function-reference-as-NTTP quirk already documented elsewhere in this
+  /// file (Menu::doNothing/OP(), FIELD()'s noField()) — confirmed empirically
+  /// on real avr-g++ 7.3, not assumed; taking Run as a type sidesteps it
+  /// entirely since there's nothing left to re-derive. AM4's real 2-arg
+  /// idleTask(out,idleEvent) start/end signature isn't replicated — idleFn is
+  /// a plain bool(), same AltRunFn shape every other RunLoop alternative
+  /// already uses, matching this file's established "simplify the handler
+  /// shape" precedent (Confirm's systemExit, OP()'s Action<fn>).
+  ///
+  /// Usage (see examples/fullIdle): `using Run=oneMenu::RunLoop<mainFn>;
+  /// using Idle=am4compat::IdleTimeout<50,Run>;` then call
+  /// tick(activity,idleFn) once per mainFn invocation, where `activity` is
+  /// whatever already-real signal means "something happened this tick" (e.g.
+  /// nav.poll()'s own bool return — no new activity-detection machinery
+  /// needed, poll() already reports it). idleFn is whatever the sketch wants
+  /// to run while suspended — same free-standing bool() shape as
+  /// RunLoop::idleOn's own argument; it's the idleFn's own job to call
+  /// Run::idleOff() once its own "wake up" condition is met (AM4's
+  /// nav.idleOff()).
+  template<unsigned long TimeoutMs, typename Run>
+  struct IdleTimeout {
+    static inline hw::Timeout<TimeoutMs> timer;
+    static void tick(bool activity, oneMenu::AltRunFn idleFn) {
+      if(activity) timer.reset();
+      // hw::Timeout latches once fired — reset the moment we act on it, so a
+      // stale fired-flag from a previous idle cycle can't immediately
+      // re-trigger idleOn() again right after idleOff() restores mainFn.
+      else if(timer) { timer.reset(); Run::idleOn(idleFn); }
+    }
+  };
+}
