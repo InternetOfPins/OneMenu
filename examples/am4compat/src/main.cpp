@@ -49,7 +49,13 @@ unsigned int timeOff = 90;
 
 namespace action {
   int op1Count = 0;
-  bool op1(int) { op1Count++; return true; }
+  // OP()'s fn is now EventActionItem-shaped (bool(EventMask,IItem&) — see
+  // am4.h's OP() doc comment). Masked to enterEvent (not anyEvent, unlike
+  // serialio.ino's own OP("Op1",action1,anyEvent) — that handler only prints,
+  // this one counts, and anyEvent would also count every Focus/Blur passing
+  // over the item as nav.up()/down() moves through it, before the real
+  // nav.enter() below — enterEvent keeps the count meaning "activated once").
+  bool op1(oneMenu::EventMask, oneMenu::IItem&) { op1Count++; return true; }
   // FIELD()'s fn must be a real, non-overloaded void() (EventCall, item.h) —
   // Menu::doNothing (bool(int)) doesn't fit that shape; see am4.h's
   // Menu::doNothing comment for why it's kept single-overload on purpose.
@@ -58,14 +64,14 @@ namespace action {
 
 // ── menu tree, verbatim AM4 call syntax ─────────────────────────────────────
 MENU(subMenu, "Sub-Menu", Menu::doNothing, Menu::anyEvent, Menu::noStyle
-  ,OP("Sub1", action::op1, Menu::anyEvent)
+  ,OP("Sub1", action::op1, Menu::enterEvent)
   ,EXIT("<Back")
 );
 
 MENU(mainMenu, "Blink menu", Menu::doNothing, Menu::noEvent, Menu::wrapStyle
   ,FIELD(timeOn,  "On",  "ms", 0, 1000,  10, 1, action::noField, Menu::noEvent, Menu::noStyle)
   ,FIELD(timeOff, "Off", "ms", 0, 10000, 10, 1, action::noField, Menu::noEvent, Menu::noStyle)
-  ,OP("Op1", action::op1, Menu::anyEvent)
+  ,OP("Op1", action::op1, Menu::enterEvent)
   ,SUBMENU(subMenu)
   ,EXIT("<Back")
 );
@@ -153,7 +159,7 @@ int main() {
   // index 0=On, 1=Off, 2=Op1, 3=subMenu, 4=<Back>  (Cmd::Up increments, Down decrements)
   assert(action::op1Count == 0);
   nav.up(); nav.up();           // 0 -> 1 -> 2 (Op1)
-  nav.enter();                  // fires action::op1 via OP()'s Action<fn>
+  nav.enter();                  // fires action::op1 via OP()'s EventActionItem
   assert(action::op1Count == 1 && "OP() did not fire on Enter");
 
   nav.up();                     // 2 -> 3 (subMenu, spliced in via SUBMENU(subMenu))

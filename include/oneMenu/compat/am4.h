@@ -30,11 +30,13 @@
  *    (InDef<...>/OutDef<...>) and bind them to `nav` yourself for now.
  *  - AM4's eventMask now has a real counterpart (EventMask, item.h/enums.h/nav.h —
  *    Enter/Exit/Focus/Blur, dispatched by EventDispatch; see notes.md "AM4 compat
- *    layer" for the full plan). OP()'s `fn` fires on Cmd::Enter via Action<fn> (the
- *    zero-cost default). FIELD()'s `fn`/`mask` are wired to a real EventCall<mask,fn>
- *    (fn must be a plain void() — AM4's most common FIELD handler shape). MENU()'s own
- *    `fn`/`mask` (title-level events) are still accepted syntactically but not wired to
- *    anything — nothing calls it yet, unlike FIELD/OP.
+ *    layer" for the full plan). OP()'s `fn`/`mask` are wired to a real
+ *    EventActionItem<mask,fn> (bool(EventMask,IItem&) — matches AM4's real callback
+ *    shape, at the cost of IItemDef's virtual dispatch; see OP()'s own doc comment).
+ *    FIELD()'s `fn`/`mask` are wired to a real EventCall<mask,fn> (fn must be a plain
+ *    void() — AM4's most common FIELD handler shape, zero-cost, no IItemDef needed).
+ *    MENU()'s own `fn`/`mask` (title-level events) are still accepted syntactically
+ *    but not wired to anything — nothing calls it yet, unlike FIELD/OP.
  *    selFocusEvent/selBlurEvent/updateEvent/activateEvent have no dispatch yet either
  *    (see nav.h EventDispatch's own scope comment).
  *  - AM4 handler signature `result(*)(eventMask)` (and the 2/3-arg overloads) beyond
@@ -180,21 +182,37 @@ namespace Menu {
   // actual AM4 field handler already is in practice (e.g. Fielduino's updateWave); this
   // only ever bit placeholder/no-op field handlers, not real ports.
   //
-  // Same limitation hits OP()'s fn too (Action<fn>'s bool(&)(int) NTTP):
-  // `OP("x",Menu::doNothing,...)` still fails on real avr-g++ 7.3 even though
-  // doNothing is already single-overload here — apparently `inline` alone is
-  // also enough to trip this limitation, not just overload-set ambiguity.
-  // Every real port needing a no-op OP() handler needs its own local
-  // non-inline bool(int) function, same shape as FIELD()'s noField() workaround.
+  // `Menu::doNothing` is bool(int) — no longer a valid OP() placeholder at all
+  // now that OP()'s fn is EventActionItem-shaped (bool(EventMask,IItem&), see
+  // OP()'s own doc comment below): this is a real signature mismatch, not
+  // just the avr-g++ overloaded-NTTP quirk above. Every real port needing a
+  // no-op OP() handler needs its own local bool(EventMask,IItem&) function —
+  // same shape as FIELD()'s noField()/action::noField() workaround, and
+  // still worth keeping non-inline/non-overloaded per the same avr-g++ 7.3
+  // lesson, even though the mismatch here is the more immediate blocker.
 }
 
 // ── item-tree macros — each expands to a value expression ──────────────────
 // (unlike AM4's own OP/EXIT/FIELD, which expand to a declaration + a pointer)
 
-/// @brief AM4 OP(text,fn,mask) — fn must already be OneMenu-shaped: bool(&)(int).
-///        mask is accepted but ignored (only Cmd::Enter is dispatched, via Action<fn>).
+/// @brief AM4 OP(text,fn,mask) — fn is now a real event handler,
+///        bool(&)(EventMask,IItem&) (EventActionItem, item.h), matching AM4's
+///        real callback shape (menuBase.h: result(*)(eventMask,navNode&,
+///        prompt&); confirmed against serialio.ino's own
+///        `action1(eventMask e)`/`action2(eventMask e,navNode&,prompt&)` — real
+///        AM4 OP() handlers are *always* event handlers, never an index-based
+///        action). Superseded the earlier v1 binding (Action<fn>, bool(int),
+///        mask ignored) — that was a OneMenu-native convenience reused for the
+///        AM4 translation, not an actual mapping of AM4's contract (see
+///        notes.md "AM4 compat layer" for the full writeup and why the index
+///        parameter Action<fn> takes was never actually load-bearing for this
+///        use, unlike BodyAction's real "which child" case).
+///        Requires IItemDef<...> (virtual dispatch) to reach IItem& — real
+///        AM4 items are *always* virtual-dispatch based too (prompt&), so
+///        this matches AM4's own cost model, not a regression from a
+///        cheaper baseline; see notes.md for the measured memory delta.
 #define OP(text, fn, mask) \
-  ::oneMenu::ItemDef<::oneMenu::Action<fn>, ::oneData::Text>{text}
+  ::oneMenu::IItemDef<::oneMenu::EventActionItem<(::oneMenu::EventMask)(mask), fn>, ::oneData::Text>{text}
 
 /// @brief AM4 EXIT(text) — plain item; OneMenu's body-level nav already closes
 ///        the level on Enter when nothing else claims it (see menu.h Menu::Part::nav).

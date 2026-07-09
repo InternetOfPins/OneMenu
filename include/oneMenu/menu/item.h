@@ -56,9 +56,23 @@ namespace oneMenu {
     static constexpr bool tick() {return false;}
   };
 
-  template<typename... OO>
-  struct ItemDef:APIOf<ItemAPI<>,OO...>{
-    using Base=APIOf<ItemAPI<>,OO...>;
+  template<typename... OO> struct ItemDef; // forward — ItemDefC's Ins/App alias it below
+
+  /// @brief ItemDef's real logic, parameterized on Cfg (threaded down to
+  /// ItemAPI<Cfg> -> oneItem::ItemAPI<Cfg> -> oneData::DataAPI<Cfg>, which
+  /// derives from Cfg directly — the same "anchor" slot hapi::Chain<>::Part<T>
+  /// uses for T). Plain ItemDef<OO...> below is just Cfg=Nil. IItemDef (this
+  /// file) is the other instantiation, Cfg=hapi::CRTP<IItemDef<II...>> — giving
+  /// its OO... chain a working obj() self-reference, same pattern nav.h's
+  /// DefinedNav<API,NN...> already uses for NavDef/INavDef. Needed so a
+  /// component nested in OO... can reach the fully-assembled IItemDef&, and
+  /// through it, IItem& (see EventActionItem below) — a plain static_cast from
+  /// inside OO... can't reach IItem& otherwise, since IItemDef puts IItem and
+  /// OO... on separate multiple-inheritance branches (verified empirically:
+  /// neither static_cast nor dynamic_cast can bridge that gap without this).
+  template<typename Cfg,typename... OO>
+  struct ItemDefC:APIOf<ItemAPI<Cfg>,OO...>{
+    using Base=APIOf<ItemAPI<Cfg>,OO...>;
     using Base::Base;
     using Base::printMenu;
     using Base::enabled;
@@ -90,13 +104,19 @@ namespace oneMenu {
 
   };
 
+  template<typename... OO>
+  struct ItemDef:ItemDefC<Nil,OO...>{
+    using Base=ItemDefC<Nil,OO...>;
+    using Base::Base;
+  };
+
   struct IItem {
     virtual bool printMenu(IOut& out,Ctx& ctx)=0;
     virtual bool printBody(IOut& out,Ctx&)=0;
 
     virtual bool enabled() const=0;
     virtual void enable(bool=true)=0;
-    virtual bool changed()=0;
+    virtual bool changed() const=0;
     virtual void sync()=0;
     virtual void sync(IOut& out)=0;
     virtual bool up() const=0;
@@ -111,6 +131,13 @@ namespace oneMenu {
 
     virtual void printItem(IOut& out,Ctx& ctx) {}
 
+    /// @brief fake-no-op default (same shape as printItem() above) — overridden
+    /// by IItemDef to forward into the real OO... chain's onEvent(); lets
+    /// EventActionItem (below) hand a real item& to a user handler for items
+    /// that opted into virtual dispatch, without every IItem user needing to
+    /// override this.
+    virtual bool onEvent(EventMask) {return false;}
+
     template <typename Out>
     static constexpr bool printMenu(Out& out,Ctx& ctx)
       {return printMenu(out,ctx);}
@@ -118,24 +145,43 @@ namespace oneMenu {
   };
 
   template<typename... II>
-  struct IItemDef:IItem, ItemDef<II...> {
-    using Base=ItemDef<II...>;
+  struct IItemDef:IItem, ItemDefC<hapi::CRTP<IItemDef<II...>>,II...> {
+    using Base=ItemDefC<hapi::CRTP<IItemDef<II...>>,II...>;
     using Base::Base;
+    // IItem also declares a nav() template (forwarding to the virtual
+    // _nav/_kbdNav, for callers holding only an IItem&/IItem*) — ambiguous
+    // multiple-inheritance name lookup otherwise when nav<>() is called on
+    // the concrete IItemDef type directly (e.g. composed into a real
+    // StaticBody, as every other item is). Prefer the real implementation;
+    // _nav/_kbdNav below still serve the IItem&-typed callers.
+    using Base::nav;
+    // Same reasoning for printItem: the real printer chain (ItemBodyPrinter,
+    // printers.h) calls i.printItem(concreteOut,ctx) with the compile-time-
+    // known Out& type, not IOut& — it has the concrete IItemDef<...> type in
+    // hand (i's static type), so it never goes through virtual dispatch at
+    // all. Without this, only the IOut&-typed virtual overload below is
+    // visible, and a concrete OutDef<...> doesn't convert to IOut& (found by
+    // finally composing an IItemDef into a body that's actually printed via
+    // nav.printTo(), first time ever — the earlier standalone nav-only check
+    // never exercised printing). The templated Base::printItem and the
+    // virtual IOut&-typed one below are different signatures, so both stay
+    // selectable — same non-colliding-overload shape as `nav` above.
+    using Base::printItem;
 
     virtual bool printMenu(IOut& out,Ctx& ctx) override {return Base::printMenu(out,ctx);}
     virtual bool printBody(IOut& out,Ctx& ctx) override {return Base::printBody(out,ctx);}
     virtual void printItem(IOut& out,Ctx& ctx) override {Base::printItem(out,ctx);}
     virtual bool enabled() const override {return Base::enabled();}
     virtual void enable(bool o=true) override {return Base::enable(o);}
-    virtual bool changed() override {return Base::changed();}
+    virtual bool changed() const override {return Base::changed();}
     virtual void sync() override {Base::sync();}
     virtual void sync(IOut& out) override {Base::sync(out);}
     virtual bool up() const {return Base::up();};
     virtual bool down() const {return Base::down();};
     virtual bool _nav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<false>(n,cke,p);}
     virtual bool _kbdNav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<true>(n,cke,p);}
+    virtual bool onEvent(EventMask e) override {return Base::onEvent(e);}
     template <typename Out> static constexpr bool printMenu(Out& out,Ctx& ctx) {return Base::printMenu(out,ctx);}
-    template<typename Out> static constexpr void printItem(Out& out,Ctx& ctx) {return Base::printItem(out,ctx);}
   };
 
   //---------------------------------------------------------------------------------------------
@@ -195,6 +241,31 @@ namespace oneMenu {
       bool onEvent(EventMask e) {
         bool r=false;
         if(e&mask) {fn();r=true;}
+        return Base::onEvent(e)||r;
+      }
+    };
+  };
+
+  /// @brief AM4-parity event handler that also hands the item itself to fn —
+  /// closest match to AM4's real result(eventMask,navNode&,prompt&) shape
+  /// (the navNode& half isn't provided; see notes.md's open question on a
+  /// nav-context variant). Requires the item be built as IItemDef<...>, not
+  /// plain ItemDef<...>: IItem& is only reachable via IItemDef's own CRTP
+  /// self-reference (ItemDefC's Cfg slot, see IItemDef above) — a plain
+  /// ItemDef<...> has no such anchor and no IItem base to cast to. This is
+  /// the vtable-cost sibling of EventAction: use EventAction for the
+  /// zero-cost case, this one only where AM4-compat needs the item reference
+  /// (e.g. am4.h's OP()) and the escape-hatch cost is already accepted.
+  using EventFuncItem=bool(&)(EventMask,IItem&);
+
+  template<EventMask mask,EventFuncItem fn>
+  struct EventActionItem {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      bool onEvent(EventMask e) {
+        bool r=(e&mask)?fn(e,static_cast<IItem&>(Base::obj())):false;
         return Base::onEvent(e)||r;
       }
     };
