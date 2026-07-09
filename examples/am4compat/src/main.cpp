@@ -32,6 +32,7 @@
 #include <oneOutput/oneOutput.h>
 #include <cassert>
 #include <cstdio>
+#include <type_traits>
 
 using namespace hapi;
 using namespace oneData;
@@ -60,6 +61,14 @@ namespace action {
   // Menu::doNothing (bool(int)) doesn't fit that shape; see am4.h's
   // Menu::doNothing comment for why it's kept single-overload on purpose.
   void noField() {}
+
+  int op2LegacyCount = 0;
+  // bool(int) — the original v1 shape. OP()'s fn auto-dispatches on its own
+  // signature (am4.h's am4compat::opItem): this handler isn't event-shaped,
+  // so it falls back to the original zero-cost Action<fn> binding, not
+  // IItemDef — proves "events optional" (Rui, 2026-07-09) end to end, not
+  // just at the type level (see the static_asserts right below mainMenu).
+  bool op2Legacy(int) { op2LegacyCount++; return true; }
 }
 
 // ── menu tree, verbatim AM4 call syntax ─────────────────────────────────────
@@ -73,8 +82,17 @@ MENU(mainMenu, "Blink menu", Menu::doNothing, Menu::noEvent, Menu::wrapStyle
   ,FIELD(timeOff, "Off", "ms", 0, 10000, 10, 1, action::noField, Menu::noEvent, Menu::noStyle)
   ,OP("Op1", action::op1, Menu::enterEvent)
   ,SUBMENU(subMenu)
+  ,OP("Op2Legacy", action::op2Legacy, Menu::noEvent)
   ,EXIT("<Back")
 );
+
+// Type-level proof that OP()'s auto-dispatch (am4.h) actually picks
+// differently based on fn's signature, not just "always the cheap path" or
+// "always the virtual one" by accident.
+static_assert(!std::is_polymorphic_v<decltype(am4compat::opItem<oneMenu::EventMask::None, action::op2Legacy>("x"))>,
+              "bool(int) OP() handler must stay the cheap, non-virtual Action<fn> binding");
+static_assert(std::is_polymorphic_v<decltype(am4compat::opItem<oneMenu::EventMask::Enter, action::op1>("x"))>,
+              "bool(EventMask,IItem&) OP() handler must get the real IItemDef binding");
 
 // ── I/O + nav: AM4-syntax device wiring (ANSI_OUT/MENU_INPUTS/MENU_OUTPUTS/NAVROOT) ──
 // devIn is still pre-declared the native OneMenu way (see file comment); devOut now
@@ -180,6 +198,14 @@ int main() {
                                  // (Cmd::Up -> Base::down()) — see item.h; not a compat-layer bug
   assert(timeOff == 89 && "FIELD() did not edit the bound variable via DataRef");
   nav.enter();                  // leave edit mode
+
+  // ── Regression: OP()'s auto-dispatch fallback for a non-event-shaped fn ─────────
+  // Selection is at index 1 (Off) here. index 0=On,1=Off,2=Op1,3=subMenu,4=Op2Legacy,5=<Back>.
+  assert(action::op2LegacyCount == 0);
+  nav.up(); nav.up(); nav.up();  // 1 -> 2 -> 3 -> 4 (Op2Legacy)
+  nav.enter();
+  assert(action::op2LegacyCount == 1 &&
+         "OP()'s bool(int) fallback (plain Action<fn>) did not fire");
 
   // ── Regression 1: Enter/Exit gate on enabled(); Focus/Blur don't ────────────────
   assert(regtest::enterCount == 0 && regtest::focusCount == 0);

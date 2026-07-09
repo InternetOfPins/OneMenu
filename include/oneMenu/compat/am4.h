@@ -30,9 +30,11 @@
  *    (InDef<...>/OutDef<...>) and bind them to `nav` yourself for now.
  *  - AM4's eventMask now has a real counterpart (EventMask, item.h/enums.h/nav.h —
  *    Enter/Exit/Focus/Blur, dispatched by EventDispatch; see notes.md "AM4 compat
- *    layer" for the full plan). OP()'s `fn`/`mask` are wired to a real
- *    EventActionItem<mask,fn> (bool(EventMask,IItem&) — matches AM4's real callback
- *    shape, at the cost of IItemDef's virtual dispatch; see OP()'s own doc comment).
+ *    layer" for the full plan). OP()'s `fn`/`mask` auto-dispatch on fn's own
+ *    signature (am4compat::opItem) — bool(EventMask,IItem&) gets real event
+ *    dispatch (EventActionItem, at IItemDef's virtual-dispatch cost), anything
+ *    else falls back to the original zero-cost Action<fn> binding; events are
+ *    opt-in per call site, not a caller-facing flag (see OP()'s own doc comment).
  *    FIELD()'s `fn`/`mask` are wired to a real EventCall<mask,fn> (fn must be a plain
  *    void() — AM4's most common FIELD handler shape, zero-cost, no IItemDef needed).
  *    MENU()'s own `fn`/`mask` (title-level events) are still accepted syntactically
@@ -112,6 +114,34 @@ namespace am4compat {
       return oneMenu::menuDef<>(std::forward<T>(t), std::forward<B>(b));
   }
 
+  // Detects "callable as bool(EventMask,IItem&)" — hand-rolled, not
+  // std::is_invocable_r_v: avr-gcc has no <type_traits> at all (see
+  // notes.md/project_avr_no_libstdcxx), and that trait isn't in HAPI's own
+  // minimal avr_std.h shim either. Same std::void_t/declval idiom nav.h's
+  // HasBody trait already uses successfully on AVR. Backs OP()'s auto-dispatch
+  // below (Rui, 2026-07-09: "can we make events optional for AM5?") — real
+  // event handlers (IItemDef+EventActionItem, vtable cost) only for OP() call
+  // sites that actually pass one; every existing bool(int) handler keeps the
+  // original zero-cost Action<fn> binding, unchanged, no call-site syntax
+  // change needed either way.
+  template<typename F, typename = void>
+  struct IsEventFn : std::false_type {};
+  template<typename F>
+  struct IsEventFn<F, std::void_t<decltype(std::declval<F>()(
+      std::declval<oneMenu::EventMask>(), std::declval<oneMenu::IItem&>()))>>
+    : std::true_type {};
+
+  /// @brief OP()'s real factory (see OP()'s own doc comment, below). Picks
+  /// between the two OP() bindings based on fn's own signature — auto-dispatch,
+  /// not a caller-facing flag: nothing to opt into or out of at the call site.
+  template<oneMenu::EventMask mask, auto& fn, typename T>
+  constexpr auto opItem(T&& text) {
+    if constexpr (IsEventFn<decltype(fn)>::value)
+      return oneMenu::IItemDef<oneMenu::EventActionItem<mask,fn>, oneData::Text>{text};
+    else
+      return oneMenu::ItemDef<oneMenu::Action<fn>, oneData::Text>{text};
+  }
+
   // TOGGLE/SELECT/CHOOSE builders — SyncValue<W> (item.h) on top of a Behave
   // component wrapping Menu<T,B,...>. Each option in the body is a plain
   // ItemDef<EnumValue<val>,Text> (VALUE() below); SyncValue::nav() reads the
@@ -182,37 +212,38 @@ namespace Menu {
   // actual AM4 field handler already is in practice (e.g. Fielduino's updateWave); this
   // only ever bit placeholder/no-op field handlers, not real ports.
   //
-  // `Menu::doNothing` is bool(int) — no longer a valid OP() placeholder at all
-  // now that OP()'s fn is EventActionItem-shaped (bool(EventMask,IItem&), see
-  // OP()'s own doc comment below): this is a real signature mismatch, not
-  // just the avr-g++ overloaded-NTTP quirk above. Every real port needing a
-  // no-op OP() handler needs its own local bool(EventMask,IItem&) function —
-  // same shape as FIELD()'s noField()/action::noField() workaround, and
-  // still worth keeping non-inline/non-overloaded per the same avr-g++ 7.3
-  // lesson, even though the mismatch here is the more immediate blocker.
+  // `Menu::doNothing` (bool(int)) IS a valid OP() placeholder again — OP()'s
+  // fn auto-dispatches on its own signature (am4compat::opItem), and bool(int)
+  // falls back to the original zero-cost Action<fn> binding, same as v1. It
+  // hits the *same* avr-g++ 7.3 overloaded/inline-as-NTTP limitation documented
+  // above, though, so it's still not real-AVR-safe as an OP() placeholder —
+  // every real port needing a no-op OP() handler still needs its own local
+  // non-inline function, same shape as FIELD()'s noField()/action::noField()
+  // workaround (bool(int) if you want the cheap path, bool(EventMask,IItem&)
+  // if you specifically want the placeholder to exercise real event dispatch).
 }
 
 // ── item-tree macros — each expands to a value expression ──────────────────
 // (unlike AM4's own OP/EXIT/FIELD, which expand to a declaration + a pointer)
 
-/// @brief AM4 OP(text,fn,mask) — fn is now a real event handler,
-///        bool(&)(EventMask,IItem&) (EventActionItem, item.h), matching AM4's
-///        real callback shape (menuBase.h: result(*)(eventMask,navNode&,
-///        prompt&); confirmed against serialio.ino's own
-///        `action1(eventMask e)`/`action2(eventMask e,navNode&,prompt&)` — real
-///        AM4 OP() handlers are *always* event handlers, never an index-based
-///        action). Superseded the earlier v1 binding (Action<fn>, bool(int),
-///        mask ignored) — that was a OneMenu-native convenience reused for the
-///        AM4 translation, not an actual mapping of AM4's contract (see
-///        notes.md "AM4 compat layer" for the full writeup and why the index
-///        parameter Action<fn> takes was never actually load-bearing for this
-///        use, unlike BodyAction's real "which child" case).
-///        Requires IItemDef<...> (virtual dispatch) to reach IItem& — real
-///        AM4 items are *always* virtual-dispatch based too (prompt&), so
-///        this matches AM4's own cost model, not a regression from a
-///        cheaper baseline; see notes.md for the measured memory delta.
+/// @brief AM4 OP(text,fn,mask) — fn's own signature decides the binding
+///        (am4compat::opItem, above), events are opt-in per call site, not a
+///        flag (Rui, 2026-07-09: "can we make events optional for AM5?"):
+///        - fn shaped bool(EventMask,IItem&) -> real event dispatch
+///          (EventActionItem, item.h) matching AM4's actual callback shape
+///          (menuBase.h: result(*)(eventMask,navNode&,prompt&); confirmed
+///          against serialio.ino's own `action1(eventMask e)`) — costs
+///          IItemDef's virtual dispatch (real AM4 items are always virtual
+///          too, via prompt&, so this matches AM4's own cost model; see
+///          notes.md for the measured AVR delta — mainly RAM, not flash,
+///          since the vtable itself lands in .data on this toolchain).
+///        - any other fn shape (the original v1 binding — bool(int), mask
+///          ignored) -> plain Action<fn>, zero-cost, no IItemDef at all.
+///        No caller-facing syntax difference either way — same OP(text,fn,
+///        mask) call, the compiler picks. mask is ignored in the bool(int)
+///        case (matches v1; nothing to mask when there's no dispatch).
 #define OP(text, fn, mask) \
-  ::oneMenu::IItemDef<::oneMenu::EventActionItem<(::oneMenu::EventMask)(mask), fn>, ::oneData::Text>{text}
+  ::am4compat::opItem<(::oneMenu::EventMask)(mask), fn>(text)
 
 /// @brief AM4 EXIT(text) — plain item; OneMenu's body-level nav already closes
 ///        the level on Enter when nothing else claims it (see menu.h Menu::Part::nav).
