@@ -5,15 +5,24 @@
 namespace oneMenu {
 
   /// @brief Joins two bodies into one logical body.
-  /// Indices [0, B1::size()) route to b1; [B1::size(), total) route to b2.
+  /// Indices [0, BodyA::size()) route to b1; [BodyA::size(), total) route to b2.
   /// Both bodies may be any body type (StaticBody, CArrayBody, StdBody, …).
   /// Nest to join more than two: JoinBody<A, JoinBody<B, C>>.
-  template<typename B1, typename B2>
+  /// NOTE: template parameters are named BodyA/BodyB, not B1/B2 — Arduino's
+  /// own binary.h (`#define B1 1`, `#define B2 2`, ..., pulled in
+  /// transitively by <Arduino.h> under any framework=arduino build) would
+  /// otherwise macro-substitute B1/B2 in this file's own template<>
+  /// declarations before the compiler ever sees them as identifiers,
+  /// breaking the template entirely — confirmed empirically (a real
+  /// avr-g++ build under framework=arduino that includes both <Arduino.h>
+  /// and this header, e.g. via U8g2lib.h, fails with "expected
+  /// nested-name-specifier before numeric constant").
+  template<typename BodyA, typename BodyB>
   struct JoinBody {
-    B1 b1;
-    B2 b2;
+    BodyA b1;
+    BodyB b2;
 
-    static constexpr Depth depth() {return staticMax<B1::depth(),B2::depth()>();}
+    static constexpr Depth depth() {return staticMax<BodyA::depth(),BodyB::depth()>();}
 
     Sz size() const {return b1.size()+b2.size();}
 
@@ -65,8 +74,8 @@ namespace oneMenu {
     }
   };
 
-  template<typename B1,typename B2>
-  JoinBody<std::decay_t<B1>,std::decay_t<B2>> joinBody(B1&& b1,B2&& b2)
-    {return {std::forward<B1>(b1),std::forward<B2>(b2)};}
+  template<typename BodyA,typename BodyB>
+  JoinBody<std::decay_t<BodyA>,std::decay_t<BodyB>> joinBody(BodyA&& b1,BodyB&& b2)
+    {return {std::forward<BodyA>(b1),std::forward<BodyB>(b2)};}
 
 };//namespace oneMenu
