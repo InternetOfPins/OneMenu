@@ -488,12 +488,53 @@ namespace oneMenu {
       using Type=typename Base::Type;
       constexpr bool valid() const {return Base::valid(get());}
       constexpr bool clamp() {return Base::set(Base::clamp(get()));}
+
+      // Digit-literal accumulator (2026-07-09, "numeric fields ... need to
+      // deliver Cmd::Key when nav is on edit mode" — see nav.h's IndexGo,
+      // idParser.h). AM4's own menuField::parseInput reads a whole numeric
+      // token in one stream call (in.parseFloat()); OneMenu's nav()
+      // processes one keypress per call, so the literal is built up across
+      // multiple nav() invocations instead, then handed to Base::setStr
+      // (oneData's NumRange/StaticNumRange — already-working
+      // strtod/strtol+clamp()+set(), reached via plain inheritance) — this
+      // buffer only ever exists to grow a string, never reimplements parsing.
+      // NumFieldDef has no PadDraw (unlike TextFieldDef), so there's no
+      // per-character cursor dimension to reuse from Path the way TextField
+      // does — Path is always {len=0,...} here, hence the own buffer.
+      static constexpr Sz LitBuf=16;  // "-2147483648\0" + margin
+      char m_lit[LitBuf]{0};
+      Sz   m_litLen{0};
+
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path path) {
-        if(n.navMode()==NavMode::Edit) switch(cke.cmd){
-          case Cmd::Up: Base::down(); return true;
-          case Cmd::Down: Base::up(); return true;
-          default: break;
+        if(n.navMode()==NavMode::Edit) {
+          // any non-Key command abandons the in-progress literal — Up/Down
+          // stepping or Enter/Esc must never leave stale chars for next time
+          if(cke.cmd!=Cmd::Key) m_litLen=0;
+          switch(cke.cmd){
+            case Cmd::Up: Base::down(); return true;
+            case Cmd::Down: Base::up(); return true;
+            case Cmd::Key: {
+              char c=char(cke.key);
+              if(c==8||c==127) {  // backspace — mirrors TextField::PartEnd
+                if(m_litLen>0) m_lit[--m_litLen]='\0';
+                if(m_litLen>0) Base::setStr(n,m_lit,path);
+                return true;
+              }
+              bool isDigit=c>='0'&&c<='9';
+              bool isDot=c=='.'&&std::is_floating_point<std::decay_t<Type>>::value
+                                &&!strchr(m_lit,'.');
+              bool isSign=c=='-'&&m_litLen==0;  // leading sign only
+              if((isDigit||isDot||isSign)&&m_litLen<LitBuf-1) {
+                m_lit[m_litLen++]=c;
+                m_lit[m_litLen]='\0';
+                Base::setStr(n,m_lit,path);  // live update as you type, AM4-parity UX
+                return true;
+              }
+              return true;  // swallow any other typed char while editing
+            }
+            default: break;
+          }
         }
         return Base::template nav<isKbd>(n,cke,path);
       }

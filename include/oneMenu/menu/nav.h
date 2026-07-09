@@ -363,6 +363,10 @@ namespace oneMenu {
   // internal doCmd calls route through Base::obj() (hapi::CRTP) for the same reason —
   // so a more-derived doCmd() override (e.g. EventDispatch, composed above IndexGo) is
   // still reached even though it dispatches from here, not from TreeNav::Part::in().
+  // While a field is being edited (NavMode::Edit), digit keys are redelivered as a
+  // literal Cmd::Key instead of jumping to item N — see idParser.h/item.h's NumField
+  // for the other two pieces of this (2026-07-09, "numeric fields ... need to deliver
+  // Cmd::Key when nav is on edit mode, instead of the nav go()").
   /// @brief nav component that handles Cmd::Go: jumps to item N at the current level by index
   struct IndexGo {
     template<typename N>
@@ -373,9 +377,21 @@ namespace oneMenu {
         CKE cke = src.cmd();
         if (cke.cmd == Cmd::None) return false;
         if (cke.cmd == Cmd::Go) {
+          // Typing a digit while editing a field must deliver it as a
+          // literal Cmd::Key, not jump to item N — IdParser has no nav
+          // context to gate this itself (see idParser.h), so the redirect
+          // lives here, the first point in the chain with navMode() available.
+          if (Base::navMode() == NavMode::Edit)
+            return Base::obj().template doCmd<true>(Cmd::Key, Key('0' + cke.key), false);
           Base::go(Sz(cke.key) - 1);  // IdParser emits 1-based; go() is 0-based
           return Base::obj().template doCmd<false>(Cmd::Enter);
         }
+        // '0' is tagged (not encoded as Cmd::Go — see idParser.h); only
+        // reinterpret it here, and only while editing, so every other
+        // Cmd::Esc (a real Escape key, or '0' outside edit mode) falls
+        // through unchanged below, identical to today's behavior.
+        if (cke.cmd == Cmd::Esc && cke.key == Key('0') && Base::navMode() == NavMode::Edit)
+          return Base::obj().template doCmd<true>(Cmd::Key, Key('0'), false);
         return cke.kbd ? Base::obj().template doCmd<true> (cke.cmd, cke.key, cke.ext)
                        : Base::obj().template doCmd<false>(cke.cmd, cke.key, cke.ext);
       }

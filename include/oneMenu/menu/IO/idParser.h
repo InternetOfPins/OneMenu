@@ -23,7 +23,13 @@ namespace oneMenu {
         if (k >= '1' && k <= '9')
           return {Cmd::Go, Key(k - '0'), false, false};
         if (k == '0')
-          return {Cmd::Esc};
+          // '0' can't be encoded as Cmd::Go (0 would collide with go()'s
+          // 1-based math, IndexGo::Part::in()) — tagged with key='0' instead
+          // so IndexGo can reinterpret it as a literal digit while editing a
+          // field; cmd itself stays Cmd::Esc, so every existing Cmd::Esc
+          // consumer (none of which read cke.key) is unaffected, including
+          // any nav chain with no IndexGo at all.
+          return {Cmd::Esc, Key('0'), false, false};
         return O::parseKey(k);
       }
     };
