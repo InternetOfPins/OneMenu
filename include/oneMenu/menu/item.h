@@ -110,6 +110,18 @@ namespace oneMenu {
     using Base::Base;
   };
 
+  /// @brief virtual-dispatch item interface — the item-side twin of out.h's
+  /// IOut and nav.h's INav, same "escape hatch capped at one boundary"
+  /// pattern all three share. This is a *cap*, not a cost that spreads: IItem
+  /// sits at exactly the outer edge of IItemDef<II...> (below); the II...
+  /// component chain inside it stays ordinary static HAPI composition, same
+  /// zero-vtable machinery as plain ItemDef<OO...>. Nothing about being
+  /// composed *inside* an IItemDef pays a virtual-dispatch tax internally —
+  /// only code that actually needs a type-erased IItem&/IItem* (e.g.
+  /// EventActionItem, for AM4-compat's OP() — see am4.h's am4compat::opItem,
+  /// which reaches for IItemDef only when a handler's own signature asks for
+  /// it) touches this boundary at all. Plain ItemDef stays the zero-cost
+  /// default everywhere else; this is opt-in, not the norm.
   struct IItem {
     virtual bool printMenu(IOut& out,Ctx& ctx)=0;
     virtual bool printBody(IOut& out,Ctx&)=0;
