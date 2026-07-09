@@ -37,8 +37,13 @@
  *    opt-in per call site, not a caller-facing flag (see OP()'s own doc comment).
  *    FIELD()'s `fn`/`mask` are wired to a real EventCall<mask,fn> (fn must be a plain
  *    void() — AM4's most common FIELD handler shape, zero-cost, no IItemDef needed).
- *    MENU()'s own `fn`/`mask` (title-level events) are still accepted syntactically
- *    but not wired to anything — nothing calls it yet, unlike FIELD/OP.
+ *    MENU()'s own `fn`/`mask` (title-level events) auto-dispatch the same way
+ *    (am4compat::menuDefStyle) — a bool(EventMask) fn gets a real
+ *    EventAction<mask,fn> spliced into the menu's own component pack (Menu<T,B,MM...>'s
+ *    MM..., since the title itself is a plain data member HAPI traversal never
+ *    reaches — see menuDefStyle's own doc comment); PADMENU()'s fn/mask work the
+ *    same way (am4compat::padDefStyle), but deliberately without style/WrapNav
+ *    involvement (see padDefStyle's doc comment).
  *    selFocusEvent/selBlurEvent/updateEvent/activateEvent have no dispatch yet either
  *    (see nav.h EventDispatch's own scope comment).
  *  - AM4 handler signature `result(*)(eventMask)` (and the 2/3-arg overloads) beyond
@@ -106,12 +111,66 @@ namespace am4compat {
   // don't apply to OneMenu's type-driven composition).
   enum Style : int { noStyle = 0, wrapStyle = 1 << 0 };
 
-  template<int style, typename T, typename B>
+  // Detects "callable as bool(EventMask)" — EventAction's shape, distinct
+  // from IsEventFn below (EventActionItem's bool(EventMask,IItem&)). Backs
+  // MENU()/PADMENU()'s own fn/mask auto-dispatch (menuDefStyle/padDefStyle,
+  // below) and TOGGLE/SELECT/CHOOSE's (toggleDef/selectDef/chooseDef,
+  // further down). Declared here, ahead of menuDefStyle, deliberately:
+  // menuDefStyle's body names IsPlainEventFn unqualified, and that lookup
+  // resolves via ordinary (non-ADL) lookup at menuDefStyle's own definition
+  // point, not at instantiation — even though the argument (decltype(fn)) is
+  // itself dependent, ADL doesn't apply to a class-template name, so
+  // IsPlainEventFn must already be visible here (confirmed empirically: a
+  // trait referenced before its own declaration in this exact shape is a
+  // hard compile error, not deferred lookup).
+  template<typename F, typename = void>
+  struct IsPlainEventFn : std::false_type {};
+  template<typename F>
+  struct IsPlainEventFn<F, std::void_t<decltype(std::declval<F>()(std::declval<oneMenu::EventMask>()))>>
+    : std::true_type {};
+
+  /// @brief AM4-compat factory backing MENU()'s style/fn/mask. mask/fn are the
+  /// menu's own title-level Enter/Exit/Focus/Blur handler — auto-dispatch on
+  /// fn's own signature, same "events optional" principle as opItem/toggleDef/
+  /// selectDef/chooseDef: a bool(EventMask) fn gets a real EventAction<mask,fn>
+  /// spliced into the menu's own MM... component pack (Menu<T,B,MM...>'s title
+  /// is a plain data member, NOT part of the HAPI chain — see menu.h; MM...
+  /// is the only slot an event component attached to the menu itself can ride
+  /// on — same mechanism examples/handlers' subMenu now uses via this factory,
+  /// originally proven by hand before this existed). Any other fn shape (e.g.
+  /// AM4-legacy bool(int) placeholders like Menu::doNothing) keeps today's
+  /// original no-op behavior, byte-for-byte — no IItemDef, no vtable, nothing
+  /// new for every existing MENU() call site in this codebase.
+  template<int style, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto menuDefStyle(T&& t, B&& b) {
-    if constexpr ((style & wrapStyle) != 0)
-      return oneMenu::menuDef<oneMenu::WrapNav>(std::forward<T>(t), std::forward<B>(b));
+    if constexpr ((style & wrapStyle) != 0) {
+      if constexpr (IsPlainEventFn<decltype(fn)>::value)
+        return oneMenu::menuDef<oneMenu::WrapNav, oneMenu::EventAction<mask,fn>>(
+            std::forward<T>(t), std::forward<B>(b));
+      else
+        return oneMenu::menuDef<oneMenu::WrapNav>(std::forward<T>(t), std::forward<B>(b));
+    } else {
+      if constexpr (IsPlainEventFn<decltype(fn)>::value)
+        return oneMenu::menuDef<oneMenu::EventAction<mask,fn>>(std::forward<T>(t), std::forward<B>(b));
+      else
+        return oneMenu::menuDef<>(std::forward<T>(t), std::forward<B>(b));
+    }
+  }
+
+  /// @brief AM4-compat factory backing PADMENU's fn/mask — same auto-dispatch
+  /// as menuDefStyle, routed through padDef instead of menuDef. Deliberately
+  /// single-axis (event-shaped or not only, no style/WrapNav branch): PadDraw
+  /// (menu.h) is a pure rendering tag (flips isPad() for the renderer, no
+  /// logic of its own) and WrapNav is an orthogonal nav-boundary concern — a
+  /// pad has no multi-item nav boundary to wrap, so PADMENU never honored
+  /// style's wrapStyle bit and this fix doesn't start (style stays an
+  /// accepted-but-inert macro parameter, same as before).
+  template<oneMenu::EventMask mask, auto& fn, typename T, typename B>
+  constexpr auto padDefStyle(T&& t, B&& b) {
+    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+      return oneMenu::padDef<oneMenu::EventAction<mask,fn>>(std::forward<T>(t), std::forward<B>(b));
     else
-      return oneMenu::menuDef<>(std::forward<T>(t), std::forward<B>(b));
+      return oneMenu::padDef<>(std::forward<T>(t), std::forward<B>(b));
   }
 
   // Detects "callable as bool(EventMask,IItem&)" — hand-rolled, not
@@ -142,8 +201,6 @@ namespace am4compat {
       return oneMenu::ItemDef<oneMenu::Action<fn>, oneData::Text>{text};
   }
 
-  // Detects "callable as bool(EventMask)" — EventAction's shape, distinct
-  // from IsEventFn above (EventActionItem's bool(EventMask,IItem&)).
   // TOGGLE/SELECT/CHOOSE stay plain ItemDef either way — no IItemDef, no
   // vtable — since real AM4 sketches overwhelmingly reuse the same simple
   // showEvent(eventMask)-shaped handler across OP/TOGGLE/VALUE alike (see
@@ -152,11 +209,8 @@ namespace am4compat {
   // (Action<fn>) — today, any fn passed to TOGGLE/SELECT/CHOOSE is simply
   // ignored, so the fallback (no event component at all) is exactly that
   // same, already-shipped no-op behavior, not a new cheap path to design.
-  template<typename F, typename = void>
-  struct IsPlainEventFn : std::false_type {};
-  template<typename F>
-  struct IsPlainEventFn<F, std::void_t<decltype(std::declval<F>()(std::declval<oneMenu::EventMask>()))>>
-    : std::true_type {};
+  // (IsPlainEventFn itself now lives above, ahead of menuDefStyle/padDefStyle
+  // — same trait, reused here.)
 
   // TOGGLE/SELECT/CHOOSE builders — SyncValue<W> (item.h) on top of a Behave
   // component wrapping Menu<T,B,...>. Each option in the body is a plain
@@ -350,16 +404,23 @@ namespace Menu {
       ::oneMenu::staticBody(__VA_ARGS__))
 
 /// @brief AM4 MENU(id,text,fn,mask,style,...items) — single statement, whole
-///        body is one nested expression. fn/mask accepted but ignored (v1);
-///        style's wrapStyle bit is honored (adds WrapNav).
+///        body is one nested expression. fn/mask auto-dispatch on fn's own
+///        signature (am4compat::menuDefStyle, above) — a bool(EventMask) fn
+///        gets real Enter/Exit/Focus/Blur dispatch on the menu item itself;
+///        anything else (e.g. Menu::doNothing) is the original no-op, unchanged.
+///        style's wrapStyle bit is still honored (adds WrapNav).
 #define MENU(id, text, fn, mask, style, ...) \
-  auto id = ::am4compat::menuDefStyle<(style)>( \
+  auto id = ::am4compat::menuDefStyle<(style), (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{text}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
-/// @brief AM4 PADMENU(id,text,fn,mask,style,...items) — single-line/pad style menu.
+/// @brief AM4 PADMENU(id,text,fn,mask,style,...items) — single-line/pad style
+///        menu. fn/mask auto-dispatch the same way MENU() does
+///        (am4compat::padDefStyle, above); style is accepted (AM4 call-syntax
+///        compat) but not forwarded — wrapStyle never applied to pads before
+///        this fix and still doesn't (see padDefStyle's own doc comment).
 #define PADMENU(id, text, fn, mask, style, ...) \
-  auto id = ::oneMenu::padDef( \
+  auto id = ::am4compat::padDefStyle<(::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text, ::oneMenu::AsEditMode<>>{text}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
