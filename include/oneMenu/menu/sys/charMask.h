@@ -151,4 +151,78 @@ namespace CharMask {
     using Back=Ranges<O>;
     static constexpr int sz(){return 1;}
   };
+
+  /// @brief per-character-position mask: position `pos` (0-based) is
+  /// validated/cycled against MM...[pos % n()], not one shared mask — AM4's
+  /// real EDIT() "shorter validator arrays repeat" behavior. Each M0/MM...
+  /// is any existing CharMask-conforming type (Range/Set/Ranges/PerPos) —
+  /// PerPos only adds position-aware entry points on top, delegating to each
+  /// sub-mask's own unchanged 1-arg chk(c)/up(c)/down(c).
+  /// @tparam M0 mask for position 0 (and every pos where pos%n()==0)
+  /// @tparam MM masks for positions 1..n()-1
+  template<typename M0,typename... MM>
+  struct PerPos {
+    static constexpr int n() {return 1+(int)sizeof...(MM);}
+    private:
+    // Walk(I) selects pack member I (0-based, already reduced mod n()) —
+    // an unrolled linear search over the pack, same recursive "one
+    // comparison per level" shape as _Ranges' own Prev/Next chain above,
+    // not a function-pointer table: n() is always small (a handful of
+    // real validator entries), so this costs nothing that matters and
+    // avoids AVR's fn-ptr-as-static-member friction entirely.
+    template<int I,typename N0,typename... NN> struct At {
+      static bool chk(int i,char c)  {return i==I? N0::chk(c) : At<I+1,NN...>::chk(i,c);}
+      static char up(int i,char c)   {return i==I? N0::up(c)  : At<I+1,NN...>::up(i,c);}
+      static char down(int i,char c) {return i==I? N0::down(c): At<I+1,NN...>::down(i,c);}
+    };
+    template<int I,typename N0> struct At<I,N0> {
+      // last pack entry — i is already pos%n(), guaranteed in range, so no
+      // further comparison needed here.
+      static bool chk(int,char c)  {return N0::chk(c);}
+      static char up(int,char c)   {return N0::up(c);}
+      static char down(int,char c) {return N0::down(c);}
+    };
+    using Walk=At<0,M0,MM...>;
+    public:
+    static bool chk(int pos,char c)  {return Walk::chk(pos%n(),c);}
+    static char up(int pos,char c)   {return Walk::up(pos%n(),c);}
+    static char down(int pos,char c) {return Walk::down(pos%n(),c);}
+  };
+
+  /// @brief position-indexed character-set mask, directly over an array of
+  /// allowed-character strings — AM4 EDIT()'s real "validators" shape (one
+  /// C-string per buffer position, repeating cyclically via pos%N once N is
+  /// shorter than the buffer — confirmed against AM4's own TextField.ino: a
+  /// single-entry alphaNum[] reused across all 30 positions of a Name
+  /// field). V is the validators array's own address (must be nameable at
+  /// the call site — a real "address of object" — NOT synthesized via
+  /// per-element pointer arithmetic inside a template: C++17 rejects a
+  /// computed pointer like V+I as a pointer-type template argument even
+  /// when it's the same address a named &arr[I] would give; confirmed
+  /// empirically, see notes.md "AM4 compat layer"). PosSet sidesteps this
+  /// entirely by indexing V[pos%N] at runtime, inside its own methods,
+  /// instead of building N distinct compile-time mask types.
+  /// @tparam V validators array address (e.g. a real `static const char*
+  ///   validators[]` — declared WITHOUT the trailing pointee-const, since
+  ///   CText is `const char*` and V's type is therefore `const char**`,
+  ///   which a `const char* const*` array's address does not convert to)
+  /// @tparam N number of entries in the validators array
+  template<CText* V,int N>
+  struct PosSet {
+    static int len(int pos) {return (int)strlen(V[pos%N]);}
+    static int find(int pos,unsigned char c) {
+      const char* s=V[pos%N];
+      for(int n=0;n<(int)strlen(s);n++) if(s[n]==c) return n;
+      return -1;
+    }
+    static bool chk(int pos,unsigned char c) {return find(pos,c)>=0;}
+    static unsigned char up(int pos,unsigned char c) {
+      int i=find(pos,c);
+      return i<0? V[pos%N][0] : i==len(pos)-1? V[pos%N][0] : V[pos%N][i+1];
+    }
+    static unsigned char down(int pos,unsigned char c) {
+      int i=find(pos,c);
+      return i<0? V[pos%N][0] : i? V[pos%N][i-1] : V[pos%N][len(pos)-1];
+    }
+  };
 };//namespace CharMask

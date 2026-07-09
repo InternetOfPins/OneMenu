@@ -365,6 +365,79 @@ namespace Menu {
       ::oneMenu::EventCall<(::oneMenu::EventMask)(mask), fn> \
     >{label, unit}
 
+namespace am4compat {
+  /// @brief AM4 EDIT()'s real factory — buf bound zero-copy via
+  /// oneMenu::TextBufRef (fields.h), the TextField-storage counterpart to
+  /// FIELD()'s DataRef<&(var)>. validators is bridged directly via
+  /// CharMask::PosSet (charMask.h) — no per-position type-building needed,
+  /// PosSet indexes the array at runtime inside chk/up/down (an earlier
+  /// design tried building N distinct CharMask::Set<> types at compile time,
+  /// one per position — doesn't compile in C++17: a pointer computed via
+  /// V+I inside a nested template isn't "the address of an object", even
+  /// though it's the same address a named &arr[I] would give; confirmed
+  /// empirically, see notes.md "AM4 compat layer").
+  ///
+  /// EventCallT is an ALREADY-BUILT oneMenu::EventCall<mask,fn> type, built
+  /// by the EDIT() macro directly (matching FIELD()'s own exact shape) —
+  /// NOT a separate `EventMask mask, VoidFunc fn` NTTP pair re-templated in
+  /// here. Confirmed empirically (real avr-g++ 7.3 build, not assumed):
+  /// passing fn as editItem's own template parameter and re-using it one
+  /// level deeper inside EventCall<mask,fn> here fails with "not a valid
+  /// template argument... must be the name of a function with external
+  /// linkage" — the same family of function-reference-as-NTTP quirk already
+  /// hit by am4compat::IdleTimeout (re-deriving RunLoop's RunFn one level
+  /// deep) — even for a plain, named, non-overloaded fn. Building
+  /// EventCall<mask,fn> at the macro's own call site sidesteps it entirely,
+  /// same fix shape as IdleTimeout's Run-as-a-type parameter.
+  template<char* buf, int sz, oneData::CText* validators, int n,
+           typename EventCallT, typename T>
+  constexpr auto editItem(T&& label) {
+    using MaskT   = CharMask::PosSet<validators,n>;
+    using Storage = oneMenu::TextBufRef<buf,sz>;
+    return oneMenu::NumFieldDef<
+        oneMenu::AsLabel<oneData::Text>,
+        oneMenu::ParentDraw,
+        oneMenu::AsField<oneMenu::TextField<sz,MaskT,Storage>>,
+        EventCallT
+      >{std::forward<T>(label)};
+  }
+}
+
+/// @brief AM4 EDIT(label,buf,validators,fn,mask,style) — buf is bound
+///        directly (zero-copy, in place) via oneMenu::TextBufRef, the
+///        TextField-storage counterpart to FIELD()'s DataRef<&(var)>
+///        binding; sz is buf's own sizeof(buf)-1, computed here at the call
+///        site (AM4: "field will initialize its size by this string
+///        length"). validators is AM4's real per-position validator array
+///        (macros.h's EDIT_ — one entry per character position, confirmed
+///        to repeat cyclically — pos % N — once N is shorter than the
+///        buffer, e.g. TextField.ino's single-entry alphaNum[] reused
+///        across all 30 positions of the Name field); bridged onto
+///        CharMask::PosSet (charMask.h) directly from validators's own
+///        address + entry count, both computed here for the same reason sz
+///        is. KNOWN ADAPTATION (see file header's "Known semantic gap" —
+///        SUBMENU — for the established precedent of documenting these):
+///        unlike AM4's own `const char* const validData[]` idiom,
+///        `validators` must be declared WITHOUT the trailing pointee-const
+///        (`const char* validData[] = {...};`) — CharMask::PosSet<CText*>'s
+///        existing NTTP parameter type is `const char**`, which a `const
+///        char* const*` array's address does not convert to. fn/mask wired
+///        through a real EventCall<mask,fn> — same choice as FIELD()
+///        (EDIT()'s closest sibling), not OP()'s auto-dispatch; fn must be
+///        a plain void() handler (see FIELD()'s own doc comment, above, for
+///        the same avr-g++ NTTP-shape rationale). EventCall<mask,fn> is
+///        built HERE, at the macro's own call site (matching FIELD()'s
+///        exact shape), not inside editItem — see editItem's own doc
+///        comment for why (a real avr-g++ 7.3 NTTP quirk, confirmed
+///        empirically). style is accepted for AM4 call-site syntax fidelity
+///        but ignored, same as FIELD()'s step/tune.
+#define EDIT(label, buf, validators, fn, mask, style) \
+  ::am4compat::editItem< \
+      (buf), (int)(sizeof(buf)-1), (validators), \
+      (int)(sizeof(validators)/sizeof((validators)[0])), \
+      ::oneMenu::EventCall<(::oneMenu::EventMask)(mask), fn> \
+    >(label)
+
 /// @brief AM4 VALUE(label,val,fn,mask) — one option inside TOGGLE/SELECT/CHOOSE.
 ///        val must be a compile-time constant — same "static value on the leaf"
 ///        shape oneMenu::EnumValue<V> (item.h) already provides; TOGGLE/SELECT/

@@ -8,11 +8,65 @@
 #include <oneData/oneData.h>
 
 namespace oneMenu {
-  template<Sz sz,typename Mask=CharMask::ASCII7>
+  // Detects "Mask::chk/up/down take (pos,char)" — CharMask::PerPos/PosSet's
+  // shape — vs "take plain char" — CharMask::Range/Set/Ranges's existing,
+  // unchanged shape. std::void_t/declval, same idiom as am4compat::
+  // IsPlainEventFn/IsEventFn (compat/am4.h) — avr-gcc has no <type_traits>,
+  // HAPI's avr_std.h shim (pulled in transitively) covers void_t/declval
+  // there too. Backs TextField::PartEnd::nav()'s auto-dispatch below between
+  // the two Mask shapes — zero caller-facing flag; every existing
+  // uniform-mask field (e.g. examples/fields's TextField<15>, default
+  // CharMask::ASCII7) keeps compiling and behaving byte-for-byte unchanged.
+  template<typename M,typename=void>
+  struct IsPositionalMask : std::false_type {};
+  template<typename M>
+  struct IsPositionalMask<M,std::void_t<decltype(
+      M::chk(std::declval<int>(),std::declval<char>()))>>
+    : std::true_type {};
+
+  /// @brief zero-copy external char-buffer binding for TextField/EDIT() —
+  /// binds directly over a caller-owned `char buf[]`, matching AM4's real
+  /// EDIT() semantics (bound-not-copied, in place; "field will initialize
+  /// its size by this string length"). This is NOT oneData::DataRef: DataRef
+  /// (oneData.h) already special-cases get() correctly for a char* NTTP
+  /// (returns the pointer itself, not *address) but its set() stays the
+  /// generic scalar set(Type v)=set(char v) (writes one char) inherited from
+  /// DataRef's size-less, shared "0 bytes RAM" contract — wrong for
+  /// TextField::PartEnd::setStr()'s "set(const char*), whole-string" need,
+  /// and DataRef has no capacity to bound a copy against even if it grew
+  /// that overload. TextBufRef is the small, TextField-only adapter that
+  /// adds exactly that one missing thing (a compile-time size), reusing
+  /// Data<char[N]>::set()'s own bounded-copy shape against an external
+  /// pointer instead of an owned array.
+  /// @tparam address the buffer's own array-decayed pointer — pass the array
+  ///   name itself (e.g. `TextBufRef<buf,sizeof(buf)-1>`), NOT `&buf` (whose
+  ///   type is char(*)[N], not char*); buf must have static storage duration
+  ///   and linkage (same pre-existing constraint DataRef<&(var)>-based
+  ///   FIELD() bindings already have).
+  /// @tparam sz usable buffer length, excluding the trailing '\0' — matches
+  ///   AM4's "field size = the buffer's own string length" rule.
+  template<char* address,Sz sz>
+  struct TextBufRef {
+    template<typename O>
+    struct Part : O {
+      using Base = O;
+      using Base::Base;
+
+      static char* get() noexcept {return address;}
+
+      static void set(const char* s) noexcept {
+        strncpy(address,s,sz);
+        address[sz]='\0';
+      }
+    };
+  };
+
+  template<Sz sz,typename Mask=CharMask::ASCII7,
+           typename Storage=oneData::Data<char[sz+1]>>
   struct TextField {
     template<typename I>
-    struct PartEnd : oneData::Data<char[sz+1]>::template Part<I> {
-      using Base    = typename oneData::Data<char[sz+1]>::template Part<I>;
+    struct PartEnd : Storage::template Part<I> {
+      using Base    = typename Storage::template Part<I>;
       using Base::Base;
       using Base::get;
       using Base::set;   // set(const char*) — for web / async value injection
@@ -55,7 +109,7 @@ namespace oneMenu {
             if(pos>=sz-1) return true;
             char* text=get();
             if(!text[pos]) text[pos+1]='\0';
-            text[pos]=Mask::up(text[pos]);
+            text[pos]=maskUp(pos,text[pos]);
             edited=true;
             return true;
           }
@@ -64,7 +118,7 @@ namespace oneMenu {
             if(pos>=sz-1) return true;
             char* text=get();
             if(!text[pos]) text[pos+1]='\0';
-            text[pos]=Mask::down(text[pos]);
+            text[pos]=maskDown(pos,text[pos]);
             edited=true;
             return true;
           }
@@ -89,7 +143,7 @@ namespace oneMenu {
               else return true;
               edited=true;
               return true;
-            } else if(Mask::chk(cke.key)) {//write char
+            } else if(maskChk(path.sel(),cke.key)) {//write char
               for(int k=sz-1;k>path.sel();k--) text[k]=text[k-1];
               text[path.sel()]=cke.key;
               edited=true;
@@ -101,6 +155,25 @@ namespace oneMenu {
         return Base::template nav<isKbd>(n,cke,path);
       }
       protected: Sz ss() const {return strnlen(get(),sz-1);}
+
+      // Auto-dispatch helpers — IsPositionalMask<Mask> picks the 2-arg
+      // (pos,char) PerPos/PosSet path or the original 1-arg char path, at
+      // compile time. `pos` is only ever meaningful for the positional
+      // shape; the uniform shape ignores it (same call, compiler picks —
+      // matches am4.h's own "auto-dispatch, not a caller-facing flag"
+      // convention).
+      static char maskUp(Sz pos,char c) {
+        if constexpr (IsPositionalMask<Mask>::value) return Mask::up(pos,c);
+        else return Mask::up(c);
+      }
+      static char maskDown(Sz pos,char c) {
+        if constexpr (IsPositionalMask<Mask>::value) return Mask::down(pos,c);
+        else return Mask::down(c);
+      }
+      static bool maskChk(Sz pos,char c) {
+        if constexpr (IsPositionalMask<Mask>::value) return Mask::chk(pos,c);
+        else return Mask::chk(c);
+      }
     };
     template<typename I> using Part=PadDraw::template Part<PartEnd<I>>;
   };
