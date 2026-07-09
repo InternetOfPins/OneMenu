@@ -54,14 +54,16 @@
  *  - FIELD()'s `step`/`tune` (accel) params are accepted but ignored — value
  *    always steps by 1. AM4's per-key step isn't wired to NumField yet.
  *
- * ── Known semantic gap: SUBMENU(id) is move-only, not shared ─────────────
+ * ── Known semantic gap: SUBMENU(id)/OBJ(id) are move-only, not shared ──────
  * AM4's SUBMENU(id) references a separately-declared object by pointer — the
  * same instance can be shared/re-referenced elsewhere. OneMenu items are
  * owned by value inside their parent's StaticBody, so SUBMENU(id) here does
  * `std::move(id)`: the submenu is spliced into the parent, and `id` is left
  * moved-from afterward. Don't reference `id` again once it's been SUBMENU()'d
  * into a parent (AM4's serialio.ino-style reuse of one TOGGLE as a SUBMENU in
- * two places does not port as-is).
+ * two places does not port as-is). OBJ(id) — AM4's macro for splicing any
+ * other hand-declared item object (not necessarily a submenu) into a body —
+ * has the identical gap for the identical reason; see OBJ()'s own doc comment.
  */
 #pragma once
 
@@ -500,6 +502,23 @@ namespace am4compat {
 /// @brief AM4 SUBMENU(id) — splices a previously MENU()-declared submenu into
 ///        the enclosing body. Move-only: see file comment "Known semantic gap".
 #define SUBMENU(id) std::move(id)
+
+/// @brief AM4 OBJ(id) — splices a previously hand-declared item object (built
+///        without any macro, e.g. a native TextFieldDef<...>/NumFieldDef<...>
+///        composed directly) into the enclosing body — AM4's own separate
+///        name for "any other pre-built object," as opposed to SUBMENU's "a
+///        pre-built submenu" specifically. Mechanically identical in OneMenu:
+///        AM4's real OBJ() takes the object's address and inserts it into a
+///        runtime Menu::prompt*[] array (its body is a runtime polymorphic
+///        pointer array); OneMenu's body is a compile-time heterogeneous type
+///        chain instead (StaticBody's own head/tail cons storage, no vtables
+///        — see item.h's own "IItem is a cap, not a cost that spreads" doc
+///        comment, opt-in only for OP()'s event-shaped-handler case, never
+///        used for the body itself), so a pre-declared item is already
+///        exactly the right shape for staticBody(...)'s own parameter pack —
+///        no type erasure needed, same move-splice SUBMENU() already does.
+///        Move-only, same as SUBMENU: see file comment "Known semantic gap".
+#define OBJ(id) std::move(id)
 
 /**
  * ── v2: MENU_INPUTS / MENU_OUTPUTS / NAVROOT (device wiring) ───────────────
