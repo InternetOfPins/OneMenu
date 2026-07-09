@@ -312,8 +312,13 @@ INavDef<
 > promptNav;
 
 // ── Handler machinery ─────────────────────────────────────────────────────────
-using RunFn = bool(*)();
-RunFn activeRun;
+// Was hand-rolled here (a plain RunFn activeRun, swapped by showIdle()/
+// showPrompt()/action::ok()) — now oneMenu::RunLoop<mainFn>, the same
+// pattern formalized into the library (see nav.h's own doc comment for why:
+// this exact code, duplicated across this file/.RnD/fields/.RnD/picoMenu/
+// .RnD/neurMenu, was the real motivating case).
+bool mainRun();  // forward — RunLoop binds this as its compile-time default
+using Run = RunLoop<mainRun>;
 
 static SysTick::Period<30000> idleTimer;
 
@@ -330,7 +335,7 @@ bool mainRun() {
 bool idleRun() {
   if (nav.in(in)) {
     idleTimer.reset();
-    activeRun = mainRun;
+    Run::idleOff();  // back to mainRun
     out.lockMode(LockMode::None);
     nav.printTo(out);
   }
@@ -347,7 +352,7 @@ bool promptRun() {
 }
 
 void showIdle() {
-  activeRun = idleRun;
+  Run::idleOn(idleRun);
   out.clear();
   out.resume();
   out << "z z z" << endl;
@@ -355,7 +360,7 @@ void showIdle() {
 
 void showPrompt(const char* msg) {
   strncpy(promptMsg, msg, sizeof(promptMsg)-1);
-  activeRun = promptRun;
+  Run::idleOn(promptRun);
   promptOut.lockMode(LockMode::None);
   promptOut.setColors(BLACK, WHITE);
   promptOut.clear();
@@ -365,7 +370,7 @@ void showPrompt(const char* msg) {
 bool action::op1(Sz) { showPrompt("Option 1 activated!"); return true; }
 bool action::ok(Sz)  {
   promptOut.clear();
-  activeRun = mainRun;
+  Run::idleOff();  // back to mainRun
   out.lockMode(LockMode::None);
   nav.printTo(out);
   return true;
@@ -376,7 +381,7 @@ bool run() {
   static SysTick::Period<30> fps;
   if (fps) {
     fps.reset();
-    activeRun();
+    Run::run();
   }
   if (!fps) hw::delay_ms(fps.when() - hw::millis());
   return running;
@@ -390,7 +395,8 @@ void setup() {
   out.lockMode(LockMode::None);
   out.setColors(WHITE, BLACK);
   out.clear();
-  activeRun = mainRun;
+  // Run::alternative already starts at mainRun (RunLoop's own static init) —
+  // no explicit "activeRun=mainRun" needed here anymore.
   nav.printTo(out);
 }
 

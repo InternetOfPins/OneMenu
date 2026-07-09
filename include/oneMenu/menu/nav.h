@@ -456,6 +456,49 @@ namespace oneMenu {
     };
   };
 
+  /// @brief the "alternative poll handler" pattern, formalized — was hand-
+  /// duplicated across examples/fields, .RnD/fields, .RnD/picoMenu,
+  /// .RnD/neurMenu as a plain `RunFn activeRun` swapped by `showIdle()`/
+  /// `showPrompt()`/etc (Rui, 2026-07-09: "that part of alternative
+  /// handling must be integrated in OneMenu because we use it for other
+  /// purposes"). Confirmed against `.RnD/fields`'s own real, hardware-
+  /// verified code (not assumed): `run()` is `if(fps){fps.reset();
+  /// activeRun();}` — no branching, no null-check anywhere; `activeRun`
+  /// always points at a valid function, and "restoring normal operation"
+  /// (`action::ok()`, `idleRun()`) means reassigning it back to `mainRun`,
+  /// not to null — simpler than AM4's own internal `sleepTask` (which
+  /// really does use `NULL`+a check, confirmed against nav.cpp), and this
+  /// is what the pattern already does in practice in this codebase.
+  ///
+  /// `mainFn` is a compile-time NTTP (the common case never changes at
+  /// runtime, so it costs nothing to fix at compile time — same convention
+  /// as EventFunc/IdleFunc); the *alternative* is the one genuinely
+  /// runtime-swappable slot, since which alternative runs (idle screen,
+  /// which dialog, ...) is a real runtime decision. Each handler is just an
+  /// arbitrary `bool()` function — it can drive the *same* nav, a
+  /// completely separate nav+menu+device (AM4's own dialog pattern, and
+  /// `.RnD/fields`'s own `promptNav`/`promptMenu`/`promptOut`), or nothing
+  /// nav-related at all. RunLoop itself doesn't know or care what a
+  /// handler does — same "cap, not a spreading cost" shape as this
+  /// codebase's other escape hatches: composing it costs one function
+  /// pointer, nothing else.
+  using RunFn = bool(&)();
+  using AltRunFn = bool(*)();
+
+  template<RunFn mainFn>
+  struct RunLoop {
+    static inline AltRunFn alternative = mainFn;
+    /// @brief call every frame — runs whichever handler is currently active.
+    static bool run() { return alternative(); }
+    /// @brief AM4's `nav.idleOn(fn)` — swap in fn (idle screen, a dialog,
+    /// anything) as what run() calls from now on.
+    static void idleOn(AltRunFn fn) { alternative = fn; }
+    /// @brief AM4-style "restore": reassign back to mainFn, not to null
+    /// (see this type's own doc comment for why).
+    static void idleOff() { alternative = mainFn; }
+    static bool active() { return alternative != mainFn; }
+  };
+
   /// @brief drives per-frame animation (AM22's `TickFocus`, the one working prior-art
   /// implementation across the whole AM4/AM5/AM22-AM26 lineage — see notes.md
   /// "Animation"). Every output poll, dispatches tick() (item.h) to whichever item is
