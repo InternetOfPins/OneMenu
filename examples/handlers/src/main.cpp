@@ -14,21 +14,16 @@
  *  - EDIT()'s masked/pattern text editing (name/hex fields) — not ported.
  *  - the idle system (nav.idleOn/idleTask) — not built yet (see notes.md
  *    "idle can be a Nav component...").
- *  - altFIELD's custom decimal-places field type, and the LED TOGGLE — both
- *    dropped for the same reason as the next point (nothing new to show
- *    once FIELD's/SUBMENU's event wiring is already demonstrated).
+ *  - altFIELD's custom decimal-places field type — plain FIELD() covers the
+ *    event wiring already; nothing new to show by porting the custom type.
  *
- * Also: am4.h's OP()/MENU()/TOGGLE()/SELECT()/CHOOSE() macros don't yet wire
- * their fn/mask args into a real event handler — only FIELD() does, via
- * EventCall (see am4.h's own FIELD() doc comment). Real AM4 semantics have
- * every item's fn *always* be an event handler; this compat layer's OP()
- * instead maps fn to the older, unrelated Action<fn> (bool(int)) — a v1
- * simplification that predates the event system (see am4.h's OP() doc
- * comment: "mask is accepted but ignored"). Rather than silently redesign
- * that already-shipped contract as a side effect of this port, items below
- * that need the real showEvent handler splice a native EventAction<mask,fn>
- * component in alongside the macro-built ones — "components first" (notes.md
- * "AM4 compat layer" design principle, 2026-07-03).
+ * The LED TOGGLE *is* ported (2026-07-09, once TOGGLE()'s fn/mask got the
+ * same auto-dispatch OP() has — see am4.h) — real coverage for that macro,
+ * reusing showEvent() below unmodified (already bool(EventMask)-shaped).
+ *
+ * am4.h's MENU() macro still doesn't wire its own fn/mask (title-level
+ * events) to anything — the SUBMENU() below still needs a native
+ * EventAction<mask,fn> spliced in for that one case (see its own comment).
  *
  * The selftest drives nav.up()/down()/enter()/esc() directly (same style as
  * examples/am4compat's own selftest; the real input-driven poll()/in() path
@@ -98,7 +93,13 @@ float test = 55;
 auto subMenu = oneMenu::menuDef<oneMenu::EventAction<oneMenu::EventMask::Any, action::showEvent>>(
   oneMenu::ItemDef<Text>{"Sub-Menu"},
   oneMenu::staticBody(
-    // OP() ignores fn/mask (v1) — spliced natively so Enter is observable.
+    // action::op1 is bool(int) — OP()'s auto-dispatch (am4.h) would give it
+    // the cheap Action<fn> path, same as always, with no event observable.
+    // Composed natively here instead, so this item demonstrates both firing
+    // side by side: Action<op1> (the plain execute-on-Enter primitive) and
+    // EventAction<Any,showEvent> (real event dispatch) on the *same* item —
+    // exactly the "independent layers, not two APIs for the same thing"
+    // point from earlier in this session.
     oneMenu::ItemDef<oneMenu::Action<action::op1>,
                       oneMenu::EventAction<oneMenu::EventMask::Any, action::showEvent>,
                       Text>{"Sub1"},
@@ -106,9 +107,16 @@ auto subMenu = oneMenu::menuDef<oneMenu::EventAction<oneMenu::EventMask::Any, ac
   )
 );
 
+int ledCtrl = -1;  // -1: neither VALUE() below — proves SyncValue actually wrote something.
+TOGGLE(ledCtrl, setLed, "Led: ", action::showEvent, Menu::anyEvent, Menu::noStyle
+  ,VALUE("On", 1, Menu::doNothing, Menu::noEvent)
+  ,VALUE("Off", 0, Menu::doNothing, Menu::noEvent)
+);
+
 MENU(mainMenu, "Main menu", Menu::doNothing, Menu::noEvent, Menu::wrapStyle
   ,FIELD(test, "Test", "%", 0, 100, 1, 0, action::onFieldEvent, Menu::enterEvent, Menu::noStyle)
   ,SUBMENU(subMenu)
+  ,SUBMENU(setLed)
   ,EXIT("<Back")
 );
 
@@ -157,6 +165,20 @@ int main() {
   assert(nav.level() == 0 && action::exitCount == 1 &&
          "Sub-Menu's own EventAction did not observe Exit on close");
 
-  printf("OK: handlers.ino compat-macro port (showEvent/FIELD-EventCall) verified\n");
+  // ── Regression: TOGGLE()'s auto-dispatch (am4.h, 2026-07-09) — bool(EventMask)
+  // fn gets a real EventAction<mask,fn> spliced onto the TOGGLE item itself,
+  // same mechanism as OP()'s (notes.md "list next targets" -> "#1"). Delta-based
+  // (not absolute counts) so this doesn't need to track every prior assertion's
+  // exact running total — sel is at index 1 (Sub-Menu) here, esc() doesn't move it.
+  int enterBefore = action::enterCount;
+  assert(ledCtrl == -1);
+  nav.up();     // Sub-Menu(1) -> setLed(2)
+  nav.enter();  // cycles the toggle (away from index 0/"On", per SyncValue's
+                // documented m_sel-starts-at-0 semantics) and fires Enter on setLed
+  assert(ledCtrl == 0 && "TOGGLE() did not cycle to and sync the next VALUE()");
+  assert(action::enterCount == enterBefore + 1 &&
+         "TOGGLE()'s EventAction did not fire Enter");
+
+  printf("OK: handlers.ino compat-macro port (showEvent/FIELD-EventCall/TOGGLE) verified\n");
   return 0;
 }

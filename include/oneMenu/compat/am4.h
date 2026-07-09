@@ -142,12 +142,33 @@ namespace am4compat {
       return oneMenu::ItemDef<oneMenu::Action<fn>, oneData::Text>{text};
   }
 
+  // Detects "callable as bool(EventMask)" — EventAction's shape, distinct
+  // from IsEventFn above (EventActionItem's bool(EventMask,IItem&)).
+  // TOGGLE/SELECT/CHOOSE stay plain ItemDef either way — no IItemDef, no
+  // vtable — since real AM4 sketches overwhelmingly reuse the same simple
+  // showEvent(eventMask)-shaped handler across OP/TOGGLE/VALUE alike (see
+  // serialio.ino/handlers.ino), and there's no existing "index-based" v1
+  // binding here to preserve for backward compat the way OP() had
+  // (Action<fn>) — today, any fn passed to TOGGLE/SELECT/CHOOSE is simply
+  // ignored, so the fallback (no event component at all) is exactly that
+  // same, already-shipped no-op behavior, not a new cheap path to design.
+  template<typename F, typename = void>
+  struct IsPlainEventFn : std::false_type {};
+  template<typename F>
+  struct IsPlainEventFn<F, std::void_t<decltype(std::declval<F>()(std::declval<oneMenu::EventMask>()))>>
+    : std::true_type {};
+
   // TOGGLE/SELECT/CHOOSE builders — SyncValue<W> (item.h) on top of a Behave
   // component wrapping Menu<T,B,...>. Each option in the body is a plain
   // ItemDef<EnumValue<val>,Text> (VALUE() below); SyncValue::nav() reads the
   // currently-selected option's EnumValue<val>::value() via
   // RecallNavPos::visit() and writes it into W (a DataRef<&var>, zero-copy,
-  // same binding style FIELD already uses) on every Enter.
+  // same binding style FIELD already uses) on every Enter. fn/mask
+  // auto-dispatch the same way OP() does (Rui, 2026-07-09: "list next
+  // targets" -> "#1"): a bool(EventMask) fn gets a real EventAction<mask,fn>
+  // spliced into the item's own component pack (fires Enter/Exit/Focus/Blur
+  // on the TOGGLE/SELECT/CHOOSE item itself, same as any other item); any
+  // other fn shape keeps today's total no-op.
   // Three near-identical functions instead of one generalized one — each
   // Behave needs its own fixed Menu<...> modifier list (ParentDraw+WrapNav
   // for Toggle, EditField+ParentDraw for Select, none for Choose), and a
@@ -155,26 +176,44 @@ namespace am4compat {
   // to the other explicit-only params (W) these need — matches this
   // codebase's existing "duplication over cross-cutting generalization"
   // precedent (InDef/InList's independent doInput, etc.).
-  template<typename W, typename T, typename B>
+  template<typename W, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto toggleDef(T&& t, B&& b) {
-    return oneMenu::ItemDef<
-        oneMenu::SyncValue<W>, oneMenu::ToggleBehave,
-        oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::ParentDraw, oneMenu::WrapNav>
-      >{std::forward<T>(t), std::forward<B>(b)};
+    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::ToggleBehave,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::ParentDraw, oneMenu::WrapNav>
+        >{std::forward<T>(t), std::forward<B>(b)};
+    else
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, oneMenu::ToggleBehave,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::ParentDraw, oneMenu::WrapNav>
+        >{std::forward<T>(t), std::forward<B>(b)};
   }
-  template<typename W, typename T, typename B>
+  template<typename W, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto selectDef(T&& t, B&& b) {
-    return oneMenu::ItemDef<
-        oneMenu::SyncValue<W>, oneMenu::SelectBehave,
-        oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::EditField, oneMenu::ParentDraw>
-      >{std::forward<T>(t), std::forward<B>(b)};
+    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::SelectBehave,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::EditField, oneMenu::ParentDraw>
+        >{std::forward<T>(t), std::forward<B>(b)};
+    else
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, oneMenu::SelectBehave,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::EditField, oneMenu::ParentDraw>
+        >{std::forward<T>(t), std::forward<B>(b)};
   }
-  template<typename W, typename T, typename B>
+  template<typename W, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto chooseDef(T&& t, B&& b) {
-    return oneMenu::ItemDef<
-        oneMenu::SyncValue<W>, oneMenu::RecallNavPos,
-        oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
-      >{std::forward<T>(t), std::forward<B>(b)};
+    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::RecallNavPos,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+        >{std::forward<T>(t), std::forward<B>(b)};
+    else
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, oneMenu::RecallNavPos,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+        >{std::forward<T>(t), std::forward<B>(b)};
   }
 }
 
@@ -282,28 +321,31 @@ namespace Menu {
 
 /// @brief AM4 TOGGLE(var,id,label,fn,mask,style,...values) — single Enter
 ///        cycles to the next VALUE(...) and writes it into var (DataRef,
-///        zero-copy, same binding style as FIELD). fn/mask/style accepted but
-///        ignored (v1).
+///        zero-copy, same binding style as FIELD). fn auto-dispatches like
+///        OP() (am4compat::toggleDef, above): bool(EventMask) gets a real
+///        EventAction<mask,fn> on the item, anything else keeps the original
+///        no-op (v1). style still ignored.
 #define TOGGLE(var, id, label, fn, mask, style, ...) \
-  auto id = ::am4compat::toggleDef<::oneData::DataRef<&(var)>>( \
+  auto id = ::am4compat::toggleDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{label}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
 /// @brief AM4 SELECT(var,id,label,fn,mask,style,...values) — Enter opens an
 ///        inline picker (stays on the parent's display row); a second Enter
 ///        commits whichever VALUE(...) is highlighted into var (DataRef).
-///        fn/mask/style accepted but ignored (v1).
+///        fn auto-dispatches like OP() (am4compat::selectDef, above); style
+///        still ignored.
 #define SELECT(var, id, label, fn, mask, style, ...) \
-  auto id = ::am4compat::selectDef<::oneData::DataRef<&(var)>>( \
+  auto id = ::am4compat::selectDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneMenu::AsLabel<::oneData::Text>, ::oneMenu::AsEditMode<>>{label}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
 /// @brief AM4 CHOOSE(var,id,label,fn,mask,style,...values) — Enter opens a
 ///        real nested level to browse VALUE(...) options; entering one
-///        commits it into var (DataRef). fn/mask/style accepted but ignored
-///        (v1).
+///        commits it into var (DataRef). fn auto-dispatches like OP()
+///        (am4compat::chooseDef, above); style still ignored.
 #define CHOOSE(var, id, label, fn, mask, style, ...) \
-  auto id = ::am4compat::chooseDef<::oneData::DataRef<&(var)>>( \
+  auto id = ::am4compat::chooseDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{label}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
