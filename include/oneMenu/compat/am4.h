@@ -192,12 +192,64 @@ namespace am4compat {
       std::declval<oneMenu::EventMask>(), std::declval<oneMenu::IItem&>()))>>
     : std::true_type {};
 
+  // Detects "callable as bool(EventMask,INav&,IItem&)" — AM4's real 3-arg
+  // callback shape (result(eventMask,navNode&,prompt&), menuBase.h),
+  // parameter order preserved (event,nav,item). Real AM4 source checked
+  // directly (git show master:src/menuBase.h): the `action` class's own
+  // constructor overload for this exact 3-arg shape is commented out — AM4
+  // itself doesn't wire this through its own OP()-equivalent either
+  // (SDCard.ino's real 3-arg handler, filePick, binds to a hand-declared
+  // custom object's own constructor instead, spliced via SUBMENU()).
+  // OneMenu's OP() is already a uniform auto-dispatch cascade though, so
+  // adding a 3rd branch is a strict ergonomic improvement over AM4's own
+  // limitation, at zero cost to any existing OP() call site.
+  template<typename F, typename = void>
+  struct IsEventFnNav : std::false_type {};
+  template<typename F>
+  struct IsEventFnNav<F, std::void_t<decltype(std::declval<F>()(
+      std::declval<oneMenu::EventMask>(), std::declval<oneMenu::INav&>(), std::declval<oneMenu::IItem&>()))>>
+    : std::true_type {};
+
+  using EventFuncItemNav = bool(&)(oneMenu::EventMask, oneMenu::INav&, oneMenu::IItem&);
+
+  /// @brief the nav-carrying sibling of item.h's EventActionItem — AM4's
+  /// real (event,nav,item) parameter order preserved. Lives here, not
+  /// item.h: AM4-signature-matching is compat-only (Rui, 2026-07-09:
+  /// "AM4-port machinery should stay AM5/compat-side unless it brings value
+  /// to OneMenu itself"). Same "vtable-cost sibling of EventAction, opt-in"
+  /// shape as EventActionItem, requires IItemDef (needs Base::obj()), same
+  /// reason. Deliberately does NOT try to fold into a further Base::onEvent
+  /// (e,n) call the way the 1-arg components fold into Base::onEvent(e) —
+  /// item.h's HasNavOnEvent is what makes that safe to omit: nothing below
+  /// this component in a real chain would ever have a genuine 2-arg
+  /// onEvent to fold into (this is the only nav-aware component in
+  /// practice), and `using Base::onEvent;` is what keeps this component's
+  /// own 1-arg onEvent(EventMask) reachable (this class only declares the
+  /// 2-arg form — without the using-declaration it would hide the
+  /// inherited 1-arg one by ordinary C++ name hiding, breaking
+  /// IItemDef::onEvent(EventMask)'s own Base::onEvent(e) call; confirmed
+  /// empirically with a standalone prototype before this was written).
+  template<oneMenu::EventMask mask, EventFuncItemNav fn>
+  struct EventActionItemNav {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      using Base::Base;
+      using Base::onEvent;  // required — see this type's own doc comment
+      bool onEvent(oneMenu::EventMask e, oneMenu::INav& n) {
+        return (e & mask) ? fn(e, n, static_cast<oneMenu::IItem&>(Base::obj())) : false;
+      }
+    };
+  };
+
   /// @brief OP()'s real factory (see OP()'s own doc comment, below). Picks
-  /// between the two OP() bindings based on fn's own signature — auto-dispatch,
+  /// between the three OP() bindings based on fn's own signature — auto-dispatch,
   /// not a caller-facing flag: nothing to opt into or out of at the call site.
   template<oneMenu::EventMask mask, auto& fn, typename T>
   constexpr auto opItem(T&& text) {
-    if constexpr (IsEventFn<decltype(fn)>::value)
+    if constexpr (IsEventFnNav<decltype(fn)>::value)
+      return oneMenu::IItemDef<EventActionItemNav<mask,fn>, oneData::Text>{text};
+    else if constexpr (IsEventFn<decltype(fn)>::value)
       return oneMenu::IItemDef<oneMenu::EventActionItem<mask,fn>, oneData::Text>{text};
     else
       return oneMenu::ItemDef<oneMenu::Action<fn>, oneData::Text>{text};
@@ -592,6 +644,61 @@ namespace am4compat {
 ///        see Pool's own doc comment (nav.h) for why.
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::oneMenu::INavDef< \
+      ::oneMenu::Pool<decltype(in), decltype(out)>, \
+      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu> \
+    > id(in, out)
+
+/*
+ * ── NAVROOT_IDLE: idle-control bridge (opt-in) ──────────────────────────────
+ *
+ * Plain NAVROOT's INav::idling()/idleOn()/idleOff() stay the inherited
+ * no-op (oneMenu::INav's own default, nav.h) — binding a *specific*
+ * RunLoop<mainFn> into a *specific* nav's INav is AM4-flavored wiring (AM4's
+ * own nav.root->idleOn()/idleOff(), menuBase.h), so it stays entirely
+ * compat-side, mirroring oneMenu::NavAPI/INavDef exactly plus the Run
+ * binding (Rui, 2026-07-09: "AM4-port machinery should stay AM5/compat-side
+ * unless it brings value to OneMenu itself").
+ */
+namespace am4compat {
+  // Run is an already-built oneMenu::RunLoop<mainFn> TYPE, not mainFn
+  // re-templated here — avr-g++ 7.3 rejects re-deriving a function-reference
+  // NTTP through a nested template instantiation (same quirk already hit
+  // twice this session: IdleTimeout, EDIT()'s editItem); taking Run as a
+  // type sidesteps it, same fix shape as IdleTimeout's own Run parameter.
+  template<typename N, typename Run>
+  struct NavRootAPI : N {
+    using Base = N;
+    using Base::Base;
+    bool idling() const { return Run::active(); }
+    void idleOn(oneMenu::AltRunFn fn) { Run::idleOn(fn); }
+    void idleOff() { Run::idleOff(); }
+  };
+
+  // AM4-compat counterpart to oneMenu::INavDef — identical shape, plus the
+  // Run binding.
+  template<typename Run, typename... II>
+  struct NavRootDef : oneMenu::INav,
+      oneMenu::DefinedNav<NavRootAPI<hapi::CRTP<NavRootDef<Run,II...>>, Run>, II...> {
+    using Base = oneMenu::DefinedNav<NavRootAPI<hapi::CRTP<NavRootDef<Run,II...>>, Run>, II...>;
+    using Base::Base;
+    using Base::navMode;  // required — see oneMenu::INavDef's own doc comment (nav.h)
+    oneMenu::Depth level() const override { return Base::level(); }
+    oneMenu::Sz sel() const override { return Base::sel(); }
+    oneMenu::NavMode navMode() const override { return Base::navMode(); }
+    bool idling() const override { return Base::idling(); }
+    void idleOn(oneMenu::AltRunFn fn) override { Base::idleOn(fn); }
+    void idleOff() override { Base::idleOff(); }
+  };
+}
+
+/// @brief NAVROOT variant binding nav.idleOn()/idleOff() (callable from a
+///        3-arg OP() handler) to a specific already-built RunLoop<mainFn> —
+///        declare `using Run=oneMenu::RunLoop<mainFn>;` yourself first, same
+///        convention as am4compat::IdleTimeout's own usage. NAVROOT itself
+///        is untouched — every other port keeps the plain no-op idle
+///        fallback, zero new cost.
+#define NAVROOT_IDLE(id, menu, maxDepth, in, out, Run) \
+  ::am4compat::NavRootDef<Run, \
       ::oneMenu::Pool<decltype(in), decltype(out)>, \
       ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu> \
     > id(in, out)

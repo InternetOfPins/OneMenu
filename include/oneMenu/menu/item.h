@@ -150,11 +150,46 @@ namespace oneMenu {
     /// override this.
     virtual bool onEvent(EventMask) {return false;}
 
+    /// @brief nav-carrying sibling (AM4's real result(eventMask,navNode&,
+    /// prompt&) signature — see am4compat::EventActionItemNav, am4.h). The
+    /// default's call-back to onEvent(e) is SAFE here specifically because
+    /// onEvent(EventMask) is a genuine virtual function — the call resolves
+    /// through IItem's own vtable to whatever the real most-derived 1-arg
+    /// override is, unlike a plain (non-virtual) compile-time component
+    /// trying the identical "call back to the 1-arg form" trick, which
+    /// would statically bind to its own lexical scope instead (confirmed
+    /// empirically — see IItemDef::onEvent(EventMask,INav&) below, and
+    /// HasNavOnEvent's own doc comment, for why that path needs a different
+    /// approach instead of this same default).
+    virtual bool onEvent(EventMask e, INav&) {return onEvent(e);}
+
     template <typename Out>
     static constexpr bool printMenu(Out& out,Ctx& ctx)
       {return printMenu(out,ctx);}
 
   };
+
+  // True when T has a REAL (not default) onEvent(EventMask,INav&) — i.e.
+  // some component in T's own OO... chain actually wants the nav reference
+  // (am4compat::EventActionItemNav, am4.h). Plain compile-time chain
+  // components (EventAction, EventCall, EventActionItem — all below) never
+  // declare this overload at all, deliberately: giving ItemAPI a default
+  // 2-arg onEvent whose body tried to call back into the item's own 1-arg
+  // onEvent(e) would be a real static-dispatch trap for any such
+  // *non-virtual* chain (a Part<N> method reaching only its own lexical
+  // scope, not a more-derived override — the same family of bug already on
+  // file elsewhere in this codebase; confirmed empirically with a
+  // standalone prototype before this was written) — there's no vtable to
+  // save it there the way there is for IItem's own 2-arg default above. So
+  // instead: no default at all in the compile-time chain, and callers (this
+  // trait's two users: IItemDef::onEvent below, and nav.h's EventDispatch)
+  // check first, falling back to the ordinary 1-arg onEvent(e) — which for
+  // a plain item already correctly reaches the real, most-derived override
+  // (that's what ordinary compile-time chain composition already does) and
+  // for an IItem is the genuinely safe virtual self-call above.
+  template<typename T, typename = void> struct HasNavOnEvent : std::false_type {};
+  template<typename T> struct HasNavOnEvent<T, std::void_t<decltype(
+      std::declval<T&>().onEvent(std::declval<EventMask>(), std::declval<INav&>()))>> : std::true_type {};
 
   template<typename... II>
   struct IItemDef:IItem, ItemDefC<hapi::CRTP<IItemDef<II...>>,II...> {
@@ -193,6 +228,16 @@ namespace oneMenu {
     virtual bool _nav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<false>(n,cke,p);}
     virtual bool _kbdNav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<true>(n,cke,p);}
     virtual bool onEvent(EventMask e) override {return Base::onEvent(e);}
+    // SFINAE-gated: only forward into Base's own 2-arg onEvent when Base
+    // genuinely has one (a nav-aware component is actually composed in
+    // II...); otherwise fall back to the virtual 1-arg onEvent(e) above —
+    // see HasNavOnEvent's own doc comment for why this can't be a plain
+    // unconditional Base::onEvent(e,n) call, or a default on the
+    // compile-time chain itself.
+    virtual bool onEvent(EventMask e, INav& n) override {
+      if constexpr (HasNavOnEvent<Base>::value) return Base::onEvent(e,n);
+      else return onEvent(e);
+    }
     template <typename Out> static constexpr bool printMenu(Out& out,Ctx& ctx) {return Base::printMenu(out,ctx);}
   };
 

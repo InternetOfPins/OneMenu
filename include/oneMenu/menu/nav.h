@@ -90,12 +90,60 @@ namespace oneMenu {
     using Base::Base;
   };
 
-  struct INav {};
+  // Moved up from their old position (just above RunLoop, further down) —
+  // INav::idleOn's signature needs AltRunFn. RunLoop itself is unchanged,
+  // still declared where it was.
+  using RunFn = bool(&)();
+  using AltRunFn = bool(*)();
+
+  /// @brief virtual-dispatch nav interface — the nav-side twin of item.h's
+  /// IItem and out.h's IOut, same "escape hatch capped at one boundary"
+  /// pattern all three share. level()/sel()/navMode() are pure virtual:
+  /// every real INavDef<...> chain composes TreeNav, so INavDef can always
+  /// forward them. idling()/idleOn()/idleOff() default to a total no-op —
+  /// core INav doesn't know or care whether any concrete nav chain is bound
+  /// to a real RunLoop<mainFn> (below, this file) — that's AM4-flavored
+  /// wiring for a *particular* sketch's mainFn (Rui, 2026-07-09: "AM4-port
+  /// machinery should stay AM5/compat-side unless it brings value to
+  /// OneMenu itself" — RunLoop itself already does, this binding doesn't
+  /// need to). Plain INavDef therefore compiles unchanged with zero new
+  /// obligation; only am4compat::NavRootDef (am4.h) overrides these three
+  /// to forward into a real RunLoop<mainFn> — see that type's own doc
+  /// comment.
+  struct INav {
+    virtual Depth level() const=0;
+    virtual Sz sel() const=0;
+    virtual NavMode navMode() const=0;
+
+    /// @brief AM4 nav.root->navFocus-equivalent: "is this nav still the one
+    /// actually in control." OneMenu has one INav per nav chain (no AM4
+    /// -style multiple-navRoot registry), so this collapses onto "not
+    /// currently backgrounded by an idle/dialog alternative" — derives
+    /// from idling() alone, nothing separate to override.
+    bool isFocused() const {return !idling();}
+
+    virtual bool idling() const {return false;}
+    virtual void idleOn(AltRunFn) {}
+    virtual void idleOff() {}
+  };
 
   template<typename... II>
   struct INavDef:INav,DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...> {
     using Base=DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...>;
     using Base::Base;
+    // navMode() is overloaded on Base (TreeNav::Part: a getter AND a
+    // setter, navMode(NavMode)) — declaring the getter override below would
+    // otherwise hide the whole overload set by name (ordinary C++ name
+    // hiding, same rule TickFocus's own comment already documents for
+    // changed()), breaking every navMode(NavMode) setter call reached
+    // through an INavDef&/INav& (e.g. EditField::Part::nav(), item.h).
+    using Base::navMode;
+    Depth level() const override {return Base::level();}
+    Sz sel() const override {return Base::sel();}
+    NavMode navMode() const override {return Base::navMode();}
+    // idling()/idleOn()/idleOff() deliberately NOT overridden here — the
+    // inherited INav no-op default stays; am4compat::NavRootDef (am4.h) is
+    // the type that binds them to a real RunLoop<mainFn>, not this one.
   };
 
   /// @brief binds a nav chain to an external menu instance as the navigation root
@@ -423,6 +471,30 @@ namespace oneMenu {
     template<typename T, typename = void> struct HasBody : std::false_type {};
     template<typename T> struct HasBody<T, std::void_t<decltype(std::declval<T&>().body)>> : std::true_type {};
 
+    // True when Nav's own obj() (hapi::CRTP, reached via ordinary inheritance
+    // from the terminal API at the bottom of Nav's own component chain)
+    // resolves to something that IS-A INav. True for every real INavDef<...>/
+    // am4compat::NavRootDef<...> chain; false for a plain NavDef<...> chain,
+    // which has no INav anywhere in it. Gates whether fireAt's dispatch even
+    // attempts the nav-carrying path — EventDispatch must keep compiling
+    // unchanged under a plain NavDef<...>.
+    template<typename Nav, typename = void> struct ObjIsINav : std::false_type {};
+    template<typename Nav> struct ObjIsINav<Nav, std::void_t<decltype(std::declval<Nav&>().obj())>>
+      : std::is_base_of<INav, std::remove_reference_t<decltype(std::declval<Nav&>().obj())>> {};
+
+    // HasNavOnEvent lives in item.h (included before this file in the
+    // aggregate, oneMenu.h) — it's fundamentally an item-side concern
+    // (detects a real onEvent(EventMask,INav&) on the item's own OO...
+    // chain), reused here unqualified via oneMenu::HasNavOnEvent, not
+    // redefined. See its own doc comment there for the full rationale.
+    template<typename Item, typename Nav>
+    bool dispatch(Item& item, Nav& nav, EventMask e) {
+      if constexpr (ObjIsINav<Nav>::value && HasNavOnEvent<Item>::value)
+        return item.onEvent(e, static_cast<INav&>(nav.obj()));
+      else
+        return item.onEvent(e);
+    }
+
     // Walks body down d=0..level (using nav's *current* pathSel(d) for every level
     // except the final one, where idx is used instead — the final level's selection may
     // be the old or new value depending on which event is being raised, not necessarily
@@ -431,7 +503,7 @@ namespace oneMenu {
     void eventVisit(Body& body, Nav& nav, Depth d, Depth level, Sz idx, Fn&& fn) {
       Sz i = (d==level) ? idx : nav.pathSel(d);
       body.visit(i, [&](auto& item) {
-        if(d==level) fn(item);
+        if(d==level) fn(item, nav);
         else if constexpr (HasBody<std::decay_t<decltype(item)>>::value)
           eventVisit(item.body, nav, (Depth)(d+1), level, idx, std::forward<Fn>(fn));
       });
@@ -458,14 +530,14 @@ namespace oneMenu {
         Sz newSel = Base::sel();
         Depth newLevel = Base::level();
         if(newLevel==oldLevel && newSel!=oldSel) {
-          fireAt(oldLevel, oldSel, [](auto& item){ item.onEvent(EventMask::Blur); });
-          fireAt(oldLevel, newSel, [](auto& item){ item.onEvent(EventMask::Focus); });
+          fireAt(oldLevel, oldSel, [](auto& item, auto& nav){ detail::dispatch(item, nav, EventMask::Blur); });
+          fireAt(oldLevel, newSel, [](auto& item, auto& nav){ detail::dispatch(item, nav, EventMask::Focus); });
         }
-        if(cmd==Cmd::Enter) fireAt(oldLevel, oldSel, [](auto& item){ if(item.enabled()) item.onEvent(EventMask::Enter); });
+        if(cmd==Cmd::Enter) fireAt(oldLevel, oldSel, [](auto& item, auto& nav){ if(item.enabled()) detail::dispatch(item, nav, EventMask::Enter); });
         if(cmd==Cmd::Esc) {
           Depth targetLevel = newLevel<oldLevel ? newLevel : oldLevel;
           Sz targetIdx = newLevel<oldLevel ? newSel : oldSel;
-          fireAt(targetLevel, targetIdx, [](auto& item){ if(item.enabled()) item.onEvent(EventMask::Exit); });
+          fireAt(targetLevel, targetIdx, [](auto& item, auto& nav){ if(item.enabled()) detail::dispatch(item, nav, EventMask::Exit); });
         }
         return r;
       }
@@ -498,8 +570,8 @@ namespace oneMenu {
   /// handler does — same "cap, not a spreading cost" shape as this
   /// codebase's other escape hatches: composing it costs one function
   /// pointer, nothing else.
-  using RunFn = bool(&)();
-  using AltRunFn = bool(*)();
+  // RunFn/AltRunFn moved up next to INav, which needs AltRunFn in its own
+  // idleOn() signature — declared there now, not here.
 
   template<RunFn mainFn>
   struct RunLoop {
@@ -550,7 +622,7 @@ namespace oneMenu {
       bool changed(Out& out) {
         bool ticked=false;
         detail::eventVisit(Base::root().body, static_cast<Base&>(*this), (Depth)0,
-          Base::level(), Base::sel(), [&](auto& item){ if(item.tick()) ticked=true; });
+          Base::level(), Base::sel(), [&](auto& item, auto&){ if(item.tick()) ticked=true; });
         return Base::changed(out)||ticked;
       }
     };
