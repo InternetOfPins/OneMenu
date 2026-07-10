@@ -43,7 +43,11 @@ bool run() {
 
 ## Item building blocks
 
-Items are composed by listing components inside `ItemDef<...>`. Order matters — components higher in the list wrap those below.
+Items are composed by listing components inside `ItemDef<...>` — those components wrap
+each other; order matters, components higher in the list wrap those below. The item itself
+is closed once assembled: a menu body holds a flat list of already-closed items (see
+[Body types](#body-types)), it doesn't fold/wrap them the way components inside a single
+`ItemDef<...>` fold into each other.
 
 ### Text labels
 
@@ -363,6 +367,33 @@ plain in-sequence print there. **Incompatible with `ScrollPrinter`/`NoTitleScrol
 (scroll measurement assumes items advance the cursor sequentially — enforced via
 `static_assert`, not just documented); use `FullPrinter`/`NoTitlePrinter` instead.
 
+### `FullScreen` — one item, the whole page
+
+Wraps an item so it claims all remaining vertical space after printing its own content
+(pads down via `Cursor::clearFree()`/a native `fillRect` on GFX outputs). Combined with a
+scroll-search printer, this turns a list into a single-item-per-page carousel — each item
+gets the full display to itself as selection moves.
+
+```cpp
+using VCenterDemo = ItemDef<FullScreen, CenterRow<AsField<StaticText<&text::alpha>>>>;
+
+auto menu = menuDef<WrapNav>(
+  ItemDef<Text>{"FullScreen demo"},
+  staticBody(
+    ItemDef<FullScreen, CenterRow<AsField<StaticText<&text::alpha>>>>{},
+    ItemDef<FullScreen, CenterRow<AsField<StaticText<&text::beta>>>>{}
+  )
+);
+```
+
+Requires a printer built on `aScrollBody` (`ScrollPrinter`/`NoTitleScrollPrinter`/
+`SelectPrinter`/`NoTitleSelectPrinter` — see [Printers](#printers)) — `FullPrinter`/
+`NoTitlePrinter` would just pad trailing blank lines with no paging effect
+(`static_assert`-enforced). For a strict "always show exactly the selected item, nothing
+else" carousel, prefer `SelectPrinter`/`NoTitleSelectPrinter` over `ScrollPrinter` —
+`ScrollPrinter`'s general multi-item window search isn't built for a body where every
+single item already consumes the whole page.
+
 ### Cascading color/font tables — `Color<Cor>`/`ColorTable<...>`, `Font<Fnt>`/`FontTable<...>`
 
 `ANSIFmt`/`GfxFmt` resolve colors (and `GfxFmt` also fonts) from a compile-time table that
@@ -432,12 +463,97 @@ if (nav.changed(out)) {
 }
 ```
 
+### `AsyncNav` — stateless path-based navigation (web/HTTP)
+
+A second nav component (add to `NavDef<...>`, not `menuDef<...>`) that adds `async(path)`:
+jump straight to an absolute index path (`"/1/3/"`, 0-based, trailing `/`) from a cold
+start, no prior nav state needed — built for HTTP, where each request arrives independent
+of the last and the nav can't just remember "where it was".
+
+```cpp
+NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;  // separate instance
+NavDef<TreeNav,  Root<decltype(mainMenu), mainMenu>>          nav;     // hardware nav, unaffected
+
+webNav.async("/1/3/");             // reset to root, descend into submenu 1, select item 3
+webNav.enter();                    // then click — triggers the action or opens edit mode
+if (webNav.async(path)) webNav.set(val);  // or: navigate then set the now-focused field by string
+```
+
+Give the web nav its own `NavDef<...>` instance sharing the same `Root<menu>` as your
+hardware nav — they read/write the same underlying `OneData` values (shared automatically,
+since those live inside the menu struct) but keep independent cursor/level state, so a web
+request never disturbs where the hardware nav currently is. See
+[Web output](#web-output--xmlfmtjsonfmt-weboutwebdisplay) for the HTTP side of this.
+
 ### Force full redraw
 
 ```cpp
 out.lockMode(LockMode::None);
 nav.printTo(out);
 ```
+
+---
+
+## Input
+
+### `InDef<Sources...>` — the input chain
+
+Same shape as `IOutDef`/`OutDef`: a HAPI chain of sources, first with a pending command
+wins. `available()`/`cmd()` are queried in list order.
+
+```cpp
+InDef<LinuxKeyIn, PCKbd> in;   // native/host testing: raw key codes + PC-keyboard mapping
+nav.in(in);                    // feed into the navigator each loop
+```
+
+### OneInput hardware adapters
+
+Bridge a real `oneInput::InputDef<...>` hardware chain (debounce/click/hold/encoder/
+joystick filters — see [OneInput's own README](../../OneInput/README.md) for the filter
+stack itself) into `CKE` navigation commands:
+
+| Component | Wraps | Emits |
+|---|---|---|
+| `BtnIn<HW, ClickCmd=Enter, HoldCmd=Esc>` | `oneInput::BtnCapture` (+`Hold`/`Click`/`Debounce`) | `ClickCmd` on click, `HoldCmd` on hold |
+| `EncIn<HW, Steps>` | `oneInput::Encoder` | `Up`/`Down` per `Steps` detents |
+| `JoyIn<HW>` | `oneInput::Joystick` (+ADC axes) | `Left`/`Right`/`Up`/`Down` from deadzone-gated analog deltas |
+
+```cpp
+using BtnHW = oneInput::InputDef<
+  oneInput::BtnCapture, oneInput::Hold<800>, oneInput::Click<300>, oneInput::Debounce<20>,
+  oneInput::avr::AvrBtnPin<1, chip::PortC, 2>
+>;
+using EncHW = oneInput::InputDef<oneInput::Encoder, oneInput::avr::AvrEncPins<1, chip::PortC, 0, 1>>;
+ISR(PCINT1_vect) { BtnHW::dispatch(); EncHW::dispatch(); }
+
+using Btn = oneMenu::BtnIn<BtnHW>;
+using Enc = oneMenu::EncIn<EncHW, 4>;
+InDef<Enc, Btn, PCKbd> in;
+```
+
+The ISR (or a polled equivalent) drives the underlying `HW::dispatch()`; the `*In<HW>`
+wrapper only translates already-captured events into `CKE` on each `nav.in(in)` poll.
+
+### Runtime input sources — `IInDef`/`IIn`, `InList`, `InGroup`
+
+Mirrors the output side's `IOutDef`/`IOut`/`OutList` split:
+
+| Type | Shape |
+|---|---|
+| `IInDef<KK...>` | `InDef<KK...>` that also implements the virtual `IIn` interface |
+| `InList<N>` | Runtime list of `IIn*` sources, polled in sequence, first with a pending event wins — a drop-in `in` object anywhere `InDef<...>` is used today |
+| `InGroup<I, Ins...>` | Compile-time OR-combination of sources with no type erasure (unlike `InList`, not runtime-reconfigurable) |
+
+```cpp
+IInDef<LinuxKeyIn> kbdSrc;
+IInDef<oneMenu::BtnIn<BtnHW>> btnSrc;
+InList<2> in(&kbdSrc, &btnSrc);   // or default-construct + in.add(src) at runtime
+nav.in(in);
+```
+
+Use `InList` when the active device set isn't fixed at compile time (e.g. a hot-pluggable
+secondary input); use plain `InDef<...>` (or `InGroup` for a type-erasure-free static OR)
+otherwise — it costs nothing extra.
 
 ---
 
@@ -467,8 +583,24 @@ OutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars,
 
 | Component | What it does |
 |---|---|
-| `FullPrinter` | Redraws all visible items every frame |
-| `ScrollPrinter` | Redraws only changed items; scrolls when body exceeds area |
+| `FullPrinter` | Title + body + footer; body shows every item in order, no scrolling/windowing |
+| `ScrollPrinter` | Title + body + footer; body scrolls (window search) when it exceeds the area |
+| `NoTitlePrinter` | Body + footer only, no title row — default shape for small displays |
+| `NoTitleScrollPrinter` | `NoTitlePrinter` + scrolling body |
+| `SelectPrinter` | Title + body + footer; body always shows exactly the selected item, nothing else |
+| `NoTitleSelectPrinter` | `SelectPrinter` without the title row |
+
+"Full" vs "Scroll" is about whether the body windows/searches for a scroll position when it
+overflows the area — not about redraw frequency. Every printer here still goes through the
+normal per-item `lockMode()`/`changed()` gating (see [Colors and lock mode](#colors-and-lock-mode)),
+so partial updates (only redrawing items that actually changed) work the same under
+`FullPrinter` as under `ScrollPrinter` on any device that supports it.
+
+All six are `Chain<ViewPrinter, MenuPrinter<..., ItemsPrinter>>` compositions over the same
+building blocks (`TitlePrinter`, `BodyPrinter`/`ScrollBodyPrinter`/`SelectBodyPrinter`) —
+pick by title/no-title × body-fit strategy rather than hand-assembling the chain yourself.
+`SelectPrinter`/`NoTitleSelectPrinter` are the ones [`FullScreen`](#fullscreen--one-item-the-whole-page)
+items are meant to run under.
 
 ### Format components
 
@@ -476,6 +608,9 @@ OutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars,
 |---|---|
 | `ANSIFmt` | ANSI colors, cursor highlight, edit-mode indicators |
 | `TextFmt` | Plain text cursors and decorations, no escape codes |
+| `GfxFmt<Radius,Spacing,BigTitle>` | Pixel-display format (inverted-video selection, optional big title font) — see [Pixel displays](#pixel-displays--gfxfmt) |
+| `BtFmt` | Values-only compact format for BT/BLE payloads — see [BT/BLE output](#btble-output) |
+| `XmlFmt` / `JsonFmt` | Whole-tree dump (paths, nav state, labels/fields) for a remote-viewer UI — see [Web output](#web-output--xmlfmtjsonfmt-weboutwebdisplay) |
 | `DataParser<>` | Converts data values to characters |
 | `CtrlChars` | Translates control characters (newline, clear, etc.) |
 | `TextWrap` | Long text continues on next line |
@@ -511,6 +646,105 @@ out.setColors(WHITE, BLACK);    // foreground, background
 out.clear();                    // erase the output area
 out.resume();                   // re-anchor device to tracked position/colors
 ```
+
+### Pixel displays — `GfxFmt`
+
+Format for GFX-capable devices (anything exposing `fillRect`, e.g. SSD1306/PCD8544 via
+`OledOut`). Works in device-native coordinates — pixels horizontally, pages vertically for
+SSD1306. Selection is shown as inverted video (`fillRect` + XOR'd font bytes); the plain
+text `NavCursor` indicator is fully suppressed since inversion already marks the row.
+Colors/fonts still go through the same `Color<Cor>`/`Font<Fnt>` cascading-table mechanism
+as `ANSIFmt` (`Cor=bool` = inverted?, `Fnt=bool` = big/normal font).
+
+```cpp
+using MyOled = oneIO::display::I2cOledWire<Wire, 5, 4>;
+OledDisplay<MyOled> display;                 // ready-made: FullPrinter+GfxFmt<>+OledOut
+OledDisplay<MyOled, GfxFmt<2,0,true>> big;    // Radius, Spacing, BigTitle
+```
+
+`OledDisplay<Oled, GfxFmtT=GfxFmt<>, Extra...>` and `Nokia5110Display<Lcd, GfxFmtT, Extra...>`
+are ready-made `OutDef`s deriving `Cursor<>` advances and the default area from the driver
+(`kWidth`/`kHeight`/`charWidth`/`lineSpacing`); `Extra...` overrides position/area (earlier
+entries in the HAPI chain win). For a hand-built chain (e.g. pairing `GfxFmt` with
+`SelectPrinter` for a [`FullScreen`](#fullscreen--one-item-the-whole-page) carousel, which
+neither ready-made alias offers), compose `OledOut<Oled>` directly — see
+`menu/IO/IOP/oledOut.h`.
+
+### BT/BLE output
+
+Two independent paths for mirroring field values out over BLE GATT characteristics — same
+distinction as the coarse-vs-fine choice elsewhere (per-field vs per-tree):
+
+**Per-field** — tag the data component with `oneData::BTRec<W, Id>` (same composition shape
+as `Watch`/`Default`, wraps freely):
+
+```cpp
+using Ch1 = NumFieldDef<
+  Chain<AsLabel<StaticText<&text::ch1>>>,
+  NumField<StaticNumRange<StaticRange<0,100,false>>,
+           AsField<BTRec<Watch<DataRef<&currentCh1>>, btIds::ch1_bt_id>>>,
+  AsUnit<StaticText<&text::percent>>
+>;
+```
+
+Every `print()`/`printItem()` calls `out.btWrite<Id>(get())` — a no-op unless the `Out`
+chain composes a matching `oneOutput::BtOut<Ble, Id>`, so an untagged/unwired field costs
+nothing. `Ble` is duck-typed (`char_write`/`char_read`/`char_written`, see `oneBus::BleAPI`)
+— ESP32 and nRF52 backends both verified on real hardware. Inbound (peer write → `set()`)
+isn't wired yet; read `Ble::char_written(Id)`/`char_read(Id,...)` directly in your loop.
+
+**Per-tree** — pair `BtFmt` (strips paths/labels/nav-cursor chrome, emits only Field/Data
+values comma-separated) with `oneMenu::BtOut<Ble,Id,BufSz>` (accumulates the render into a
+buffer, flushes as one characteristic write). `BtDisplay<Ble,Id,BufSz>` is the ready-made
+`OutDef` for this:
+
+```cpp
+BtDisplay<Ble, my_menu_bt_id> btOut;
+nav.printTo(btOut);   // whole visible subtree -> one characteristic write on flush()
+```
+
+Use per-field for individually-addressable values pushed on change; per-tree for a compact
+whole-menu snapshot record.
+
+### Web output — `XmlFmt`/`JsonFmt`, `WebOut`/`WebDisplay`
+
+Unlike `BtFmt`, `XmlFmt`/`JsonFmt` dump the **whole visible tree** — paths, nav-cursor/
+edit-mode state, labels and field values — sized for an HTTP client to render a full UI, not
+a small GATT characteristic.
+
+- `XmlFmt` — element-per-item (`<menu>`/`<title>`/`<body>`/`<item>`/`<lbl>`/`<fld>`...),
+  nav state as attributes (`ncur="@"`, `mode="edit"`...), item body text auto-wrapped in
+  `CDATA`. Each element carries a `path="/1/3/"` attribute so a client-side XSLT can
+  translate/route without walking ancestors.
+- `JsonFmt` — same information as one JSON object per item, nav state as properties.
+
+`WebOut` (Arduino/ESP32 only, `#include <oneMenu/menu/IO/arduino/webOut.h>`) streams
+directly to a `WebServer` via `sendContent()` — no host-side buffer, each `put()` sends
+immediately. `WebDisplay` is the ready-made `OutDef` pairing `FullPrinter`+`XmlFmt`+`WebOut`:
+
+```cpp
+WebServer webServer(80);
+WebDisplay webDisplay;
+
+webServer.on("/", []() {
+  webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  webServer.send(200, "text/xml", "");
+  webServer.sendContent("<?xml-stylesheet type=\"text/xsl\" href=\"/menu.xsl\"?>\n");
+  webNav.printTo(webDisplay);
+});
+webServer.on("/menu.xsl", []() {
+  webServer.send(200, "text/xsl", WebOut::xsl());   // built-in stylesheet, or serve your own
+});
+```
+
+`WebOut::xsl()` returns a minimal built-in XSLT stylesheet (dark monospace theme, up/down/
+enter/esc links) that renders the `XmlFmt` output as HTML in the browser and auto-refreshes;
+`docs/menu.xsl` in this repo is the same stylesheet kept as a standalone, more readable file
+for editing — serve your own by pointing `/menu.xsl` at a customized copy instead of
+`WebOut::xsl()`.
+
+Combine with [`AsyncNav`](#asyncnav--stateless-path-based-navigation-webhttp) for a
+stateless per-request nav that doesn't fight your hardware nav over the same menu.
 
 ---
 
