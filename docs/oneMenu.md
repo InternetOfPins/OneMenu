@@ -611,6 +611,7 @@ items are meant to run under.
 | `GfxFmt<Radius,Spacing,BigTitle>` | Pixel-display format (inverted-video selection, optional big title font) — see [Pixel displays](#pixel-displays--gfxfmt) |
 | `BtFmt` | Values-only compact format for BT/BLE payloads — see [BT/BLE output](#btble-output) |
 | `XmlFmt` / `JsonFmt` | Whole-tree dump (paths, nav state, labels/fields) for a remote-viewer UI — see [Web output](#web-output--xmlfmtjsonfmt-weboutwebdisplay) |
+| `HtmlFmt` | Complete HTML page per render, selection via CSS class, nav links embedded — see [Web output](#web-output--xmlfmtjsonfmt-weboutwebdisplay) |
 | `DataParser<>` | Converts data values to characters |
 | `CtrlChars` | Translates control characters (newline, clear, etc.) |
 | `TextWrap` | Long text continues on next line |
@@ -670,6 +671,24 @@ entries in the HAPI chain win). For a hand-built chain (e.g. pairing `GfxFmt` wi
 neither ready-made alias offers), compose `OledOut<Oled>` directly — see
 `menu/IO/IOP/oledOut.h`.
 
+### Character LCD output
+
+`LcdDisplay<LCD>` is the raw device adapter for HD44780-compatible character LCDs (same
+slot as `ConsoleOut`/`SerialOut` — swap freely inside a hand-built `OutDef`). `LCD` must
+expose `print(char)`/`print(const char*)`/`setCursor(col,row)`/`clear()` plus static
+`cols`/`rows` (used for `IsArea`).
+
+```cpp
+using MyLcd = oneIO::display::I2cLcd<Twi, 0x27, 20, 4>;  // TwiMaster, Addr, Cols, Rows
+LcdOut<MyLcd> lcdDisplay;                          // ready-made OutDef, TextFmt+NoTitleScrollPrinter
+LcdOut<MyLcd, NoTitlePrinter> smallLcdDisplay;      // override the printer for a tiny device
+```
+
+`LcdOut<Lcd, Printer=NoTitleScrollPrinter>` is the ready-made `OutDef` (`Printer`+`TextFmt`+
+`DataParser<>`+`Cursor<1,1>`+`LcdDisplay<Lcd>`) — cols/rows come from the LCD driver type
+itself (e.g. `I2cLcd<...,Cols,Rows>` exposes them as `Cols`/`Rows` static members), not from
+`LcdOut`'s own template params.
+
 ### BT/BLE output
 
 Two independent paths for mirroring field values out over BLE GATT characteristics — same
@@ -717,6 +736,10 @@ a small GATT characteristic.
   `CDATA`. Each element carries a `path="/1/3/"` attribute so a client-side XSLT can
   translate/route without walking ancestors.
 - `JsonFmt` — same information as one JSON object per item, nav state as properties.
+- `HtmlFmt` — skips XML/XSLT entirely and streams a complete HTML page directly per render:
+  selection shown via a CSS class (`NavCursor` suppressed, the class handles highlight) and
+  the up/down/enter/esc nav links embedded in the page itself. Use this instead of
+  `XmlFmt`+XSLT when you'd rather own the markup outright than transform on the client.
 
 `WebOut` (Arduino/ESP32 only, `#include <oneMenu/menu/IO/arduino/webOut.h>`) streams
 directly to a `WebServer` via `sendContent()` — no host-side buffer, each `put()` sends

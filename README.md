@@ -4,6 +4,8 @@ HAPI-based composable menu system for embedded targets. Zero dynamic allocation,
 
 **HAPI Compatibility:** Updated for new Check/Apply/ApplyPack API (2026-Q2)
 
+See [docs/oneMenu.md](docs/oneMenu.md) for the full user guide (fields, layout, navigation, input, output, actions, patterns).
+
 ## Features
 
 - Composable output chain: format + printer + cursor + raw device assembled at compile time
@@ -111,8 +113,8 @@ void loop() {
 #include <oneMenu/menu/IO/IOP/lcdOut.h>
 #include <oneIO/display/i2cLcd.h>
 
-using MyLcd = oneIO::display::I2cLcd<AvrTwiMaster<>, 0x27>;
-LcdDisplay<MyLcd, 20, 4> lcdDisplay;
+using MyLcd = oneIO::display::I2cLcd<AvrTwiMaster<>, 0x27, 20, 4>;  // TwiMaster, Addr, Cols, Rows
+LcdOut<MyLcd> lcdDisplay;
 // setup: MyLcd::begin(); lcdDisplay.clear(); lcdDisplay.lockMode(LockMode::None);
 ```
 
