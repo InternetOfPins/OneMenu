@@ -67,20 +67,6 @@ namespace oneMenu {
       out.lockMode(hapi::TagIs<PartialDraw>::Check<Out>::value ? LockMode::Update : LockMode::None);
       return true;
     }
-
-    // Counterpart for a secondary/hidden-content device (e.g. a footer showing the focused
-    // item's Hidden<> text via printHiddenTo — see out.h/item.h). Gated on Base::changed()
-    // (position/editMode) rather than doOutput()'s changed(out) (any visible data): hidden
-    // content only depends on which item is focused, not on unrelated items' values ticking —
-    // conflating the two gates re-clears/redraws it every time anything changes anywhere.
-    template<typename Out>
-    bool doHiddenOutput(Out& out) {
-      if(!Base::changed()) return false;
-      out.resume();
-      out.clear();
-      Base::printHiddenTo(out);
-      return true;
-    }
   };
 
   /// @brief compose a navigation chain from nav components (TreeNav, Root, IndexGo, etc.)
@@ -315,16 +301,6 @@ namespace oneMenu {
         bool r=root().printMenu(out,ctx);
         out.flush();
         return r;
-      }
-
-      // Renders the focused item's Hidden<> content to out (pull-based footer).
-      template<typename Out>
-      void printHiddenTo(Out& out) {
-        out.resume();
-        static Sz tops[root().depth()+1]{0};
-        Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
-        root().printHiddenMenu(out,ctx);
-        out.flush();
       }
 
       template<bool isKbd>
@@ -615,8 +591,9 @@ namespace oneMenu {
       using Base = N;
       // Defining changed(Out&) here hides ALL of Base's changed overloads by name, not
       // just that one signature (ordinary C++ name hiding, not overload resolution) —
-      // doHiddenOutput() calls the no-arg changed(), which would otherwise vanish from
-      // this chain's scope entirely. Bring it back unchanged.
+      // the no-arg changed() (nav.h's own TreeNav::Part::changed(), and changed(Out&)'s
+      // own internal `if(changed())` short-circuit just below) would otherwise vanish
+      // from this chain's scope entirely. Bring it back unchanged.
       using Base::changed;
       template<typename Out>
       bool changed(Out& out) {

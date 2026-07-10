@@ -17,8 +17,6 @@ namespace oneMenu {
     template<template<typename> class M> using Map = StaticBody<>;
     template<typename Out> static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
-    template<typename Out> static constexpr bool printHiddenBody(Out&,Ctx&) noexcept {return false;}
-    template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printInline(Out&,Ctx&) noexcept {return false;}
@@ -26,8 +24,6 @@ namespace oneMenu {
     static constexpr bool nav(Nav&,const CKE&,Path,Sz=0) noexcept {return false;}
     template<typename Nav,typename P>
     static constexpr bool setStr(Nav&,const char*,P,Sz=0) noexcept {return false;}
-    static constexpr bool changed() noexcept {return false;}
-    static constexpr void sync() noexcept {}
   };
 
   template<typename O, typename... OO>
@@ -53,15 +49,6 @@ namespace oneMenu {
   template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
     {return i?((Tail&)tail).printMenu(out,ctx,i-1):head.printMenu(out,ctx);}
 
-  template<typename Out> bool printHiddenMenu(Out& out,Ctx& ctx,Sz i)
-    {return i?((Tail&)tail).printHiddenMenu(out,ctx,i-1):head.printHiddenMenu(out,ctx);}
-
-  template<typename Out> bool printHiddenBody(Out& out,Ctx& ctx) {
-    head.printHidden(out,ctx);
-    ctx.idx++;
-    return ((Tail&)tail).printHiddenBody(out,ctx);
-  }
-
   template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
     bool r=out.printItem(head,ctx);
     return ((Tail&)tail).printBody(out,ctx,bidx+1)||r;
@@ -86,9 +73,6 @@ namespace oneMenu {
   template<typename Nav,typename P>
   bool setStr(Nav& n,const char* s,P p,Sz i)
     {return i?((Tail&)tail).setStr(n,s,p,i-1):head.setStr(n,s,p);}
-
-  bool changed() const {return head.changed()||((const Tail&)tail).changed();}
-  void sync() {head.sync();((Tail&)tail).sync();}
 
   // sizeof...(OO)==0 means Tail is the empty StaticBody<>, which defines no visit() —
   // terminate here instead: for any valid i (i.e. i within this body's size()), the

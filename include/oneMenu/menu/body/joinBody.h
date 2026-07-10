@@ -26,9 +26,6 @@ namespace oneMenu {
 
     Sz size() const {return b1.size()+b2.size();}
 
-    bool changed() const {return b1.changed()||b2.changed();}
-    void sync() {b1.sync();b2.sync();}
-
     template<typename Out>
     bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
       bool r=b1.printBody(out,ctx,bidx);

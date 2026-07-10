@@ -38,8 +38,6 @@ namespace oneMenu {
     static constexpr bool down() {return false;}
     template<typename Out> static constexpr bool printMenu(Out&,Ctx&) {return false;}
     template<typename Out> static constexpr bool printBody(Out&,Ctx&) {return false;}
-    template<typename Out> static constexpr void printHidden(Out&,Ctx&) noexcept {}
-    template<typename Out> static constexpr bool printHiddenMenu(Out&,Ctx&) noexcept {return false;}
     using Base::print;
     // printItem(Out&,Ctx&) is reached via ordinary inheritance from oneData::DataAPI's
     // generic no-op — no redeclaration or using-declaration needed here.
@@ -434,26 +432,14 @@ namespace oneMenu {
   /// print()/printItem() suppress-and-redirect logic itself now lives there (pure
   /// blind forwarding, generic on Ctx, no oneMenu dependency needed to compile or
   /// test it standalone). This layer derives Part<I> from it and adds exactly the
-  /// two pieces that genuinely need real oneMenu semantics, not just a type name:
-  ///  - printHidden(): pull-based "render II... on demand" (secondary/footer-device
-  ///    content) — its `if(!ctx)` relies on oneMenu::Ctx::operator bool() specifically
-  ///    (base.h: true iff this call targets the currently-focused path), a real
-  ///    navigation concept, not an opaque passthrough like print()/printItem() are.
-  ///  - nav(): routes Cmd/CKE navigation to I, oneMenu's own concrete CKE/Path types.
+  /// one piece that genuinely needs real oneMenu semantics, not just a type name:
+  /// nav() routes Cmd/CKE navigation to I, oneMenu's own concrete CKE/Path types.
   template<typename... II>
   struct Hidden {
     template<typename I>
     struct Part:oneData::Hidden<II...>::template Part<I> {
       using Base=typename oneData::Hidden<II...>::template Part<I>;
       using Base::Base;
-      // render II... only — Base inherits from Chain<II...,End>::Part<I> (oneData.h);
-      // End stops before I, so this is the only path that actually reaches II...'s
-      // own printItem.
-      template<typename Out>
-      void printHidden(Out& out,Ctx& ctx) {
-        if(!ctx) return;
-        static_cast<Base&>(*this).printItem(out,ctx);
-      }
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path p)
         {return I::template nav<isKbd>(n,cke,p);}

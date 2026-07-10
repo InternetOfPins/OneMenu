@@ -62,9 +62,6 @@ namespace oneMenu {
       Body body;
       Part(Title&& t,Body&& b):title{std::move(t)},body{std::move(b)} {}
 
-      bool changed() const {return Base::changed()||body.changed();}
-      void sync() {Base::sync();body.sync();}
-
       template<typename Out>
       void print(Out& out) const {title.print(out);}
       template<typename Out> void print(Out& out,Ctx&) {print(out);}
@@ -91,17 +88,6 @@ namespace oneMenu {
       // can reach it the same way printBody() is already exposed for the sequential walk.
       template<typename Out>
       bool printBodyAt(Out& out,Ctx& ctx,Sz idx) {return body.printItem(out,ctx,idx);}
-
-      template<typename Out>
-      bool printHiddenMenu(Out& out,Ctx& ctx) {
-        if(ctx.pAt>ctx.at) {
-          Ctx tmp{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,(Depth)(ctx.at+1),ctx.prev,ctx.pad,0,ctx.idx};
-          Sz s=ctx.sel();
-          return body.printHiddenMenu(out,tmp,s);
-        }
-        ctx.at++;
-        return body.printHiddenBody(out,ctx);
-      }
 
       template<typename Out>
       bool printItem(Out& out,Ctx& ctx) {

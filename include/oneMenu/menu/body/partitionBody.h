@@ -31,8 +31,6 @@ namespace oneMenu {
   struct PartitionBody<Tag,StaticBody<>> {
     StaticBody<>& body;
     static constexpr Sz   size()    noexcept {return 0;}
-    static constexpr bool changed() noexcept {return false;}
-    static constexpr void sync()    noexcept {}
     template<typename Out>
     static constexpr bool printBody(Out&,Ctx&,Sz=0) noexcept {return false;}
   };
@@ -43,16 +41,6 @@ namespace oneMenu {
     Body& body;
 
     static constexpr Sz size() noexcept {return Body::size();}  // preserves indices for find<>
-
-    bool changed() const {
-      bool r=false;
-      if constexpr(hapi::query<hapi::SameAs<OutId<Tag>>,O>) r=body.head.changed();
-      return PartitionBody<Tag,StaticBody<OO...>>{body.tail}.changed()||r;
-    }
-    void sync() {
-      if constexpr(hapi::query<hapi::SameAs<OutId<Tag>>,O>) body.head.sync();
-      PartitionBody<Tag,StaticBody<OO...>>{body.tail}.sync();
-    }
 
     template<typename Out>
     bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
