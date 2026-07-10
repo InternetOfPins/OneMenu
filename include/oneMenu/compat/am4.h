@@ -768,6 +768,53 @@ namespace am4compat {
       return (dev); \
     }())
 
+/// @brief AM4 ANSISERIAL_OUT(port,colors,panels...) — real AM4 call shape
+///        (`ANSISERIAL_OUT(Serial,colors,{1,1,26,10},{28,1,16,10},{46,1,16,10})`),
+///        adapted onto OneMenu's own native ANSI stack rather than bridged:
+///        `ansiSerialOut.h` (like every AM4 driver written by the same author
+///        as this compat layer) has no licensing reason to stay untouched
+///        the way third-party-contributed `menuIO/*.h` drivers do (Rui,
+///        2026-07-10) — this reuses `ANSIFmt`+`ANSIOut` (already proven via
+///        `ANSI_OUT`, console-only until now) over the real `SerialOut`
+///        hardware sink (already proven via `SERIAL_OUT`, plain-text-only
+///        until now) instead. Both are `aRawDevice`, so the swap is a
+///        straight recomposition — zero new rendering code.
+///
+///        `port` is accepted but ignored, same "compile-time device, runtime
+///        arg has nothing to bind to" precedent as `SERIAL_OUT(port)`/
+///        `serialIn(Stream&)` above. `panels...` (multi-panel side-by-side
+///        depth display) is accepted but dropped — same "OneMenu doesn't
+///        need AM4's own panel/paging bookkeeping, a single output area is
+///        enough" precedent `NAVROOT`'s own `maxDepth` already established;
+///        a real multi-panel *OneMenu* layout isn't built (see notes.md).
+///
+///        `colors` is the one genuine call-shape adaptation: AM4's `colors`
+///        is a *runtime* `colorDef<uint8_t>[6]` array (6 named roles ×
+///        {disabled,enabled}×{normal,selected,editing} states); OneMenu's
+///        `ColorTable<...>` needs a *compile-time* `Color<int>::Table<...>`
+///        type (organized by state-path, not by role — see docs/oneMenu.md
+///        "Cascading color/font tables"). These are different axes on the
+///        same information, not a mechanical syntax swap — translating one
+///        into the other is real per-sketch port work, same "known semantic
+///        gap" category as `SUBMENU`'s move-only limitation. This macro
+///        expects `colors` to already *be* that translated `Color<int>::
+///        Table<...>` type (a `using colors = ...;` alias at the call site,
+///        in place of AM4's runtime array declaration) — the macro call
+///        itself then stays textually identical to the real AM4 source.
+///        Area is a fixed 40x10 default, same "no area param to thread
+///        through, pick a sensible fixed size" precedent as `SERIAL_OUT`'s
+///        own 40x6.
+#define ANSISERIAL_OUT(port, colors, ...) \
+  (&[]() -> decltype(auto) { \
+      static ::oneMenu::OutDef< \
+          ::oneMenu::FullPrinter, ::oneMenu::ANSIFmt, ::oneMenu::DataParser<>, ::oneMenu::CtrlChars, \
+          ::oneMenu::ColorTable<colors>, ::oneMenu::ColorTrack<int>, ::oneMenu::Cursor<>, ::oneMenu::Gate, \
+          ::oneMenu::ANSIOut, ::oneMenu::SerialOut, \
+          ::oneMenu::StaticPos<0,0>, ::oneMenu::StaticArea<40,10> \
+        > dev; \
+      return (dev); \
+    }())
+
 namespace Menu {
   /// @brief AM4 serialIn(Stream&) — input device wrapper, real AM4 call shape
   ///        (`serialIn serial(Serial); MENU_INPUTS(in,&serial);`). Wraps the
