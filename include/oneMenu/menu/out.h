@@ -113,6 +113,14 @@ namespace oneMenu {
   template<typename... OO>
   struct IOutDef:IOut,OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>{
     using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>;
+    // Disambiguate: IOutDef inherits Types from both IOut (Chain<>, deliberate
+    // — see IOut's own doc comment) and Base (the real chain). Without this,
+    // any code that queries Out::Types through an IOutDef& (not just a plain
+    // OutDef) — e.g. nav.h's own hapi::query<IsCursor,typename Out::Types> —
+    // hits a hard "lookup of 'Types' is ambiguous" error. IOut's empty Chain<>
+    // is the intended winner: a type-erased Out can't statically claim any
+    // capability tag, so every tag-gated shortcut should safely evaluate false.
+    using IOut::Types;
     // Same one-line forward as OutDef's own doOutput(Nav&) — see its comment.
     template<typename Nav> bool doOutput(Nav& nav) { return nav.doOutput(*this); }
     virtual void lockMode(LockMode m) {Base::lockMode(m);}

@@ -311,14 +311,24 @@ namespace oneMenu {
   /// the vtable-cost sibling of EventAction: use EventAction for the
   /// zero-cost case, this one only where AM4-compat needs the item reference
   /// (e.g. am4.h's OP()) and the escape-hatch cost is already accepted.
-  using EventFuncItem=bool(&)(EventMask,IItem&);
+  using EventFuncItemPtr=bool(*)(EventMask,IItem&);
 
-  template<EventMask mask,EventFuncItem fn>
+  /// mask/fn are runtime constructor-set members, not NTTPs (2026-07-10) —
+  /// see am4.h's EventActionItemNav (this component's nav-carrying sibling)
+  /// for the full reasoning and the measured size impact: this component
+  /// only ever gets used behind IItemDef (virtual dispatch already paid
+  /// for), so baking mask/fn into the type bought nothing except one
+  /// distinct class instantiation per (mask,fn) pair at every OP() call
+  /// site, byte-identical except for which mask/fn it closed over.
   struct EventActionItem {
     template<typename I>
     struct Part:I {
       using Base=I;
-      using Base::Base;
+      EventMask mask;
+      EventFuncItemPtr fn;
+      template<typename... Rest>
+      constexpr Part(EventMask m,EventFuncItemPtr f,Rest&&... rest)
+        : Base(std::forward<Rest>(rest)...), mask(m), fn(f) {}
       bool onEvent(EventMask e) {
         bool r=(e&mask)?fn(e,static_cast<IItem&>(Base::obj())):false;
         return Base::onEvent(e)||r;

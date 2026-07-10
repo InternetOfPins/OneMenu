@@ -210,7 +210,7 @@ namespace am4compat {
       std::declval<oneMenu::EventMask>(), std::declval<oneMenu::INav&>(), std::declval<oneMenu::IItem&>()))>>
     : std::true_type {};
 
-  using EventFuncItemNav = bool(&)(oneMenu::EventMask, oneMenu::INav&, oneMenu::IItem&);
+  using EventFuncItemNavPtr = bool(*)(oneMenu::EventMask, oneMenu::INav&, oneMenu::IItem&);
 
   /// @brief the nav-carrying sibling of item.h's EventActionItem — AM4's
   /// real (event,nav,item) parameter order preserved. Lives here, not
@@ -229,13 +229,27 @@ namespace am4compat {
   /// inherited 1-arg one by ordinary C++ name hiding, breaking
   /// IItemDef::onEvent(EventMask)'s own Base::onEvent(e) call; confirmed
   /// empirically with a standalone prototype before this was written).
-  template<oneMenu::EventMask mask, EventFuncItemNav fn>
+  ///
+  /// mask/fn are runtime constructor-set members, not NTTPs (2026-07-10):
+  /// this component only ever gets used behind IItemDef (virtual dispatch
+  /// already paid for), so baking mask/fn into the type bought nothing —
+  /// every distinct (mask,fn) pair at an OP() call site was generating its
+  /// own class instantiation and its own onEvent() override, byte-identical
+  /// except for which mask/fn it closed over. Measured on ansiSerial.ino's
+  /// real AVR build: IItemDef/EventAction-touching code was 54.5% of the
+  /// whole binary (18024/33095B) before this change — see mem.md. Matches
+  /// AM4's own `action` class, which stores fn as a plain runtime member
+  /// behind one non-templated dispatch function.
   struct EventActionItemNav {
     template<typename I>
     struct Part : I {
       using Base = I;
-      using Base::Base;
       using Base::onEvent;  // required — see this type's own doc comment
+      oneMenu::EventMask mask;
+      EventFuncItemNavPtr fn;
+      template<typename... Rest>
+      constexpr Part(oneMenu::EventMask m, EventFuncItemNavPtr f, Rest&&... rest)
+        : Base(std::forward<Rest>(rest)...), mask(m), fn(f) {}
       bool onEvent(oneMenu::EventMask e, oneMenu::INav& n) {
         return (e & mask) ? fn(e, n, static_cast<oneMenu::IItem&>(Base::obj())) : false;
       }
@@ -248,9 +262,9 @@ namespace am4compat {
   template<oneMenu::EventMask mask, auto& fn, typename T>
   constexpr auto opItem(T&& text) {
     if constexpr (IsEventFnNav<decltype(fn)>::value)
-      return oneMenu::IItemDef<EventActionItemNav<mask,fn>, oneData::Text>{text};
+      return oneMenu::IItemDef<EventActionItemNav, oneData::Text>{mask, &fn, text};
     else if constexpr (IsEventFn<decltype(fn)>::value)
-      return oneMenu::IItemDef<oneMenu::EventActionItem<mask,fn>, oneData::Text>{text};
+      return oneMenu::IItemDef<oneMenu::EventActionItem, oneData::Text>{mask, &fn, text};
     else
       return oneMenu::ItemDef<oneMenu::Action<fn>, oneData::Text>{text};
   }
