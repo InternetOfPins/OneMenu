@@ -153,9 +153,10 @@ namespace CharMask {
   };
 
   /// @brief per-character-position mask: position `pos` (0-based) is
-  /// validated/cycled against MM...[pos % n()], not one shared mask — AM4's
-  /// real EDIT() "shorter validator arrays repeat" behavior. Each M0/MM...
-  /// is any existing CharMask-conforming type (Range/Set/Ranges/PerPos) —
+  /// validated/cycled against MM...[pos % n()], not one shared mask — shorter
+  /// validator packs repeat cyclically once N is smaller than the buffer.
+  /// Each M0/MM... is any existing CharMask-conforming type
+  /// (Range/Set/Ranges/PerPos) —
   /// PerPos only adds position-aware entry points on top, delegating to each
   /// sub-mask's own unchanged 1-arg chk(c)/up(c)/down(c).
   /// @tparam M0 mask for position 0 (and every pos where pos%n()==0)
@@ -190,18 +191,15 @@ namespace CharMask {
   };
 
   /// @brief position-indexed character-set mask, directly over an array of
-  /// allowed-character strings — AM4 EDIT()'s real "validators" shape (one
-  /// C-string per buffer position, repeating cyclically via pos%N once N is
-  /// shorter than the buffer — confirmed against AM4's own TextField.ino: a
-  /// single-entry alphaNum[] reused across all 30 positions of a Name
-  /// field). V is the validators array's own address (must be nameable at
-  /// the call site — a real "address of object" — NOT synthesized via
-  /// per-element pointer arithmetic inside a template: C++17 rejects a
-  /// computed pointer like V+I as a pointer-type template argument even
-  /// when it's the same address a named &arr[I] would give; confirmed
-  /// empirically, see notes.md "AM4 compat layer"). PosSet sidesteps this
-  /// entirely by indexing V[pos%N] at runtime, inside its own methods,
-  /// instead of building N distinct compile-time mask types.
+  /// allowed-character strings: one C-string per buffer position, repeating
+  /// cyclically via pos%N once N is shorter than the buffer. V is the
+  /// validators array's own address (must be nameable at the call site — a
+  /// real "address of object" — NOT synthesized via per-element pointer
+  /// arithmetic inside a template: C++17 rejects a computed pointer like
+  /// V+I as a pointer-type template argument even when it's the same
+  /// address a named &arr[I] would give). PosSet sidesteps this entirely by
+  /// indexing V[pos%N] at runtime, inside its own methods, instead of
+  /// building N distinct compile-time mask types.
   /// @tparam V validators array address (e.g. a real `static const char*
   ///   validators[]` — declared WITHOUT the trailing pointee-const, since
   ///   CText is `const char*` and V's type is therefore `const char**`,

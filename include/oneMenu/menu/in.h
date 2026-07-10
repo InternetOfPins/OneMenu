@@ -100,8 +100,8 @@ namespace oneMenu {
   // (zero vtables) or InGroup (compat layer) instead.
   //
   // Fixed-capacity array, not a dynamic container — no heap, no std:: dependency (AVR has
-  // no libstdc++; see notes.md). Capacity N is a compile-time bound; add() silently ignores
-  // sources past N (mirrors AVR-wide "no exceptions" convention elsewhere in IOP).
+  // no libstdc++). Capacity N is a compile-time bound; add() silently ignores sources past
+  // N (mirrors AVR-wide "no exceptions" convention elsewhere in IOP).
   /// @brief runtime list of IIn* sources; inBurst()/doInput()/poll() mirror InDef's own surface
   template<Sz N>
   struct InList {

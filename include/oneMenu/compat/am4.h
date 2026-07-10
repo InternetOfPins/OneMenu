@@ -2,7 +2,7 @@
  * @file am4.h
  * @author Rui Azevedo (neu-rah) (ruihfazevedo@gmail.com)
  * @brief AM4-syntax compatibility macros over OneMenu's compile-time composition.
- * @version 0 (v1 scope — see notes.md "AM4 compat layer")
+ * @version 0 (v1 scope)
  *
  * Canonical, uniquely-named location (not include/menu.h) so other packages
  * can forward `<menu.h>` to this file by exact path without a self-named
@@ -21,7 +21,7 @@
  * ── What this v1 covers ──────────────────────────────────────────────────
  *   MENU, PADMENU, OP, EXIT, FIELD, SUBMENU  — the item/menu-tree macros only.
  *
- * ── What this v1 deliberately does NOT cover (tracked in notes.md) ────────
+ * ── What this v1 deliberately does NOT cover ───────────────────────────────
  *  - MENU_INPUTS/MENU_OUTPUTS/NAVROOT device wiring. AM4 builds a genuinely
  *    dynamic runtime menuOut*[]/menuIn*[] list; OneMenu's InDef/OutDef are
  *    compile-time chains. Bridging that needs IOutDef/IOut's runtime-dispatch
@@ -29,8 +29,7 @@
  *    OneMenu path. Not built yet. Declare `in`/`out` the native OneMenu way
  *    (InDef<...>/OutDef<...>) and bind them to `nav` yourself for now.
  *  - AM4's eventMask now has a real counterpart (EventMask, item.h/enums.h/nav.h —
- *    Enter/Exit/Focus/Blur, dispatched by EventDispatch; see notes.md "AM4 compat
- *    layer" for the full plan). OP()'s `fn`/`mask` auto-dispatch on fn's own
+ *    Enter/Exit/Focus/Blur, dispatched by EventDispatch). OP()'s `fn`/`mask` auto-dispatch on fn's own
  *    signature (am4compat::opItem) — bool(EventMask,IItem&) gets real event
  *    dispatch (EventActionItem, at IItemDef's virtual-dispatch cost), anything
  *    else falls back to the original zero-cost Action<fn> binding; events are
@@ -102,8 +101,8 @@
   #include <oneMenu/menu/IO/arduino/serialOut.h>
 #else
   // streamOut.h (ConsoleOut, ANSI_OUT's device) pulls in <iostream> — doesn't
-  // exist on AVR at all (no libstdc++ — see notes.md/project_avr_no_libstdcxx),
-  // and ANSI_OUT itself is a native/desktop-console-only macro anyway.
+  // exist on AVR at all (no libstdc++), and ANSI_OUT itself is a
+  // native/desktop-console-only macro anyway.
   #include <oneMenu/menu/IO/streamOut.h>
 #endif
 
@@ -122,9 +121,9 @@ namespace am4compat {
   // resolves via ordinary (non-ADL) lookup at menuDefStyle's own definition
   // point, not at instantiation — even though the argument (decltype(fn)) is
   // itself dependent, ADL doesn't apply to a class-template name, so
-  // IsPlainEventFn must already be visible here (confirmed empirically: a
-  // trait referenced before its own declaration in this exact shape is a
-  // hard compile error, not deferred lookup).
+  // IsPlainEventFn must already be visible here: a trait referenced before
+  // its own declaration in this exact shape is a hard compile error, not
+  // deferred lookup.
   template<typename F, typename = void>
   struct IsPlainEventFn : std::false_type {};
   template<typename F>
@@ -138,8 +137,7 @@ namespace am4compat {
   /// spliced into the menu's own MM... component pack (Menu<T,B,MM...>'s title
   /// is a plain data member, NOT part of the HAPI chain — see menu.h; MM...
   /// is the only slot an event component attached to the menu itself can ride
-  /// on — same mechanism examples/handlers' subMenu now uses via this factory,
-  /// originally proven by hand before this existed). Any other fn shape (e.g.
+  /// on). Any other fn shape (e.g.
   /// AM4-legacy bool(int) placeholders like Menu::doNothing) keeps today's
   /// original no-op behavior, byte-for-byte — no IItemDef, no vtable, nothing
   /// new for every existing MENU() call site in this codebase.
@@ -176,12 +174,11 @@ namespace am4compat {
   }
 
   // Detects "callable as bool(EventMask,IItem&)" — hand-rolled, not
-  // std::is_invocable_r_v: avr-gcc has no <type_traits> at all (see
-  // notes.md/project_avr_no_libstdcxx), and that trait isn't in HAPI's own
-  // minimal avr_std.h shim either. Same std::void_t/declval idiom nav.h's
-  // HasBody trait already uses successfully on AVR. Backs OP()'s auto-dispatch
-  // below (Rui, 2026-07-09: "can we make events optional for AM5?") — real
-  // event handlers (IItemDef+EventActionItem, vtable cost) only for OP() call
+  // std::is_invocable_r_v: avr-gcc has no <type_traits> at all, and that
+  // trait isn't in HAPI's own minimal avr_std.h shim either. Same
+  // std::void_t/declval idiom nav.h's HasBody trait already uses
+  // successfully on AVR. Backs OP()'s auto-dispatch below — real event
+  // handlers (IItemDef+EventActionItem, vtable cost) only for OP() call
   // sites that actually pass one; every existing bool(int) handler keeps the
   // original zero-cost Action<fn> binding, unchanged, no call-site syntax
   // change needed either way.
@@ -194,11 +191,11 @@ namespace am4compat {
 
   // Detects "callable as bool(EventMask,INav&,IItem&)" — AM4's real 3-arg
   // callback shape (result(eventMask,navNode&,prompt&), menuBase.h),
-  // parameter order preserved (event,nav,item). Real AM4 source checked
-  // directly (git show master:src/menuBase.h): the `action` class's own
-  // constructor overload for this exact 3-arg shape is commented out — AM4
-  // itself doesn't wire this through its own OP()-equivalent either
-  // (SDCard.ino's real 3-arg handler, filePick, binds to a hand-declared
+  // parameter order preserved (event,nav,item). In AM4's own source, the
+  // `action` class's own constructor overload for this exact 3-arg shape is
+  // commented out — AM4 itself doesn't wire this through its own
+  // OP()-equivalent either (SDCard.ino's real 3-arg handler, filePick, binds
+  // to a hand-declared
   // custom object's own constructor instead, spliced via SUBMENU()).
   // OneMenu's OP() is already a uniform auto-dispatch cascade though, so
   // adding a 3rd branch is a strict ergonomic improvement over AM4's own
@@ -214,32 +211,30 @@ namespace am4compat {
 
   /// @brief the nav-carrying sibling of item.h's EventActionItem — AM4's
   /// real (event,nav,item) parameter order preserved. Lives here, not
-  /// item.h: AM4-signature-matching is compat-only (Rui, 2026-07-09:
-  /// "AM4-port machinery should stay AM5/compat-side unless it brings value
-  /// to OneMenu itself"). Same "vtable-cost sibling of EventAction, opt-in"
-  /// shape as EventActionItem, requires IItemDef (needs Base::obj()), same
-  /// reason. Deliberately does NOT try to fold into a further Base::onEvent
-  /// (e,n) call the way the 1-arg components fold into Base::onEvent(e) —
-  /// item.h's HasNavOnEvent is what makes that safe to omit: nothing below
-  /// this component in a real chain would ever have a genuine 2-arg
-  /// onEvent to fold into (this is the only nav-aware component in
-  /// practice), and `using Base::onEvent;` is what keeps this component's
-  /// own 1-arg onEvent(EventMask) reachable (this class only declares the
-  /// 2-arg form — without the using-declaration it would hide the
-  /// inherited 1-arg one by ordinary C++ name hiding, breaking
-  /// IItemDef::onEvent(EventMask)'s own Base::onEvent(e) call; confirmed
-  /// empirically with a standalone prototype before this was written).
+  /// item.h: AM4-signature-matching is compat-only, and AM4-port machinery
+  /// stays AM5/compat-side unless it brings value to OneMenu itself. Same
+  /// "vtable-cost sibling of EventAction, opt-in" shape as EventActionItem,
+  /// requires IItemDef (needs Base::obj()), same reason. Deliberately does
+  /// NOT try to fold into a further Base::onEvent(e,n) call the way the
+  /// 1-arg components fold into Base::onEvent(e) — item.h's HasNavOnEvent is
+  /// what makes that safe to omit: nothing below this component in a real
+  /// chain would ever have a genuine 2-arg onEvent to fold into (this is the
+  /// only nav-aware component in practice), and `using Base::onEvent;` is
+  /// what keeps this component's own 1-arg onEvent(EventMask) reachable
+  /// (this class only declares the 2-arg form — without the
+  /// using-declaration it would hide the inherited 1-arg one by ordinary
+  /// C++ name hiding, breaking IItemDef::onEvent(EventMask)'s own
+  /// Base::onEvent(e) call).
   ///
-  /// mask/fn are runtime constructor-set members, not NTTPs (2026-07-10):
-  /// this component only ever gets used behind IItemDef (virtual dispatch
-  /// already paid for), so baking mask/fn into the type bought nothing —
-  /// every distinct (mask,fn) pair at an OP() call site was generating its
-  /// own class instantiation and its own onEvent() override, byte-identical
-  /// except for which mask/fn it closed over. Measured on ansiSerial.ino's
-  /// real AVR build: IItemDef/EventAction-touching code was 54.5% of the
-  /// whole binary (18024/33095B) before this change — see mem.md. Matches
-  /// AM4's own `action` class, which stores fn as a plain runtime member
-  /// behind one non-templated dispatch function.
+  /// mask/fn are runtime constructor-set members, not NTTPs: this component
+  /// only ever gets used behind IItemDef (virtual dispatch already paid
+  /// for), so baking mask/fn into the type buys nothing — every distinct
+  /// (mask,fn) pair at an OP() call site would generate its own class
+  /// instantiation and its own onEvent() override, byte-identical except
+  /// for which mask/fn it closed over, growing the whole
+  /// IItemDef/EventAction-touching portion of the binary substantially for
+  /// no benefit. Matches AM4's own `action` class, which stores fn as a
+  /// plain runtime member behind one non-templated dispatch function.
   struct EventActionItemNav {
     template<typename I>
     struct Part : I {
@@ -286,8 +281,7 @@ namespace am4compat {
   // currently-selected option's EnumValue<val>::value() via
   // RecallNavPos::visit() and writes it into W (a DataRef<&var>, zero-copy,
   // same binding style FIELD already uses) on every Enter. fn/mask
-  // auto-dispatch the same way OP() does (Rui, 2026-07-09: "list next
-  // targets" -> "#1"): a bool(EventMask) fn gets a real EventAction<mask,fn>
+  // auto-dispatch the same way OP() does: a bool(EventMask) fn gets a real EventAction<mask,fn>
   // spliced into the item's own component pack (fires Enter/Exit/Focus/Blur
   // on the TOGGLE/SELECT/CHOOSE item itself, same as any other item); any
   // other fn shape keeps today's total no-op.
@@ -364,8 +358,8 @@ namespace Menu {
   };
   enum SystemStyles : int { noStyle = am4compat::noStyle, wrapStyle = am4compat::wrapStyle };
   inline bool doNothing(int) noexcept { return false; }
-  // NOTE: deliberately NOT also overloading doNothing() as void() here — tried it,
-  // reverted. avr-g++ 7.3 rejects an *overloaded* function name used directly as a
+  // NOTE: deliberately NOT also overloading doNothing() as void() here.
+  // avr-g++ 7.3 rejects an *overloaded* function name used directly as a
   // void(&)() template argument ("not a valid template argument for type void(&)()...
   // must be the name of a function with external linkage") even though the same
   // overload set resolves fine on native g++ 13. FIELD()'s fn (wired to EventCall,
@@ -389,15 +383,14 @@ namespace Menu {
 
 /// @brief AM4 OP(text,fn,mask) — fn's own signature decides the binding
 ///        (am4compat::opItem, above), events are opt-in per call site, not a
-///        flag (Rui, 2026-07-09: "can we make events optional for AM5?"):
+///        flag:
 ///        - fn shaped bool(EventMask,IItem&) -> real event dispatch
 ///          (EventActionItem, item.h) matching AM4's actual callback shape
-///          (menuBase.h: result(*)(eventMask,navNode&,prompt&); confirmed
-///          against serialio.ino's own `action1(eventMask e)`) — costs
+///          (menuBase.h: result(*)(eventMask,navNode&,prompt&)) — costs
 ///          IItemDef's virtual dispatch (real AM4 items are always virtual
-///          too, via prompt&, so this matches AM4's own cost model; see
-///          notes.md for the measured AVR delta — mainly RAM, not flash,
-///          since the vtable itself lands in .data on this toolchain).
+///          too, via prompt&, so this matches AM4's own cost model; mainly
+///          a RAM cost, not flash, since the vtable itself lands in .data
+///          on this toolchain).
 ///        - any other fn shape (the original v1 binding — bool(int), mask
 ///          ignored) -> plain Action<fn>, zero-cost, no IItemDef at all.
 ///        No caller-facing syntax difference either way — same OP(text,fn,
@@ -442,21 +435,20 @@ namespace am4compat {
   /// design tried building N distinct CharMask::Set<> types at compile time,
   /// one per position — doesn't compile in C++17: a pointer computed via
   /// V+I inside a nested template isn't "the address of an object", even
-  /// though it's the same address a named &arr[I] would give; confirmed
-  /// empirically, see notes.md "AM4 compat layer").
+  /// though it's the same address a named &arr[I] would give).
   ///
   /// EventCallT is an ALREADY-BUILT oneMenu::EventCall<mask,fn> type, built
   /// by the EDIT() macro directly (matching FIELD()'s own exact shape) —
   /// NOT a separate `EventMask mask, VoidFunc fn` NTTP pair re-templated in
-  /// here. Confirmed empirically (real avr-g++ 7.3 build, not assumed):
-  /// passing fn as editItem's own template parameter and re-using it one
-  /// level deeper inside EventCall<mask,fn> here fails with "not a valid
-  /// template argument... must be the name of a function with external
-  /// linkage" — the same family of function-reference-as-NTTP quirk already
-  /// hit by am4compat::IdleTimeout (re-deriving RunLoop's RunFn one level
-  /// deep) — even for a plain, named, non-overloaded fn. Building
-  /// EventCall<mask,fn> at the macro's own call site sidesteps it entirely,
-  /// same fix shape as IdleTimeout's Run-as-a-type parameter.
+  /// here: passing fn as editItem's own template parameter and re-using it
+  /// one level deeper inside EventCall<mask,fn> here fails with "not a
+  /// valid template argument... must be the name of a function with
+  /// external linkage" on avr-g++ — the same family of
+  /// function-reference-as-NTTP quirk am4compat::IdleTimeout also has to
+  /// work around (re-deriving RunLoop's RunFn one level deep) — even for a
+  /// plain, named, non-overloaded fn. Building EventCall<mask,fn> at the
+  /// macro's own call site sidesteps it entirely, same fix shape as
+  /// IdleTimeout's Run-as-a-type parameter.
   template<char* buf, int sz, oneData::CText* validators, int n,
            typename EventCallT, typename T>
   constexpr auto editItem(T&& label) {
@@ -477,8 +469,8 @@ namespace am4compat {
 ///        binding; sz is buf's own sizeof(buf)-1, computed here at the call
 ///        site (AM4: "field will initialize its size by this string
 ///        length"). validators is AM4's real per-position validator array
-///        (macros.h's EDIT_ — one entry per character position, confirmed
-///        to repeat cyclically — pos % N — once N is shorter than the
+///        (macros.h's EDIT_ — one entry per character position, repeating
+///        cyclically — pos % N — once N is shorter than the
 ///        buffer, e.g. TextField.ino's single-entry alphaNum[] reused
 ///        across all 30 positions of the Name field); bridged onto
 ///        CharMask::PosSet (charMask.h) directly from validators's own
@@ -496,9 +488,9 @@ namespace am4compat {
 ///        the same avr-g++ NTTP-shape rationale). EventCall<mask,fn> is
 ///        built HERE, at the macro's own call site (matching FIELD()'s
 ///        exact shape), not inside editItem — see editItem's own doc
-///        comment for why (a real avr-g++ 7.3 NTTP quirk, confirmed
-///        empirically). style is accepted for AM4 call-site syntax fidelity
-///        but ignored, same as FIELD()'s step/tune.
+///        comment for why (a real avr-g++ 7.3 NTTP quirk). style is
+///        accepted for AM4 call-site syntax fidelity but ignored, same as
+///        FIELD()'s step/tune.
 #define EDIT(label, buf, validators, fn, mask, style) \
   ::am4compat::editItem< \
       (buf), (int)(sizeof(buf)-1), (validators), \
@@ -593,25 +585,19 @@ namespace am4compat {
  * reimplementation: InGroup/OutGroup (in.h/out.h) are oneMenu's own
  * compile-time-fixed device packs, and oneMenu::Pool<InG,OutG> (nav.h) is a
  * real nav chain component fusing one input source + one output sink for one
- * nav — "we will have to move that cycle into OneMenu so that we have a
- * compatible pool" (Rui, 2026-07-03; see notes.md "AM4 compat layer" for the
- * full design discussion).
+ * nav.
  *
- * Went through a detour worth recording here (2026-07-07): first tried
- * building this on InList<N>/OutList<N> (a runtime, virtual-dispatch device
- * *list* — in.h/out.h — "the output fan-out is in itself an output"), which
- * seemed like the more unified answer since IOut let a whole pool be handed
- * anywhere a single Out is expected. It doesn't work for this: Menu::Part::
- * printMenu (menu.h) calls `out.printMenu(*this,ctx)`, templated on the
- * concrete item type — a template method can't be virtual, so IOut
- * fundamentally can't expose it, and once a device is behind IOut& its
- * concrete type (and with it, the ability to run a real templated print
- * walk) is gone for good, not recoverable even one device at a time.
- * InGroup/OutGroup avoid this by construction: recursive inheritance over a
- * compile-time pack keeps every device's concrete type, so nav.doOutput(*p)
- * always sees the real chain — same approach the original v1/v2
- * implementation already used, restored here after the detour. Devices stay
- * plain OutDef<...>/InDef<...> — no vtables needed anywhere in this path.
+ * This deliberately does NOT build on InList<N>/OutList<N> (a runtime,
+ * virtual-dispatch device *list* — in.h/out.h): Menu::Part::printMenu
+ * (menu.h) calls `out.printMenu(*this,ctx)`, templated on the concrete item
+ * type — a template method can't be virtual, so IOut fundamentally can't
+ * expose it, and once a device is behind IOut& its concrete type (and with
+ * it, the ability to run a real templated print walk) is gone for good, not
+ * recoverable even one device at a time. InGroup/OutGroup avoid this by
+ * construction: recursive inheritance over a compile-time pack keeps every
+ * device's concrete type, so nav.doOutput(*p) always sees the real chain.
+ * Devices stay plain OutDef<...>/InDef<...> — no vtables needed anywhere in
+ * this path.
  *
  * Syntax fidelity: MENU_INPUTS/NAVROOT are byte-for-byte AM4 syntax. NONE
  * (AM4's own ">=2 items" placeholder) is an empty macro, same as AM4's own
@@ -633,29 +619,26 @@ namespace am4compat {
   auto id = ::oneMenu::OutGroup{__VA_ARGS__}
 
 /// @brief AM4 NAVROOT(id,menu,maxDepth,in,out) — maxDepth is accepted but
-///        deliberately still ignored, not cross-checked. Tried static_assert-ing
-///        it against `decltype(menu)::depth()` (OneMenu's own real nesting-depth
-///        member, nav.h) and immediately hit a semantics mismatch, not a bug:
-///        OneMenu's depth() counts differently from AM4's maxDepth (e.g. this
-///        file's own `mainMenu` — one submenu deep by AM4's counting — reports
-///        `depth()==3`, not 2). The two aren't the same quantity, so comparing
-///        them isn't a meaningful correctness check, just a false alarm waiting
-///        to happen for every real port. OneMenu doesn't need `maxDepth` for
-///        anything anyway — `TreeNav`'s own buffers are already sized from its
-///        own `depth()` internally (nav.h), independent of whatever the caller
-///        passes here — so the argument stays a pure syntax-compat placeholder.
-///        in/out must be InGroup/OutGroup (from MENU_INPUTS/MENU_OUTPUTS above),
-///        matching how real AM4 sketches always route through those macros
-///        even for a single device. id.poll() works exactly like AM4's
-///        navRoot::poll() — now oneMenu::Pool's own poll(), reached through
-///        ordinary chain inheritance instead of a separate wrapper type
-///        deriving from an already-built Nav. Nav chain includes EventDispatch
-///        (nav.h) so EventAction/onEvent (item.h) fire for macro-built menus —
-///        NAVROOT predates the event system and originally built a plain
-///        TreeNav chain with no event dispatch at all (see notes.md "AM4
-///        compat layer"). Pool must stay the
-///        *first* component listed here for its constructor to be reachable —
-///        see Pool's own doc comment (nav.h) for why.
+///        deliberately still ignored, not cross-checked against
+///        `decltype(menu)::depth()` (OneMenu's own real nesting-depth
+///        member, nav.h): OneMenu's depth() counts differently from AM4's
+///        maxDepth (e.g. this file's own `mainMenu` — one submenu deep by
+///        AM4's counting — reports `depth()==3`, not 2). The two aren't the
+///        same quantity, so comparing them wouldn't be a meaningful
+///        correctness check. OneMenu doesn't need `maxDepth` for anything
+///        anyway — `TreeNav`'s own buffers are already sized from its own
+///        `depth()` internally (nav.h), independent of whatever the caller
+///        passes here — so the argument stays a pure syntax-compat
+///        placeholder. in/out must be InGroup/OutGroup (from
+///        MENU_INPUTS/MENU_OUTPUTS above), matching how real AM4 sketches
+///        always route through those macros even for a single device.
+///        id.poll() works exactly like AM4's navRoot::poll() — now
+///        oneMenu::Pool's own poll(), reached through ordinary chain
+///        inheritance instead of a separate wrapper type deriving from an
+///        already-built Nav. Nav chain includes EventDispatch (nav.h) so
+///        EventAction/onEvent (item.h) fire for macro-built menus. Pool
+///        must stay the *first* component listed here for its constructor
+///        to be reachable — see Pool's own doc comment (nav.h) for why.
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::oneMenu::INavDef< \
       ::oneMenu::Pool<decltype(in), decltype(out)>, \
@@ -670,15 +653,15 @@ namespace am4compat {
  * RunLoop<mainFn> into a *specific* nav's INav is AM4-flavored wiring (AM4's
  * own nav.root->idleOn()/idleOff(), menuBase.h), so it stays entirely
  * compat-side, mirroring oneMenu::NavAPI/INavDef exactly plus the Run
- * binding (Rui, 2026-07-09: "AM4-port machinery should stay AM5/compat-side
- * unless it brings value to OneMenu itself").
+ * binding.
  */
 namespace am4compat {
   // Run is an already-built oneMenu::RunLoop<mainFn> TYPE, not mainFn
   // re-templated here — avr-g++ 7.3 rejects re-deriving a function-reference
-  // NTTP through a nested template instantiation (same quirk already hit
-  // twice this session: IdleTimeout, EDIT()'s editItem); taking Run as a
-  // type sidesteps it, same fix shape as IdleTimeout's own Run parameter.
+  // NTTP through a nested template instantiation (the same quirk
+  // IdleTimeout and EDIT()'s editItem also have to work around); taking Run
+  // as a type sidesteps it, same fix shape as IdleTimeout's own Run
+  // parameter.
   template<typename N, typename Run>
   struct NavRootAPI : N {
     using Base = N;
@@ -736,7 +719,7 @@ namespace am4compat {
 ///        backend adapter for the one output stack the native examples actually
 ///        use (`FullPrinter`/`ANSIFmt`/`ANSIOut`/`ConsoleOut`), following the
 ///        "components first, macros only for the AM4-call-site translation on
-///        top" principle (see notes.md "AM4 compat layer"). Plain OutDef<...>,
+///        top" principle. Plain OutDef<...>,
 ///        not IOutDef<...> — MENU_OUTPUTS's OutGroup keeps each device's
 ///        concrete type itself, no virtual dispatch needed here.
 #define ANSI_OUT(id, w, h) \
@@ -761,8 +744,7 @@ namespace am4compat {
 ///        compile time, so a *runtime* stream argument has nothing to bind
 ///        to. Real AM4 sketches pass literal Serial here anyway; passing
 ///        Serial1/Serial2 would silently still target Serial. Area is a fixed
-///        40x6 default (matches .RnD/am4compat's own SerialOut precedent) —
-///        AM4's own SERIAL_OUT has no area parameter to thread through either.
+///        40x6 default — AM4's own SERIAL_OUT has no area parameter to thread through either.
 ///        Arduino-only (like the real oneMenu::SerialOut it wraps). Plain
 ///        OutDef<...>, not IOutDef<...> — see ANSI_OUT's comment above.
 // NOTE: `return (dev);` — the extra parens are load-bearing, not decoration.
@@ -787,8 +769,8 @@ namespace am4compat {
 ///        adapted onto OneMenu's own native ANSI stack rather than bridged:
 ///        `ansiSerialOut.h` (like every AM4 driver written by the same author
 ///        as this compat layer) has no licensing reason to stay untouched
-///        the way third-party-contributed `menuIO/*.h` drivers do (Rui,
-///        2026-07-10) — this reuses `ANSIFmt`+`ANSIOut` (already proven via
+///        the way third-party-contributed `menuIO/*.h` drivers do — this
+///        reuses `ANSIFmt`+`ANSIOut` (already proven via
 ///        `ANSI_OUT`, console-only until now) over the real `SerialOut`
 ///        hardware sink (already proven via `SERIAL_OUT`, plain-text-only
 ///        until now) instead. Both are `aRawDevice`, so the swap is a
@@ -800,7 +782,7 @@ namespace am4compat {
 ///        depth display) is accepted but dropped — same "OneMenu doesn't
 ///        need AM4's own panel/paging bookkeeping, a single output area is
 ///        enough" precedent `NAVROOT`'s own `maxDepth` already established;
-///        a real multi-panel *OneMenu* layout isn't built (see notes.md).
+///        a real multi-panel *OneMenu* layout isn't built yet.
 ///
 ///        `colors` is the one genuine call-shape adaptation: AM4's `colors`
 ///        is a *runtime* `colorDef<uint8_t>[6]` array (6 named roles ×
@@ -832,8 +814,7 @@ namespace am4compat {
 namespace Menu {
   /// @brief AM4 serialIn(Stream&) — input device wrapper, real AM4 call shape
   ///        (`serialIn serial(Serial); MENU_INPUTS(in,&serial);`). Wraps the
-  ///        same compile-time Serial+key-parser chain shape
-  ///        .RnD/am4compat/.RnD/fielduino hand-wire
+  ///        native compile-time Serial+key-parser chain
   ///        (InDef<SerialIn,IdParser,PCKbd>) — MENU_INPUTS's InGroup keeps
   ///        each device's concrete type itself, no virtual dispatch needed
   ///        here (plain InDef<...>, not IInDef<...>). The Stream&
@@ -851,9 +832,9 @@ namespace Menu {
 namespace am4compat {
   /// @brief AM4's nav.timeOut/idleTask/nav.idleOn()/nav.sleepTask auto-idle
   /// trigger — adapted onto oneMenu::RunLoop (nav.h) purely from this compat
-  /// layer, no OneMenu header touched (Rui, 2026-07-09: AM4-port machinery
-  /// should stay AM5/compat-side unless it brings value to OneMenu itself —
-  /// RunLoop already does, this doesn't need to). Platform-agnostic (unlike
+  /// layer, no OneMenu header touched (AM4-port machinery stays
+  /// AM5/compat-side unless it brings value to OneMenu itself — RunLoop
+  /// already does, this doesn't need to). Platform-agnostic (unlike
   /// SERIAL_OUT/serialIn above, not gated on ARDUINO): RunLoop/hw::Timeout
   /// both already work natively too. TimeoutMs is AM4's nav.timeOut
   /// (inactivity window, ms); Run is an already-built oneMenu::RunLoop<mainFn>
@@ -861,14 +842,12 @@ namespace am4compat {
   /// re-deriving a RunFn (bool(&)()) NTTP through a nested template
   /// instantiation like this one ("not a valid template argument... must be
   /// the name of a function with external linkage"), the same family of
-  /// function-reference-as-NTTP quirk already documented elsewhere in this
-  /// file (Menu::doNothing/OP(), FIELD()'s noField()) — confirmed empirically
-  /// on real avr-g++ 7.3, not assumed; taking Run as a type sidesteps it
-  /// entirely since there's nothing left to re-derive. AM4's real 2-arg
-  /// idleTask(out,idleEvent) start/end signature isn't replicated — idleFn is
-  /// a plain bool(), same AltRunFn shape every other RunLoop alternative
-  /// already uses, matching this file's established "simplify the handler
-  /// shape" precedent (Confirm's systemExit, OP()'s Action<fn>).
+  /// function-reference-as-NTTP quirk documented elsewhere in this file
+  /// (Menu::doNothing/OP(), FIELD()'s noField()); taking Run as a type
+  /// sidesteps it entirely since there's nothing left to re-derive. AM4's
+  /// real 2-arg idleTask(out,idleEvent) start/end signature isn't
+  /// replicated — idleFn is a plain bool(), same AltRunFn shape every other
+  /// RunLoop alternative already uses.
   ///
   /// Usage (see examples/fullIdle): `using Run=oneMenu::RunLoop<mainFn>;
   /// using Idle=am4compat::IdleTimeout<50,Run>;` then call

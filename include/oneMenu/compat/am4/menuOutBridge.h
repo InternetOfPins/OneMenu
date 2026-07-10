@@ -5,27 +5,21 @@
  *        output calls onto AM4's real `Menu::menuOut` base interface,
  *        instead of a fresh native OneMenu backend per display library.
  *
- * Rui's direction (2026-07-09, notes.md "AM4 compat layer" — "AM4 output
- * device wrapper bridges"): keep AM4's own driver wrapper classes as-is
- * (GPL, user-contributed — don't touch the driver code), and adapt
- * OneMenu's own rendering calls onto the existing AM4 wrapper's API.
- *
- * First cut (see lcdBridge.h/u8g2Bridge.h, same date) built one adapter
- * struct per *concrete* AM4 driver type (`Menu::liquidCrystalOut`,
- * `Menu::u8g2Out`). Revised here, per Rui's own follow-up ("use OneMenu <->
- * AM4 [output] api to do the job over them all"): AM4's own `write`/
- * `setCursor`/`clear`/`setColor`/`box`/`rect`/`clearLine` are already
- * **virtual on the `Menu::menuOut` base itself** (`menuIo.h` — `write` via
- * `Print`, the rest declared directly on `menuOut`; `Menu::gfxOut`/
- * `Menu::cursorOut` don't add new virtuals beyond that, just state and
- * overrides) — confirmed directly against AM4's real source, not assumed.
- * That means ONE bridge, written against `Menu::menuOut&`, works
- * polymorphically for *every* AM4 `menuIO` driver — `liquidCrystalOut`,
- * `u8g2Out`, `adaGfxOut`, `UCGLibOut`, `TFT_eSPIOut`, `SSD1306AsciiOut`,
- * `OzOledAsciiOut`, ... — without a new adapter struct per driver. Adding
- * support for a new AM4 driver from here on is "construct it, upcast to
- * `Menu::menuOut&`, call `MenuOutBridge<W,H>::begin(driver)`" — no new
- * bridge code.
+ * Design direction: keep AM4's own driver wrapper classes as-is (GPL,
+ * user-contributed — don't touch the driver code), and adapt OneMenu's own
+ * rendering calls onto the existing AM4 wrapper's API, targeting the base
+ * interface rather than one adapter per concrete driver type: AM4's own
+ * `write`/`setCursor`/`clear`/`setColor`/`box`/`rect`/`clearLine` are
+ * already **virtual on the `Menu::menuOut` base itself** (`menuIo.h` —
+ * `write` via `Print`, the rest declared directly on `menuOut`;
+ * `Menu::gfxOut`/`Menu::cursorOut` don't add new virtuals beyond that, just
+ * state and overrides). That means ONE bridge, written against
+ * `Menu::menuOut&`, works polymorphically for *every* AM4 `menuIO` driver —
+ * `liquidCrystalOut`, `u8g2Out`, `adaGfxOut`, `UCGLibOut`, `TFT_eSPIOut`,
+ * `SSD1306AsciiOut`, `OzOledAsciiOut`, ... — without a new adapter struct
+ * per driver. Adding support for a new AM4 driver from here on is
+ * "construct it, upcast to `Menu::menuOut&`, call
+ * `MenuOutBridge<W,H>::begin(driver)`" — no new bridge code.
  *
  * `Menu::menuOut`-derived drivers all need `idx_t* tops` + `panelsList&` in
  * their constructor — AM4's own multi-panel/scroll bookkeeping. This bridge
@@ -39,11 +33,10 @@
  * Real AM4 dependency, not this repo's own am4.h shim: `Menu::` here is the
  * *real* upstream ArduinoMenu library's namespace, not am4.h's own thin
  * syntax-compat `namespace Menu{ enum EventMask...; }` shim — a project
- * embedding this bridge needs the real AM4 library as a dependency (same
- * `lib_deps=ArduinoMenu=...` convention every `.RnD/AM4check` "-original"
- * harness already uses), separate from am4.h itself. Deliberately kept out
- * of am4.h's own unconditional include chain — only a sketch that actually
- * wants this reuse includes it.
+ * embedding this bridge needs the real AM4 library as a dependency (e.g. a
+ * `lib_deps=ArduinoMenu=...` entry), separate from am4.h itself.
+ * Deliberately kept out of am4.h's own unconditional include chain — only a
+ * sketch that actually wants this reuse includes it.
  */
 #pragma once
 

@@ -66,8 +66,8 @@ namespace oneMenu {
   /// component nested in OO... can reach the fully-assembled IItemDef&, and
   /// through it, IItem& (see EventActionItem below) — a plain static_cast from
   /// inside OO... can't reach IItem& otherwise, since IItemDef puts IItem and
-  /// OO... on separate multiple-inheritance branches (verified empirically:
-  /// neither static_cast nor dynamic_cast can bridge that gap without this).
+  /// OO... on separate multiple-inheritance branches (neither static_cast nor
+  /// dynamic_cast can bridge that gap without this).
   template<typename Cfg,typename... OO>
   struct ItemDefC:APIOf<ItemAPI<Cfg>,OO...>{
     using Base=APIOf<ItemAPI<Cfg>,OO...>;
@@ -155,10 +155,10 @@ namespace oneMenu {
     /// through IItem's own vtable to whatever the real most-derived 1-arg
     /// override is, unlike a plain (non-virtual) compile-time component
     /// trying the identical "call back to the 1-arg form" trick, which
-    /// would statically bind to its own lexical scope instead (confirmed
-    /// empirically — see IItemDef::onEvent(EventMask,INav&) below, and
-    /// HasNavOnEvent's own doc comment, for why that path needs a different
-    /// approach instead of this same default).
+    /// would statically bind to its own lexical scope instead — see
+    /// IItemDef::onEvent(EventMask,INav&) below, and HasNavOnEvent's own
+    /// doc comment, for why that path needs a different approach instead
+    /// of this same default.
     virtual bool onEvent(EventMask e, INav&) {return onEvent(e);}
 
     template <typename Out>
@@ -175,10 +175,8 @@ namespace oneMenu {
   // 2-arg onEvent whose body tried to call back into the item's own 1-arg
   // onEvent(e) would be a real static-dispatch trap for any such
   // *non-virtual* chain (a Part<N> method reaching only its own lexical
-  // scope, not a more-derived override — the same family of bug already on
-  // file elsewhere in this codebase; confirmed empirically with a
-  // standalone prototype before this was written) — there's no vtable to
-  // save it there the way there is for IItem's own 2-arg default above. So
+  // scope, not a more-derived override) — there's no vtable to save it
+  // there the way there is for IItem's own 2-arg default above. So
   // instead: no default at all in the compile-time chain, and callers (this
   // trait's two users: IItemDef::onEvent below, and nav.h's EventDispatch)
   // check first, falling back to the ordinary 1-arg onEvent(e) — which for
@@ -205,11 +203,9 @@ namespace oneMenu {
     // known Out& type, not IOut& — it has the concrete IItemDef<...> type in
     // hand (i's static type), so it never goes through virtual dispatch at
     // all. Without this, only the IOut&-typed virtual overload below is
-    // visible, and a concrete OutDef<...> doesn't convert to IOut& (found by
-    // finally composing an IItemDef into a body that's actually printed via
-    // nav.printTo(), first time ever — the earlier standalone nav-only check
-    // never exercised printing). The templated Base::printItem and the
-    // virtual IOut&-typed one below are different signatures, so both stay
+    // visible, and a concrete OutDef<...> doesn't convert to IOut&. The
+    // templated Base::printItem and the virtual IOut&-typed one below are
+    // different signatures, so both stay
     // selectable — same non-colliding-overload shape as `nav` above.
     using Base::printItem;
 
@@ -303,21 +299,19 @@ namespace oneMenu {
 
   /// @brief AM4-parity event handler that also hands the item itself to fn —
   /// closest match to AM4's real result(eventMask,navNode&,prompt&) shape
-  /// (the navNode& half isn't provided; see notes.md's open question on a
-  /// nav-context variant). Requires the item be built as IItemDef<...>, not
-  /// plain ItemDef<...>: IItem& is only reachable via IItemDef's own CRTP
-  /// self-reference (ItemDefC's Cfg slot, see IItemDef above) — a plain
-  /// ItemDef<...> has no such anchor and no IItem base to cast to. This is
-  /// the vtable-cost sibling of EventAction: use EventAction for the
-  /// zero-cost case, this one only where AM4-compat needs the item reference
-  /// (e.g. am4.h's OP()) and the escape-hatch cost is already accepted.
+  /// (the navNode& half isn't provided). Requires the item be built as
+  /// IItemDef<...>, not plain ItemDef<...>: IItem& is only reachable via
+  /// IItemDef's own CRTP self-reference (ItemDefC's Cfg slot, see IItemDef
+  /// above) — a plain ItemDef<...> has no such anchor and no IItem base to
+  /// cast to. This is the vtable-cost sibling of EventAction: use
+  /// EventAction for the zero-cost case, this one only where AM4-compat
+  /// needs the item reference (e.g. am4.h's OP()) and the escape-hatch cost
+  /// is already accepted.
   using EventFuncItemPtr=bool(*)(EventMask,IItem&);
 
-  /// mask/fn are runtime constructor-set members, not NTTPs (2026-07-10) —
-  /// see am4.h's EventActionItemNav (this component's nav-carrying sibling)
-  /// for the full reasoning and the measured size impact: this component
+  /// mask/fn are runtime constructor-set members, not NTTPs: this component
   /// only ever gets used behind IItemDef (virtual dispatch already paid
-  /// for), so baking mask/fn into the type bought nothing except one
+  /// for), so baking mask/fn into the type would buy nothing except one
   /// distinct class instantiation per (mask,fn) pair at every OP() call
   /// site, byte-identical except for which mask/fn it closed over.
   struct EventActionItem {
@@ -337,11 +331,10 @@ namespace oneMenu {
   };
 
   /// @brief scrolling/marquee text for a long item label — animates only while the item
-  /// is focused (matches AM22's `TextRoller`/`TextRoll`, the one working prior-art
-  /// implementation across the whole AM4/AM5/AM22-AM26 lineage — see notes.md
-  /// "Animation"). Wraps a text component (StaticText, MultiLangText, ...) that provides
-  /// get(): const char* — same "measure then decide how to print" shape as
-  /// oneData::Decimals, not a plain pass-through decorator.
+  /// is focused (matches AM22's `TextRoller`/`TextRoll`). Wraps a text component
+  /// (StaticText, MultiLangText, ...) that provides get(): const char* — same
+  /// "measure then decide how to print" shape as oneData::Decimals, not a plain
+  /// pass-through decorator.
   ///
   /// @tparam cps scroll speed in characters per second (advance one character every
   ///             1000/cps ms, via OneChip's hw::Period — see clock.h)
@@ -358,8 +351,8 @@ namespace oneMenu {
   /// rollPos is genuine per-item state (not the shared/static state AM22 used) — a
   /// blurred item simply stops advancing (tick() is only ever dispatched to the
   /// currently-focused item by TickFocus, nav.h) and resumes mid-scroll on refocus,
-  /// deliberately not reset — same "no reset on blur" behavior notes.md's research found
-  /// in AM22, just achieved by dispatch instead of a shared static.
+  /// deliberately not reset — same "no reset on blur" behavior AM22 has, just
+  /// achieved by dispatch instead of a shared static.
   template<Sz cps, Sz pad=1>
   struct TextRoll {
     template<typename O>
@@ -530,9 +523,9 @@ namespace oneMenu {
       constexpr bool valid() const {return Base::valid(get());}
       constexpr bool clamp() {return Base::set(Base::clamp(get()));}
 
-      // Digit-literal accumulator (2026-07-09, "numeric fields ... need to
-      // deliver Cmd::Key when nav is on edit mode" — see nav.h's IndexGo,
-      // idParser.h). AM4's own menuField::parseInput reads a whole numeric
+      // Digit-literal accumulator: numeric fields need to deliver Cmd::Key
+      // when nav is on edit mode (see nav.h's IndexGo, idParser.h). AM4's
+      // own menuField::parseInput reads a whole numeric
       // token in one stream call (in.parseFloat()); OneMenu's nav()
       // processes one keypress per call, so the literal is built up across
       // multiple nav() invocations instead, then handed to Base::setStr
@@ -908,17 +901,15 @@ namespace oneMenu {
           // renders this row big (e.g. GfxFmt's item-level big font) costs 2 — and at this point
           // big-font state (if any) is still active, so a Cursor<...,LnH> with a dynamic
           // line-height fn already reports the right number here. Reserving a fixed 1 for a
-          // big row under-reserves by one and overshoots — see notes.md for the
-          // FullScreen big-font bug this fixes.
+          // big row under-reserves by one and overshoots.
           if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
             // GFX outputs (HasFillRect via aFillRect, e.g. OledOut): one native-coord rect
             // fill instead of a clearToEOL()+nl() per row. free().y here still includes the
             // current (just-printed, not yet closed) row — fill only what's *below* it
             // (p.y+L onward), never the row itself: text was drawn there via
             // Base::printItem(out,ctx) just above, and fillRect must never re-touch pixels
-            // the item's own content already owns (see notes.md/
-            // [[project_fullscreen_nav_redraw_bug]] bug #3 — fillRect starting *at* p.y
-            // instead of p.y+L silently painted over the just-drawn text on real hardware).
+            // the item's own content already owns — starting the fill *at* p.y instead of
+            // p.y+L would paint over the just-drawn text.
             Sz L = out.lineHeight();
             Area f = out.free();
             if(f.y>L) {
@@ -974,7 +965,7 @@ namespace oneMenu {
   /// sibling will still consume.
   /// Left/Center/Right must each be a standalone printable+constructible type (print(out) const,
   /// printItem(out,ctx)) — typically an ItemDef<...>. nav()/setStr()/changed()/sync()/etc. are
-  /// forwarded to Center (2026-07-06 — see Part below) so an editable field placed there works
+  /// forwarded to Center (see Part below) so an editable field placed there works
   /// correctly, matching CenterRow's own established convention (Left/Right empty, real content
   /// in Center); Left/Right stay structural/display-only.
   /// Adequate for small (single-line) devices; a fuller layout (rows of Rows, VAlign, etc.) can
@@ -988,11 +979,11 @@ namespace oneMenu {
       Center centerItem{};
       Right  rightItem{};
 
-      // Forward the interactive surface to centerItem — same fix, same reasoning, as
+      // Forward the interactive surface to centerItem — same reasoning as
       // Rows's forwarding to bodyItem below: Left/Right are structural (matching
       // CenterRow's own established convention of empty Left/Right placeholders, real
       // content always in Center), and without this an editable field placed in Center
-      // would silently never receive nav()/setStr() (feedback_row_breaks_field_editing),
+      // would silently never receive nav()/setStr(),
       // NOR would its own changed() reach the outer redraw-gating — the latter isn't just
       // cosmetic: TreeNav::changed(out) only re-probes the print tree when nav-level state
       // (level/navMode/selection) is unchanged, which is exactly the case for adjusting an
@@ -1042,7 +1033,7 @@ namespace oneMenu {
             // GFX outputs: clean the whole row with one native-coord rect fill first, then
             // position each of Left/Center/Right by its exact measured pixel offset — same
             // "clear background first, text always has the last word on its own pixels"
-            // idiom as FullScreen's own fillRect (see notes.md's FullScreen bug writeup),
+            // idiom as FullScreen's own fillRect,
             // rather than approximating position via padWith(N space glyphs), which floors
             // to whole-glyph increments and can leave up to one glyph-width of visible
             // off-center error on a real pixel-addressable device.
@@ -1051,10 +1042,9 @@ namespace oneMenu {
             // fillRect moves the *driver's own* internal cursor to the far edge of
             // whatever it just filled (Ssd1306::fillRect, OneIO) — separate from the
             // logical Cursor's own m_at, which fillRect never touches. Resync explicitly
-            // before leftFn() rather than assume it's still at `start` (found the hard
-            // way — see gfxFmt.h's roleBig-tagged fmtStart comment for the same bug in a
-            // different spot). Currently harmless here since every real Left is empty,
-            // but latent otherwise.
+            // before leftFn() rather than assume it's still at `start` — same pitfall as
+            // gfxFmt.h's roleBig-tagged fmtStart. Currently harmless here since every real
+            // Left is empty, but latent otherwise.
             out.setPos(start);
             leftFn();
             out.setPos({start.x+leftW+centerOffset, start.y});
@@ -1129,10 +1119,9 @@ namespace oneMenu {
       // to be interactive themselves. Without this, an editable field (NumField/EditField)
       // placed as Body would print correctly but silently never receive nav()/setStr(),
       // and its own changed()/sync() would never reach the outer redraw-gating — same
-      // "display-only, editing silently doesn't work" restriction already documented for
-      // Row's Left/Center/Right (feedback_row_breaks_field_editing) — fixed here rather
-      // than left as a limitation, since a real editable field vertically laid out under
-      // its own label is the actual motivating case (see notes.md "lolin32 demo styling").
+      // "display-only, editing silently doesn't work" restriction Row's Left/Center/Right
+      // have — fixed here rather than left as a limitation, since a real editable field
+      // vertically laid out under its own label is a real use case.
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path p) {return bodyItem.template nav<isKbd>(n,cke,p);}
       template<typename Nav,typename P>
@@ -1185,7 +1174,7 @@ namespace oneMenu {
           // a space glyph actually blanks the underlying pixels depends on the font
           // renderer's own background-fill behavior, not guaranteed the way a real
           // fillRect is. Same "clean via rectangle, then reposition" fix as FullScreen's
-          // own padding (item.h, printed-with-one-fillRect-not-a-clearLine-loop).
+          // own padding.
           if constexpr(hapi::query<IsFillRect,typename Out::Types>) {
             if(topPad>0) {
               Pos p=out.getPos();

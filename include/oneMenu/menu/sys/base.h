@@ -17,12 +17,11 @@
   // No <iostream> here — nothing in base.h uses it (only debug.h's
   // MENU_DEBUG-gated std::cerr does, and it includes it itself now;
   // streamOut.h's ConsoleOut also self-includes it). Including it
-  // unconditionally here used to force libstdc++'s iostream/locale
-  // static-init machinery into every non-AVR build regardless of platform
-  // or actual usage — real cost on embedded non-AVR targets (ESP32/STM32
-  // under Arduino framework), see OneOutput's oneOutput.h for the other
-  // (bigger) half of this same fix and OneMenu/.RnD/mem.md for the measured
-  // effect.
+  // unconditionally here would force libstdc++'s iostream/locale static-init
+  // machinery into every non-AVR build regardless of platform or actual
+  // usage — real cost on embedded non-AVR targets (ESP32/STM32 under
+  // Arduino framework). See OneOutput's oneOutput.h for the other half of
+  // this same fix.
   #include <cstdint>
   #include <cassert>
   #include <type_traits>
@@ -80,7 +79,7 @@ namespace oneMenu {
     Cmd  cmd = Cmd::None;
     Key  key = 0;
     bool ext = false;
-    bool kbd = false;  // true for raw keyboard key events (was isKbd template param)
+    bool kbd = false;  // true for raw keyboard key events
   };
 
   template<typename Cor> struct Colors{Cor fg;Cor bg;};

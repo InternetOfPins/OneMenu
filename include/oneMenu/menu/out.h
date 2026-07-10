@@ -95,14 +95,13 @@ namespace oneMenu {
     virtual void put(const char)=0;
     virtual void put(const char*)=0;
     virtual void put(const char*,Sz)=0;
-    // No separate `const char* const*&` overload: it existed once but every
-    // concrete Base::put() it forwarded to (DataParser::put, e.g.) only ever
-    // took this by value, and grepping the whole codebase found no call site
-    // exploiting reference semantics — it was dead weight, and a genuine
-    // landmine: a plain lvalue argument matches both a by-value and a
+    // No separate `const char* const*&` overload: every concrete Base::put()
+    // this forwards to (DataParser::put, e.g.) only ever takes this by
+    // value, so a reference overload would be dead weight and a genuine
+    // landmine — a plain lvalue argument matches both a by-value and a
     // by-reference overload of the identical pointee type equally well,
     // making put(const char* const*) ambiguous the moment anything (OutList,
-    // out.h) actually calls it through an IOut* — caught building OutList.
+    // out.h) actually calls it through an IOut*.
     virtual void put(const char* const*)=0;
 
     template<Fmt tag> void fmtStart(const Ctx& ctx) {fmtStart(tag,ctx);}
@@ -186,13 +185,13 @@ namespace oneMenu {
   // compile-time device chain fusing multiple physical sources already
   // fires every put().
   //
-  // Real limit, worth recording precisely (found building this, 2026-07-07):
-  // this canNOT drive a *whole menu tree* through nav.doOutput()/printTo() —
-  // not even one device at a time, once erased. Menu::Part::printMenu
-  // (menu.h) calls `out.printMenu(*this,ctx)`, templated on the concrete
-  // item type; a template method can't be virtual, so IOut fundamentally
-  // cannot expose it, and once a device is behind IOut& its concrete type is
-  // gone — nav.doOutput(*someIOutPtr) fails to compile regardless of what's
+  // Real limit, worth recording precisely: this canNOT drive a *whole menu
+  // tree* through nav.doOutput()/printTo() — not even one device at a time,
+  // once erased. Menu::Part::printMenu (menu.h) calls
+  // `out.printMenu(*this,ctx)`, templated on the concrete item type; a
+  // template method can't be virtual, so IOut fundamentally cannot expose
+  // it, and once a device is behind IOut& its concrete type is gone —
+  // nav.doOutput(*someIOutPtr) fails to compile regardless of what's
   // actually behind the pointer. OutList is genuinely useful only for the
   // low-level put-broadcast case (e.g. mirroring identical bytes to two same-
   // format sinks), not for AM4-compat's MENU_OUTPUTS (heterogeneous devices,
@@ -200,7 +199,7 @@ namespace oneMenu {
   // device's concrete type via a compile-time pack instead of erasing it.
   //
   // Fixed-capacity array, not a dynamic container — no heap, no std::
-  // dependency (AVR has no libstdc++; see notes.md/project_avr_no_libstdcxx).
+  // dependency (AVR has no libstdc++).
   /// @brief runtime list of IOut* sinks; itself a valid IOut (mirrors InList).
   ///        Low-level put-broadcast only — see class comment for why it can't
   ///        drive a real menu tree; use OutGroup (below) for that instead.
@@ -250,10 +249,10 @@ namespace oneMenu {
   // Compile-time-fixed pack of independent output devices — the tool
   // OutList's own doc comment points to for AM4-compat's MENU_OUTPUTS: each
   // Outs* keeps its own concrete type via recursive inheritance (no
-  // std::tuple/std::apply — neither exists on AVR, see notes.md/
-  // project_avr_no_libstdcxx), so nav.doOutput(*p) always sees the device's
-  // real chain and can run the full templated print walk — unlike OutList's
-  // IOut*, this never erases the type that walk needs. Zero vtable cost:
+  // std::tuple/std::apply — neither exists on AVR), so nav.doOutput(*p)
+  // always sees the device's real chain and can run the full templated
+  // print walk — unlike OutList's IOut*, this never erases the type that
+  // walk needs. Zero vtable cost:
   // devices can be plain OutDef<...>, no IOutDef<...> needed. doOutput(Nav&)
   // evaluates every member unconditionally (not short-circuited by ||) —
   // "poll everything" semantics, matching how a compile-time OutDef<KK...>

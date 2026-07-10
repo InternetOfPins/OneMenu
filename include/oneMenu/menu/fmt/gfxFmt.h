@@ -137,34 +137,33 @@ namespace oneMenu {
 
       // Unconditional — deterministic solely from ctx/tag, matching Fmt::Item's own
       // fillRect+setBigFont pattern below, NOT comparing against the driver's current
-      // _big_font state (lineHeight()>1). That comparison was the actual bug (found via
-      // real hardware + Rui's own diagnosis, 2026-07-06): setBigFont() isn't Gate-guarded
-      // (Gate's Part only wraps put/fillRect/setPos/etc — see out.h — never setBigFont),
-      // so it takes real, permanent effect even during a Measure/Changed probe pass.
-      // StaticBody::changed() (staticBody.h) checks *every* item's changed(), regardless
-      // of which one is actually selected/visible — so a probe pass touching an unrelated
+      // _big_font state (lineHeight()>1): setBigFont() isn't Gate-guarded (Gate's Part
+      // only wraps put/fillRect/setPos/etc — see out.h — never setBigFont), so it takes
+      // real, permanent effect even during a Measure/Changed probe pass. StaticBody::
+      // changed() (staticBody.h) checks *every* item's changed(), regardless of which
+      // one is actually selected/visible — so a probe pass touching an unrelated
       // Rows-based item's Field/Unit could flip the *real* driver font state, and nothing
-      // guaranteed it flipped back before the next real draw of a *different*, currently-
-      // visible item. Comparing to live state made the decision depend on that leaked
-      // history instead of being a pure function of this call's own tag/ctx — always
-      // fillRect+setBigFont+setPos here (same as Fmt::Item) removes the dependency
-      // entirely: same tag+ctx always does the same thing, no matter what ran before.
-      // Restores position to `p` (where it actually was), NOT orgX — two distinct real
-      // bugs found on real hardware chasing this, in order:
-      // 1. First version reset to {orgX,p.y} unconditionally — clobbered Row's own
-      //    centering (Row::rowPrint's out.setPos({start.x+leftW+centerOffset,...}) before
-      //    calling centerFn()), always yanking content back to the left edge.
-      // 2. Removing the setPos entirely (to fix #1) broke it a different way:
-      //    Ssd1306::fillRect (OneIO) updates the *driver's own* internal cursor
-      //    (_col=col_pix+w_pix, _page=...) to the far edge of whatever it just filled —
-      //    a real device-level side effect, separate from the logical Cursor's m_at
-      //    (fillRect doesn't touch that). With no setPos after fillRect, the physical
-      //    device cursor is left at the fill's far edge while m_at still (correctly)
-      //    says `p` — next character print goes to the *device's* stale position, not
-      //    where the logical cursor claims to be. Same class of physical/logical resync
-      //    gap as ItemPrinter::printItem's own `setPos(getPos())` idiom (printers.h) for
-      //    a force-unlocked row. Fix: restore to `p` specifically (not orgX) — re-syncs
-      //    the device to the position Row/Rows actually established, wherever that is.
+      // guarantees it flips back before the next real draw of a *different*, currently-
+      // visible item. Comparing to live state would make the decision depend on that
+      // leaked history instead of being a pure function of this call's own tag/ctx —
+      // always fillRect+setBigFont+setPos here (same as Fmt::Item) removes the
+      // dependency entirely: same tag+ctx always does the same thing, no matter what ran
+      // before.
+      // Restores position to `p` (where it actually was), NOT orgX:
+      // - Resetting to {orgX,p.y} unconditionally would clobber Row's own centering
+      //   (Row::rowPrint's out.setPos({start.x+leftW+centerOffset,...}) before calling
+      //   centerFn()), yanking content back to the left edge.
+      // - Omitting setPos after fillRect leaves the physical device cursor stale:
+      //   Ssd1306::fillRect (OneIO) updates the *driver's own* internal cursor
+      //   (_col=col_pix+w_pix, _page=...) to the far edge of whatever it just filled —
+      //   a real device-level side effect, separate from the logical Cursor's m_at
+      //   (fillRect doesn't touch that). With no setPos after fillRect, the physical
+      //   device cursor sits at the fill's far edge while m_at still (correctly) says
+      //   `p` — the next character print would go to the *device's* stale position, not
+      //   where the logical cursor claims to be. Same class of physical/logical resync
+      //   gap as ItemPrinter::printItem's own `setPos(getPos())` idiom (printers.h) for
+      //   a force-unlocked row. Restoring to `p` specifically (not orgX) re-syncs the
+      //   device to the position Row/Rows actually established, wherever that is.
       template<Fmt tag>
       std::enable_if_t<tag&(Fmt::Label|Fmt::Field|Fmt::EditMode)>
       fmtStart(const Ctx& ctx) {

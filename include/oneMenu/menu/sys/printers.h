@@ -189,15 +189,13 @@ namespace oneMenu {
   /// @brief like ScrollBodyPrinter, but skips the scroll-search entirely — top is always
   /// exactly ctx.sel(). There's no window to search for: a FullScreen item (item.h)
   /// always consumes the whole page, so "increasing top eventually fits more items"
-  /// (ScrollBodyPrinter::printMenu's own search invariant) can never become true here.
-  /// Forcing FullScreen through that search produced a real, unconditional infinite loop
-  /// and a stale-position bug (both found+fixed 2026-07-05 — see notes.md/
-  /// [[project_fullscreen_nav_redraw_bug]] in memory) — rather than keep patching around
-  /// a function built for a different case, this gives the case its own dedicated path
-  /// (see [[feedback_dedicated_over_extended_function]]).
+  /// (ScrollBodyPrinter::printMenu's own search invariant) can never become true here;
+  /// forcing FullScreen through that search risks an infinite loop and a stale
+  /// position, so this case gets its own dedicated path instead of patching a function
+  /// built for a different case.
   /// Deliberately reuses ScrollBodyPrinter::Part's own printItem unchanged (its
-  /// skip-before-top / stop-when-full gating was always correct — only the *search* for
-  /// top was ever the bug) by inheriting from it and overriding only printMenu, then
+  /// skip-before-top / stop-when-full gating applies equally here — only the *search*
+  /// for top is skipped) by inheriting from it and overriding only printMenu, then
   /// calling straight through to BodyPrinter::Part::printMenu (ScrollBodyPrinter's own
   /// Base) instead of ScrollBodyPrinter::Part::printMenu — skipping its search loop.
   struct SelectBodyPrinter : aPrinter, aScrollBody {

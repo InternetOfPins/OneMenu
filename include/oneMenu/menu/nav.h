@@ -76,9 +76,8 @@ namespace oneMenu {
     using Base::Base;
   };
 
-  // Moved up from their old position (just above RunLoop, further down) —
-  // INav::idleOn's signature needs AltRunFn. RunLoop itself is unchanged,
-  // still declared where it was.
+  // Declared here (rather than next to RunLoop, further down) because
+  // INav::idleOn's signature needs AltRunFn.
   using RunFn = bool(&)();
   using AltRunFn = bool(*)();
 
@@ -89,10 +88,10 @@ namespace oneMenu {
   /// forward them. idling()/idleOn()/idleOff() default to a total no-op —
   /// core INav doesn't know or care whether any concrete nav chain is bound
   /// to a real RunLoop<mainFn> (below, this file) — that's AM4-flavored
-  /// wiring for a *particular* sketch's mainFn (Rui, 2026-07-09: "AM4-port
-  /// machinery should stay AM5/compat-side unless it brings value to
-  /// OneMenu itself" — RunLoop itself already does, this binding doesn't
-  /// need to). Plain INavDef therefore compiles unchanged with zero new
+  /// wiring for a *particular* sketch's mainFn (AM4-port machinery stays
+  /// AM5/compat-side unless it brings value to OneMenu itself — RunLoop
+  /// itself already does, this binding doesn't need to). Plain INavDef
+  /// therefore compiles unchanged with zero new
   /// obligation; only am4compat::NavRootDef (am4.h) overrides these three
   /// to forward into a real RunLoop<mainFn> — see that type's own doc
   /// comment.
@@ -157,11 +156,9 @@ namespace oneMenu {
   };
 
   /// @brief fuses input+output for one nav: the small "poll everything, redraw if
-  ///        changed" cycle every sketch otherwise hand-writes itself in loop()/run()
-  ///        (see notes.md "AM4 compat layer" — this used to live only as
-  ///        am4compat::AM4Nav, a wrapper *outside* the nav chain; promoted here so
-  ///        it composes like any other nav component instead of needing its own
-  ///        separately-built Nav type to derive from).
+  ///        changed" cycle every sketch otherwise hand-writes itself in loop()/run().
+  ///        Composes like any other nav component instead of needing its own
+  ///        separately-built Nav type to derive from.
   ///
   ///        Deliberately generic over InG/OutG, NOT type-erased (IIn&/IOut&) —
   ///        m_in.doInput(...)/m_out.doOutput(...) are both template calls, so
@@ -172,8 +169,7 @@ namespace oneMenu {
   ///        also zero vtable cost, a compile-time pack that keeps every
   ///        device's own concrete type (needed: Menu::Part::printMenu is
   ///        templated on the item type, so it can't cross a type-erased IOut&
-  ///        boundary at all — tried, see notes.md "AM4 compat layer" for the
-  ///        detour). InList<N>/OutList<N> (genuinely runtime-picked/
+  ///        boundary at all). InList<N>/OutList<N> (genuinely runtime-picked/
   ///        hot-swappable devices) stay usable as InG, but OutList can't
   ///        drive a real menu tree for the same reason — see its own comment
   ///        (out.h).
@@ -212,9 +208,9 @@ namespace oneMenu {
       // needed here rather than `*this` alone for a *different*, unrelated
       // reason: doOutput() lives on DefinedNav, which *wraps* the whole
       // component chain from outside (nav.h, top of file), not inside it —
-      // Base=N only reaches downward into the rest of the II... pack, the
-      // same static-dispatch trap documented elsewhere in this codebase
-      // (feedback_hapi_static_dispatch). obj() casts to the fully-assembled
+      // Base=N only reaches downward into the rest of the II... pack, so a
+      // plain `*this` call would statically bind to this scope and miss
+      // doOutput entirely. obj() casts to the fully-assembled
       // type, which *does* inherit doOutput, so `nav.doOutput(*device)`
       // inside OutG's own doOutput(Nav&) resolves correctly once Base::obj()
       // is what gets passed in as `nav`.
@@ -389,8 +385,7 @@ namespace oneMenu {
   // still reached even though it dispatches from here, not from TreeNav::Part::in().
   // While a field is being edited (NavMode::Edit), digit keys are redelivered as a
   // literal Cmd::Key instead of jumping to item N — see idParser.h/item.h's NumField
-  // for the other two pieces of this (2026-07-09, "numeric fields ... need to deliver
-  // Cmd::Key when nav is on edit mode, instead of the nav go()").
+  // for the other two pieces of this.
   /// @brief nav component that handles Cmd::Go: jumps to item N at the current level by index
   struct IndexGo {
     template<typename N>
@@ -424,8 +419,7 @@ namespace oneMenu {
 
   /// @brief AM4-parity event dispatch: detects nav-level state transitions (selection
   /// and level changes) and raises EventMask events to the affected item's onEvent()
-  /// hook (item.h) — see notes.md "AM4 compat layer" for the AM4 event catalog this
-  /// targets. Place above TreeNav: NavDef<EventDispatch, TreeNav, Root<...>>.
+  /// hook (item.h). Place above TreeNav: NavDef<EventDispatch, TreeNav, Root<...>>.
   ///
   /// v1 scope: only Enter/Exit/Focus/Blur are raised; selFocus/selBlur/updateEvent/
   /// activateEvent are real AM4 features not implemented here yet.
@@ -443,7 +437,7 @@ namespace oneMenu {
   namespace detail {
     // Detects "does this item have a nested .body" (i.e. it's an ItemDef<Menu<...>>) —
     // std::void_t/declval come from HAPI's avr_std.h shim on AVR (no <type_traits> there
-    // at all — see project_avr_no_libstdcxx), from real <type_traits> elsewhere.
+    // at all), from real <type_traits> elsewhere.
     template<typename T, typename = void> struct HasBody : std::false_type {};
     template<typename T> struct HasBody<T, std::void_t<decltype(std::declval<T&>().body)>> : std::true_type {};
 
@@ -520,19 +514,14 @@ namespace oneMenu {
     };
   };
 
-  /// @brief the "alternative poll handler" pattern, formalized — was hand-
-  /// duplicated across examples/fields, .RnD/fields, .RnD/picoMenu,
-  /// .RnD/neurMenu as a plain `RunFn activeRun` swapped by `showIdle()`/
-  /// `showPrompt()`/etc (Rui, 2026-07-09: "that part of alternative
-  /// handling must be integrated in OneMenu because we use it for other
-  /// purposes"). Confirmed against `.RnD/fields`'s own real, hardware-
-  /// verified code (not assumed): `run()` is `if(fps){fps.reset();
-  /// activeRun();}` — no branching, no null-check anywhere; `activeRun`
-  /// always points at a valid function, and "restoring normal operation"
-  /// (`action::ok()`, `idleRun()`) means reassigning it back to `mainRun`,
-  /// not to null — simpler than AM4's own internal `sleepTask` (which
-  /// really does use `NULL`+a check, confirmed against nav.cpp), and this
-  /// is what the pattern already does in practice in this codebase.
+  /// @brief the "alternative poll handler" pattern: a single active handler,
+  /// swapped by idleOn()/idleOff() to show an idle screen, a dialog, or
+  /// anything else that should take over the poll loop. `run()` always
+  /// calls `alternative()` unconditionally — no null-check, since
+  /// `alternative` always points at a valid function. "Restoring normal
+  /// operation" means reassigning it back to `mainFn`, not to null —
+  /// simpler than AM4's own internal `sleepTask`, which does use NULL+a
+  /// check.
   ///
   /// `mainFn` is a compile-time NTTP (the common case never changes at
   /// runtime, so it costs nothing to fix at compile time — same convention
@@ -540,14 +529,11 @@ namespace oneMenu {
   /// runtime-swappable slot, since which alternative runs (idle screen,
   /// which dialog, ...) is a real runtime decision. Each handler is just an
   /// arbitrary `bool()` function — it can drive the *same* nav, a
-  /// completely separate nav+menu+device (AM4's own dialog pattern, and
-  /// `.RnD/fields`'s own `promptNav`/`promptMenu`/`promptOut`), or nothing
-  /// nav-related at all. RunLoop itself doesn't know or care what a
+  /// completely separate nav+menu+device (AM4's own dialog pattern), or
+  /// nothing nav-related at all. RunLoop itself doesn't know or care what a
   /// handler does — same "cap, not a spreading cost" shape as this
   /// codebase's other escape hatches: composing it costs one function
   /// pointer, nothing else.
-  // RunFn/AltRunFn moved up next to INav, which needs AltRunFn in its own
-  // idleOn() signature — declared there now, not here.
 
   template<RunFn mainFn>
   struct RunLoop {
@@ -563,19 +549,18 @@ namespace oneMenu {
     static bool active() { return alternative != mainFn; }
   };
 
-  /// @brief drives per-frame animation (AM22's `TickFocus`, the one working prior-art
-  /// implementation across the whole AM4/AM5/AM22-AM26 lineage — see notes.md
-  /// "Animation"). Every output poll, dispatches tick() (item.h) to whichever item is
-  /// currently focused — reusing EventDispatch's own detail::eventVisit walker, so
-  /// composition order relative to EventDispatch doesn't matter, neither depends on the
+  /// @brief drives per-frame animation (AM22's `TickFocus`). Every output poll,
+  /// dispatches tick() (item.h) to whichever item is currently focused —
+  /// reusing EventDispatch's own detail::eventVisit walker, so composition
+  /// order relative to EventDispatch doesn't matter, neither depends on the
   /// other.
   ///
   /// Overrides changed(Out&), NOT doOutput() — unlike IndexGo/EventDispatch (which
   /// override doCmd()/in(), methods DefinedNav actually delegates to), doOutput() is
   /// defined directly on DefinedNav itself (this file, above) and never calls
-  /// Base::doOutput() at all, so a chain component overriding doOutput() is silently
-  /// unreachable (the same static-dispatch trap documented elsewhere in this codebase —
-  /// see feedback_hapi_static_dispatch). changed(Out&) IS one of the primitives
+  /// Base::doOutput() at all, so a chain component overriding doOutput() would be
+  /// silently unreachable (a plain override binds statically to this scope, not
+  /// to whatever DefinedNav actually calls). changed(Out&) IS one of the primitives
   /// DefinedNav::doOutput actually composes from Base, so overriding it here correctly
   /// makes tick()-driven animation feed the same redraw decision a real data change would.
   /// Reports true if tick() advanced anything, in addition to (not instead of) whatever
@@ -605,9 +590,9 @@ namespace oneMenu {
     };
   };
 
-  /// @brief "esc to common base, then go to target" (Rui, 2026-07-03) — the OneMenu
-  /// equivalent of AM4's escTo()+menuNode::async() composition (see EventDispatch's file
-  /// comment above for the source references). Walks from wherever `nav` currently is to
+  /// @brief "esc to common base, then go to target" — the OneMenu
+  /// equivalent of AM4's escTo()+menuNode::async() composition. Walks from
+  /// wherever `nav` currently is to
   /// `target` (an absolute path from root, `len` entries): finds the deepest common
   /// ancestor level, escapes back to it, then descends to `target` one level at a time.
   /// Deliberately built entirely from doCmd()-routed primitives (up/down/enter/esc, all

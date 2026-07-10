@@ -13,10 +13,7 @@ namespace oneMenu {
   /// transitively by <Arduino.h> under any framework=arduino build) would
   /// otherwise macro-substitute B1/B2 in this file's own template<>
   /// declarations before the compiler ever sees them as identifiers,
-  /// breaking the template entirely — confirmed empirically (a real
-  /// avr-g++ build under framework=arduino that includes both <Arduino.h>
-  /// and this header, e.g. via U8g2lib.h, fails with "expected
-  /// nested-name-specifier before numeric constant").
+  /// breaking the template entirely.
   template<typename BodyA, typename BodyB>
   struct JoinBody {
     BodyA b1;
