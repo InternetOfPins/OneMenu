@@ -46,6 +46,7 @@ using oneMenu::Action;
 #ifdef __AVR__
   using namespace onePin;
   using namespace oneBit;
+  using namespace hw::avr;  // brings chip::/AVR:: into scope (hw::avr::chip, hw::avr::AVR)
   using SysTick = chip::SysTick0<>;
   using Led1    = AVR::OutPin<Pins<5>, chip::PortB>;
   using Board   = AVR::Board<Boot<SysTick>, Led1>;

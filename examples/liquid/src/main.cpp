@@ -56,6 +56,7 @@
 // SysTick — hw::Period<N> wrapper, platform-agnostic ----------------------------
   #ifdef __AVR__
     using namespace onePin;
+    using namespace hw::avr;  // brings chip:: into scope (hw::avr::chip)
     using SysTick = chip::SysTick0<>;
   #elif defined(ARDUINO_ARCH_RP2040)
     struct SysTick { template<uint32_t Ms> using Period = hw::Period<Ms>; };
