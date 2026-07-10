@@ -70,6 +70,11 @@ namespace oneMenu {
       using Base::Base;
       using Base::get;
       using Base::set;   // set(const char*) — for web / async value injection
+      using Base::sync;  // keep ItemAPI's inherited sync(Out&) template
+                         // reachable — this Part's own sync() (0-arg) would
+                         // otherwise hide it via ordinary C++ name hiding,
+                         // breaking IItem's virtual sync(IOut&) override
+                         // (item.h) for any chain built through IItemDef.
 
       template<typename Nav,typename P>
       bool setStr(Nav&,const char* s,P p) {
@@ -185,6 +190,11 @@ namespace oneMenu {
     struct Part:RecallNavPos::template Part<I> {
       using Base=typename RecallNavPos::template Part<I>;
       using Base::Base;
+      using Base::sync;  // keep ItemAPI's inherited sync(Out&) template
+                         // reachable — this Part's own sync() (0-arg) would
+                         // otherwise hide it via ordinary C++ name hiding,
+                         // breaking IItem's virtual sync(IOut&) override
+                         // (item.h) for any chain built through IItemDef.
       template<typename... OO> Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
       bool changed() const {return m_changed;}
       bool sync() {return m_changed=false;Base::sync();}

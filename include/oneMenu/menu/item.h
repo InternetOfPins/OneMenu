@@ -217,8 +217,16 @@ namespace oneMenu {
     virtual bool changed() const override {return Base::changed();}
     virtual void sync() override {Base::sync();}
     virtual void sync(IOut& out) override {Base::sync(out);}
-    virtual bool up() const {return Base::up();};
-    virtual bool down() const {return Base::down();};
+    // Not Base::up()/down(): those names collide with an unrelated concept
+    // some components define (e.g. NumRange<N>::Part::up(NRP s=1), a
+    // mutating value-stepper NumField deliberately re-exposes via `using
+    // Base::up;` for its own internal nav() use) — blindly forwarding
+    // picks up whichever same-named method the composed chain happens to
+    // have, not necessarily one matching this bool-const "sibling exists"
+    // contract. No real caller currently depends on a non-default answer
+    // here (checked: zero call sites through IItem's own up()/down()).
+    virtual bool up() const {return false;};
+    virtual bool down() const {return false;};
     virtual bool _nav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<false>(n,cke,p);}
     virtual bool _kbdNav(INav& n,const CKE& cke,const Path p) override {return Base::template nav<true>(n,cke,p);}
     virtual bool onEvent(EventMask e) override {return Base::onEvent(e);}
