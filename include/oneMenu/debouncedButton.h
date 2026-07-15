@@ -14,6 +14,7 @@
 #pragma once
 #include <stdint.h>
 #include <onePin/onChange.h>
+#include <oneInput/inputEvent.h>
 #include <oneMenu/menu/in.h>
 
 namespace oneMenu {
@@ -45,7 +46,7 @@ namespace oneMenu {
             _debounce_count = 0;
 
             if (_current) {
-              _last.cmd = Cmd::Enter;
+              _last.cmd = oneInput::Cmd::Enter;
               _pending = true;
               return true;
             }

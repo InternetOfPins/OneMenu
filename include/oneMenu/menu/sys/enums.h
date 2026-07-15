@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include <oneInput/inputEvent.h>
+
 namespace oneMenu {
-  
+
   // enum {no=false,yes=true};
   enum class Scroll {no=false,yes=true};
   enum Edge {start=true,stop=false};
@@ -24,7 +26,8 @@ namespace oneMenu {
   // Up/Down are index-paired (Down decrements, Up increments the selection), not visually
   // paired to any physical key — a key mapped "up" on the device (e.g. an ANSI up-arrow) can
   // legitimately map to Cmd::Down if that's how it's wired to move the index.
-  enum class Cmd {None=0,Enter=1<<0,Esc=1<<1,Up=1<<2,Down=1<<3,Left=1<<4,Right=1<<5,Key=1<<6,Go=1<<7};
+  // Cmd moved to oneInput/inputEvent.h (unified input layer); re-exported here for backwards compat
+  using Cmd = oneInput::Cmd;
 
   // AM4-parity semantic event bitmask — ported from AM4's eventMask (see
   // oneMenu/compat/am4.h). v1 scope: only Enter/Exit/Focus/Blur are ever raised

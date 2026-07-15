@@ -15,6 +15,7 @@
 #pragma once
 #include <stdint.h>
 #include <onePin/onChange.h>
+#include <oneInput/inputEvent.h>
 #include <oneMenu/menu/in.h>
 
 namespace oneMenu {
@@ -42,7 +43,7 @@ namespace oneMenu {
 
         if (diff & 0x01) {
           _edge_seen = true;
-          _last_cke.cmd = Cmd::Enter;
+          _last_cke.cmd = oneInput::Cmd::Enter;
           return true;
         }
       }

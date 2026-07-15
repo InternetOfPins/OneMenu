@@ -17,6 +17,7 @@
 #pragma once
 #include <stdint.h>
 #include <onePin/onChange.h>
+#include <oneInput/inputEvent.h>
 #include <oneMenu/menu/in.h>
 
 namespace oneMenu {
@@ -58,7 +59,7 @@ namespace oneMenu {
         if (btnNow != _btnPrev) {
           _btnPrev = btnNow;
           if (btnNow) {
-            _last.cmd = Cmd::Enter;
+            _last.cmd = oneInput::Cmd::Enter;
             _pending = true;
             return true;
           }
@@ -67,7 +68,7 @@ namespace oneMenu {
         int8_t rotations = _delta / Steps;
         if (rotations != 0) {
           _delta %= Steps;
-          _last.cmd = (rotations > 0) ? Cmd::Up : Cmd::Down;
+          _last.cmd = (rotations > 0) ? oneInput::Cmd::Up : oneInput::Cmd::Down;
           _pending = true;
           return true;
         }

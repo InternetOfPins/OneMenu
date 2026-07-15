@@ -35,6 +35,7 @@
 #include <oneChip/clock.h>
 
 #include <hapi/hapi.h>
+#include <oneInput/inputEvent.h>
 #include <oneOutput/oneOutput.h>
 #include <oneData/oneData.h>
 #include <oneItem/oneItem.h>
