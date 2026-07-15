@@ -11,9 +11,19 @@
  *   STM32: PA0=encoder A, PA1=encoder B, PA2=button
  */
 
-#include <chips/*/avrDevice.h>  // or esp32Device.h, stm32Device.h
+// Platform-specific includes
+#ifdef __AVR__
+  #include <chips/avr/avrDevice.h>
+#elif defined(ESP32)
+  #include <chips/esp32/esp32Device.h>
+#elif defined(STM32)
+  #include <chips/stm32/stm32Device.h>
+#else
+  // Native/test build
+  #include <stdint.h>
+#endif
+
 #include <oneMenu/encoderIn.h>
-#include <oneMenu/in.h>
 
 // Platform-specific pin mapping via chip:: alias
 #ifdef __AVR__
