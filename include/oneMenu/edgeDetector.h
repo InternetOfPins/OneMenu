@@ -16,7 +16,6 @@
 #include <stdint.h>
 #include <onePin/onChange.h>
 #include <oneMenu/menu/in.h>
-#include <oneItem/oneItem.h>
 
 namespace oneMenu {
 
@@ -26,39 +25,40 @@ namespace oneMenu {
     static_assert(onePin::is_change_source<ChangeSource>::value,
       "ChangeSource must satisfy is_change_source — see onePin/onChange.h");
 
-    inline static volatile uint8_t _last = 0;
-    inline static volatile bool _edge_seen = false;
+    volatile uint8_t _last = 0;
+    volatile bool _edge_seen = false;
+    CKE _last_cke{};
 
-    void begin() override {
+    EdgeDetector() {
       ChangeSource::begin();
       _last = ChangeSource::read();
-      _edge_seen = false;
     }
 
-    Action poll() override {
-      if (!ChangeSource::changed())
-        return Action::idle();
+    bool available() override {
+      if (ChangeSource::changed()) {
+        uint8_t now = ChangeSource::read();
+        uint8_t diff = now ^ _last;
+        _last = now;
 
-      uint8_t now = ChangeSource::read();
-      uint8_t diff = now ^ _last;
-      _last = now;
-
-      if (diff & 0x01) {  // LSB changed
-        _edge_seen = true;
-        return Action::enter();  // Edge detected
+        if (diff & 0x01) {
+          _edge_seen = true;
+          _last_cke.cmd = Cmd::Enter;
+          return true;
+        }
       }
-
-      return Action::idle();
-    }
-
-    void end() override {}
-
-    // Query: was an edge seen since last poll?
-    static bool edge_pending() {
       return _edge_seen;
     }
 
-    static void clear_edge() {
+    CKE cmd() override {
+      _edge_seen = false;
+      return _last_cke;
+    }
+
+    bool edge_pending() {
+      return _edge_seen;
+    }
+
+    void clear_edge() {
       _edge_seen = false;
     }
   };

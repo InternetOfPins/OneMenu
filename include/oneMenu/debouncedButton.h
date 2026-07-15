@@ -15,7 +15,6 @@
 #include <stdint.h>
 #include <onePin/onChange.h>
 #include <oneMenu/menu/in.h>
-#include <oneItem/oneItem.h>
 
 namespace oneMenu {
 
@@ -25,46 +24,43 @@ namespace oneMenu {
     static_assert(onePin::is_change_source<ChangeSource>::value,
       "ChangeSource must satisfy is_change_source — see onePin/onChange.h");
 
-    enum State : uint8_t { Released = 0, Pressed = 1, Debouncing = 2 };
+    volatile uint16_t _debounce_count = 0;
+    volatile bool _current = false;
+    volatile bool _pending = false;
+    CKE _last{};
 
-    inline static volatile State _state = Released;
-    inline static volatile uint16_t _debounce_count = 0;
-    inline static volatile bool _current = false;  // false=released, true=pressed
-
-    void begin() override {
+    DebouncedButton() {
       ChangeSource::begin();
-      _state = Released;
-      _debounce_count = 0;
       _current = !(ChangeSource::read() & 0x01);  // active low
     }
 
-    Action poll() override {
-      if (!ChangeSource::changed())
-        return Action::idle();
+    bool available() override {
+      if (ChangeSource::changed()) {
+        bool now = !(ChangeSource::read() & 0x01);
 
-      bool now = !(ChangeSource::read() & 0x01);
+        if (now != _current) {
+          _debounce_count++;
+          if (_debounce_count * 10 >= DebounceMs) {
+            _current = now;
+            _debounce_count = 0;
 
-      if (now == _current) {
-        // No change; reset debounce
-        _debounce_count = 0;
-        return Action::idle();
-      }
-
-      // State changed; debounce
-      _debounce_count++;
-      if (_debounce_count * 10 >= DebounceMs) {  // assuming 10ms poll interval
-        _current = now;
-        _debounce_count = 0;
-
-        if (_current) {
-          return Action::enter();  // Button pressed (debounced)
+            if (_current) {
+              _last.cmd = Cmd::Enter;
+              _pending = true;
+              return true;
+            }
+          }
+        } else {
+          _debounce_count = 0;
         }
       }
-
-      return Action::idle();
+      return _pending;
     }
 
-    void end() override {}
+    CKE cmd() override {
+      _pending = false;
+      return _last;
+    }
   };
 
 } // oneMenu

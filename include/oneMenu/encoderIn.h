@@ -18,11 +18,11 @@
 #include <stdint.h>
 #include <onePin/onChange.h>
 #include <oneMenu/menu/in.h>
-#include <oneItem/oneItem.h>
 
 namespace oneMenu {
 
   /// Generic rotary encoder + button for any ChangeSource (AVR/ESP32/STM32)
+  /// Instance-based IIn wrapper for virtual dispatch in menus
   template<typename ChangeSource, uint8_t Steps = 4>
   struct EncoderIn : IIn {
     static_assert(onePin::is_change_source<ChangeSource>::value,
@@ -36,42 +36,49 @@ namespace oneMenu {
        0,  1, -1,  0
     };
 
-    inline static volatile int8_t _delta = 0;      // accumulated steps
-    inline static volatile bool   _btn = false;    // button pressed
-    inline static          uint8_t _prevAB = 0;    // quadrature state
-    inline static          bool    _btnPrev = true; // button previous (active low)
+    volatile int8_t _delta = 0;      // accumulated steps
+    volatile bool   _pending = false;
+    CKE _last{};
+    uint8_t _prevAB = 0;             // quadrature state
+    bool    _btnPrev = true;         // button previous (active low)
 
-    void begin() override {
+    EncoderIn() {
       ChangeSource::begin();
-      _prevAB = (ChangeSource::read() & 0x03);  // pins 0,1 = A,B
+      _prevAB = (ChangeSource::read() & 0x03);
     }
 
-    Action poll() override {
-      if (!ChangeSource::changed())
-        return Action::idle();
+    bool available() override {
+      if (ChangeSource::changed()) {
+        uint8_t pins = ChangeSource::read();
+        uint8_t currAB = (pins & 0x03);
+        _delta += _quad[(_prevAB << 2) | currAB];
+        _prevAB = currAB;
 
-      uint8_t pins = ChangeSource::read();
-      uint8_t currAB = (pins & 0x03);         // A0, A1 → A, B channels
-      _delta += _quad[(_prevAB << 2) | currAB];
-      _prevAB = currAB;
+        bool btnNow = !(pins & 0x04);
+        if (btnNow != _btnPrev) {
+          _btnPrev = btnNow;
+          if (btnNow) {
+            _last.cmd = Cmd::Enter;
+            _pending = true;
+            return true;
+          }
+        }
 
-      bool btnNow = !(pins & 0x04);           // A2 is button (active low)
-      if (btnNow != _btnPrev) {
-        _btnPrev = btnNow;
-        if (btnNow) return Action::enter();  // debounced press
+        int8_t rotations = _delta / Steps;
+        if (rotations != 0) {
+          _delta %= Steps;
+          _last.cmd = (rotations > 0) ? Cmd::Up : Cmd::Down;
+          _pending = true;
+          return true;
+        }
       }
-
-      // Check if we've rotated a full detent
-      int8_t rotations = _delta / Steps;
-      if (rotations != 0) {
-        _delta %= Steps;
-        return (rotations > 0) ? Action::up() : Action::down();
-      }
-
-      return Action::idle();
+      return _pending;
     }
 
-    void end() override {}
+    CKE cmd() override {
+      _pending = false;
+      return _last;
+    }
   };
 
 } // oneMenu
