@@ -6,8 +6,18 @@
 
 namespace oneMenu {
 
-  // AVR PCINT-based rotary encoder + button, for Port C (A0..A5 on Nano/Uno).
+  // ⚠ DEPRECATED: Use oneMenu::EncoderIn<chip::OnChange<>> instead (2026-Q3)
   //
+  // AVR PCINT-based rotary encoder + button, for Port C (A0..A5 on Nano/Uno).
+  // This implementation is platform-specific and requires manual ISR wiring.
+  //
+  // NEW: oneMenu::EncoderIn<ChangeSource> is platform-agnostic:
+  //   #include <oneMenu/encoderIn.h>
+  //   using MyEncoder = EncoderIn<chip::OnChange<A0, A1, A2>>;  // works on AVR/ESP32/STM32
+  //   MyEncoder::begin();
+  //   Action a = MyEncoder::poll();
+  //
+  // Legacy usage (DEPRECATED):
   // PinA, PinB : encoder channel bit positions in PORTC (0=A0, 1=A1, 2=A2 ...)
   // PinBtn     : button bit position in PORTC (active low, internal pull-up)
   // Steps      : quadrature transitions per detent (2 or 4 for most clicky encoders)

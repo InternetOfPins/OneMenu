@@ -2,10 +2,18 @@
  * @file in.h
  * @author Rui Azevedo (neu-rah) (ruihfazevedo@gmail.com)
  * @brief input API
- * @version 5
+ * @version 5.1
  * @date 2026-04-28
  *
  * @copyright Copyright (c) 2026
+ *
+ * Platform-agnostic input drivers via OnChange abstraction:
+ *   #include <oneMenu/encoderIn.h>       // EncoderIn<ChangeSource, Steps>
+ *   #include <oneMenu/debouncedButton.h> // DebouncedButton<ChangeSource, DebounceMs>
+ *   #include <oneMenu/edgeDetector.h>    // EdgeDetector<ChangeSource>
+ *
+ * All work identically on AVR/ESP32/STM32 via chip::OnChange<>, chip::OnRise<>, chip::OnFall<>.
+ * See onePin/onChange.h for interrupt source abstraction.
  *
 */
 #pragma once
