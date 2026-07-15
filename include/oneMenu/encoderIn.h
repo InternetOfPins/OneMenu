@@ -17,7 +17,8 @@
 #pragma once
 #include <stdint.h>
 #include <onePin/onChange.h>
-#include "oneMenu/in.h"
+#include <oneMenu/menu/in.h>
+#include <oneItem/oneItem.h>
 
 namespace oneMenu {
 
@@ -40,16 +41,16 @@ namespace oneMenu {
     inline static          uint8_t _prevAB = 0;    // quadrature state
     inline static          bool    _btnPrev = true; // button previous (active low)
 
-    static void begin() final {
-      ChangeSource::template begin<onePin::OnChange>();
-      _prevAB = (ChangeSource::template read<onePin::OnChange>() & 0x03);  // pins 0,1 = A,B
+    void begin() override {
+      ChangeSource::begin();
+      _prevAB = (ChangeSource::read() & 0x03);  // pins 0,1 = A,B
     }
 
-    static Action poll() final {
-      if (!ChangeSource::template changed<onePin::OnChange>())
+    Action poll() override {
+      if (!ChangeSource::changed())
         return Action::idle();
 
-      uint8_t pins = ChangeSource::template read<onePin::OnChange>();
+      uint8_t pins = ChangeSource::read();
       uint8_t currAB = (pins & 0x03);         // A0, A1 → A, B channels
       _delta += _quad[(_prevAB << 2) | currAB];
       _prevAB = currAB;
@@ -70,7 +71,7 @@ namespace oneMenu {
       return Action::idle();
     }
 
-    static void end() final {}
+    void end() override {}
   };
 
 } // oneMenu

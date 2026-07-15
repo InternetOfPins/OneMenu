@@ -15,7 +15,8 @@
 #pragma once
 #include <stdint.h>
 #include <onePin/onChange.h>
-#include "oneMenu/in.h"
+#include <oneMenu/menu/in.h>
+#include <oneItem/oneItem.h>
 
 namespace oneMenu {
 
@@ -28,17 +29,17 @@ namespace oneMenu {
     inline static volatile uint8_t _last = 0;
     inline static volatile bool _edge_seen = false;
 
-    static void begin() final {
-      ChangeSource::template begin<onePin::OnChange>();
-      _last = ChangeSource::template read<onePin::OnChange>();
+    void begin() override {
+      ChangeSource::begin();
+      _last = ChangeSource::read();
       _edge_seen = false;
     }
 
-    static Action poll() final {
-      if (!ChangeSource::template changed<onePin::OnChange>())
+    Action poll() override {
+      if (!ChangeSource::changed())
         return Action::idle();
 
-      uint8_t now = ChangeSource::template read<onePin::OnChange>();
+      uint8_t now = ChangeSource::read();
       uint8_t diff = now ^ _last;
       _last = now;
 
@@ -50,7 +51,7 @@ namespace oneMenu {
       return Action::idle();
     }
 
-    static void end() final {}
+    void end() override {}
 
     // Query: was an edge seen since last poll?
     static bool edge_pending() {

@@ -14,7 +14,8 @@
 #pragma once
 #include <stdint.h>
 #include <onePin/onChange.h>
-#include "oneMenu/in.h"
+#include <oneMenu/menu/in.h>
+#include <oneItem/oneItem.h>
 
 namespace oneMenu {
 
@@ -30,18 +31,18 @@ namespace oneMenu {
     inline static volatile uint16_t _debounce_count = 0;
     inline static volatile bool _current = false;  // false=released, true=pressed
 
-    static void begin() final {
-      ChangeSource::template begin<onePin::OnChange>();
+    void begin() override {
+      ChangeSource::begin();
       _state = Released;
       _debounce_count = 0;
-      _current = !(ChangeSource::template read<onePin::OnChange>() & 0x01);  // active low
+      _current = !(ChangeSource::read() & 0x01);  // active low
     }
 
-    static Action poll() final {
-      if (!ChangeSource::template changed<onePin::OnChange>())
+    Action poll() override {
+      if (!ChangeSource::changed())
         return Action::idle();
 
-      bool now = !(ChangeSource::template read<onePin::OnChange>() & 0x01);
+      bool now = !(ChangeSource::read() & 0x01);
 
       if (now == _current) {
         // No change; reset debounce
@@ -63,7 +64,7 @@ namespace oneMenu {
       return Action::idle();
     }
 
-    static void end() final {}
+    void end() override {}
   };
 
 } // oneMenu
