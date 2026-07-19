@@ -142,20 +142,28 @@ auto mainMenu = menuDef<WrapNav>(
 |---|---|
 | `StaticBody<I1,I2,...>` / `staticBody(i1,i2,...)` | Compile-time, heterogeneous items, zero overhead |
 | `CArrayBody<T, arr, N>` | C array of same-type items, no virtual functions |
-| `CPtrArrayBody<I, arr, N>` | C array of `I*` pointers, virtual dispatch |
-| `StdBody<Container>` | `std::vector<I*>` or similar, runtime size |
+| `CPtrArrayBody<I, arr, N>` | Fixed-size array of `I*` pointers, virtual dispatch — heterogeneous *and*/or runtime-populated |
+| `StdBody<Container>` | Any `std::`-container-shaped type (`.size()`/`operator[]`) — needs `<vector>`/heap, avoid on AVR |
 
 ```cpp
 // same-type C array — no virtual functions
 CItem files[] = {"file1.txt", "file2.txt", "file3.txt"};
 MenuDef<ItemDef<...>, CArrayBody<CItem, files, 3>>{};
 
-// runtime-populated std container
-MenuDef<ItemDef<...>, StdBody<vector<IItem*>>, Id<container_id>>{};
+// runtime-populated, no std::vector/heap-growth needed: a fixed-capacity
+// IItem* array, left empty at declaration and assigned in setup() —
+// CPtrArrayBody<IItem,arr,N>::depth() assumes 1 (leaf items only; see
+// cArrayBody.h's own comment if a slot ever needs to open its own submenu)
+IItem* items[3]{nullptr,nullptr,nullptr};
+MenuDef<ItemDef<...>, CPtrArrayBody<IItem, items, 3>, Id<container_id>>{};
 // then in setup:
-auto& m = mainMenu.find<SameAs<Id<container_id>>>();
-m.body.push_back(new IItemDef<Text>{"dynamic item"});
+items[0] = new IItemDef<Text>{"dynamic item"};
 ```
+
+`StdBody<Container>` still exists for a genuinely growable (not just fixed-capacity)
+runtime list, but costs a real heap container — prefer `CPtrArrayBody` above whenever a
+fixed upper bound on item count is acceptable (it almost always is: even AM4's own
+"dynamic" menus are runtime-*populated*, not runtime-*resized*).
 
 ---
 
@@ -506,6 +514,48 @@ InDef<LinuxKeyIn, PCKbd> in;   // native/host testing: raw key codes + PC-keyboa
 nav.in(in);                    // feed into the navigator each loop
 ```
 
+### Adding a new input source
+
+A source's whole contract is two methods: `bool available()` (is there a pending event
+right now) and `CKE cmd()` (return it — `{Cmd::None}` if there isn't one). That's it; no
+tags, no base class to derive from beyond the plain struct/`Part<O>` shape every other
+component here uses:
+
+```cpp
+struct MyButtonIn {
+  template<typename I>
+  struct Part : I {
+    static bool available() { return digitalRead(PIN) == LOW; }
+    static CKE cmd() { return available() ? CKE{Cmd::Enter} : I::cmd(); }
+  };
+};
+InDef<MyButtonIn, PCKbd> in;   // first source with a pending event wins
+```
+
+`parseKey(Key)` (`InAPI`'s third method, `in.h`) is only needed if your source reads raw
+bytes that must be translated into a command (e.g. an ANSI escape sequence or a serial
+byte stream) — most real sources (a button, an encoder, a pin read) never call it and can
+leave the inherited no-op default alone.
+
+### Direct navigation — bypass input entirely
+
+`nav.up()`/`down()`/`enter()`/`esc()` are always callable directly, from anywhere — a
+button ISR, a network command handler, a test — with no `InDef`/source involved at all.
+This is the same mechanism the input chain itself calls internally, just invoked by hand:
+
+```cpp
+void onNetworkCommand(const char* cmd) {
+  if (!strcmp(cmd,"up"))     nav.up();
+  else if (!strcmp(cmd,"ok")) nav.enter();
+}
+```
+
+Reach for a real `InDef` source when you want the normal per-loop `nav.poll()`/`nav.in()`
+cycle to pick up a device automatically; reach for direct calls when the trigger is already
+arriving through its own path (an ISR, a callback, a test harness) and doesn't need to be
+squeezed through the polling model at all — both are first-class, not one a workaround for
+the other.
+
 ### OneInput hardware adapters
 
 Bridge a real `oneInput::InputDef<...>` hardware chain (debounce/click/hold/encoder/
@@ -578,6 +628,68 @@ OutDef<FullPrinter, ANSIFmt, DataParser<>, CtrlChars,
        ColorTrack<int>, Cursor<>, Gate, ANSIOut, ConsoleOut,
        StaticPos<24,12>, StaticArea<22,4>> promptOut;
 ```
+
+### Adding a new output backend
+
+A device chain is a stack of components (`OutDef<Printer, Fmt, ..., Device, Pos, Area>`),
+each layer adding one capability by wrapping the one below it. You only need to write the
+bottom layer(s) that don't exist yet — printers/formats above are reused unchanged. Three
+levels, each strictly additive over the last:
+
+**1. Plain text device** — the minimum to print anything at all. Implement `put(T)` for
+whatever value types you want to accept directly (`char`, `const char*`, `int`, ... —
+anything without an overload just falls through to the next one via `O::put(o)`), plus
+`nl()` and `flush()`. Wrap it in `Raw::Part<...>` and tag the type `aRawDevice` — this is
+the same shape `ConsoleOut`/`SerialOut` (`menu/IO/streamOut.h`/`menu/IO/arduino/serialOut.h`)
+already use:
+
+```cpp
+struct MyRawOut : aRawDevice {
+  template<typename O>
+  struct RawPart : O {
+    using Base = O;
+    template<typename T> static void put(T o) { myDevice.write(o); O::put(o); }
+    static void nl()    { myDevice.write('\n'); }
+    static void flush() { myDevice.flush(); }
+  };
+  template<typename O> using Part = typename Raw::template Part<RawPart<O>>;
+};
+// use: OutDef<FullPrinter, TextFmt, DataParser<>, CtrlChars, Cursor<>, Gate,
+//              MyRawOut, StaticPos<0,0>, StaticArea<40,4>> out;
+```
+
+This alone is enough for `TextFmt` + any printer (`FullPrinter`/`ScrollPrinter`/...) — no
+colors, no partial redraw beyond the basic `changed()` gate.
+
+**2. + cursor tracking** — `Cursor<CharW,LineH>` (above) is *required*, not optional, the
+moment you want more than the most trivial always-redraw-everything behavior:
+`ItemPrinter`/`ScrollBodyPrinter`/`SelectBodyPrinter` all `static_assert(Requires<IsCursor,
+...>)` on it. It's a ready-made component — you don't write it, just include it in the
+chain, telling it your device's real character/line advance (`CharW`/`LineH`, or an `Adv`/
+`LnH` function pointer for a variable-width/variable-height font). This is what gives you
+`getPos()`/`setPos()`/`clearToEOL()`/`free()`, which the scroll/partial-redraw machinery
+needs to reason about what's on screen.
+
+**3. + colors** — add `ColorTrack<Cor>` (`Cor` = your color type, e.g. `int` for ANSI codes
+or a small enum) above the raw device; it just remembers the last `setColors(fg,bg)` call
+so `resume()` can restore it after an interruption — your raw device still needs its own
+real `setColors(Cor,Cor)` implementation (`ColorTrack` forwards to `Base::setColors`, it
+doesn't invent one). Pair with `ANSIFmt` (escape codes) or your own `Fmt` component driving
+a `Color<Cor>`/`ColorTable<...>` cascading table (see
+[Cascading color/font tables](#cascading-colorfont-tables--colorcor-colortable-fontfnt-fonttable)).
+
+**4. + pixel/GFX drawing** — tag your device `aFillRect` and implement `fillRect(Pos,Area)`
+(and expose real pixel-based `CharW`/`LineH`/`Adv` to `Cursor<>`) for inverted-selection
+rendering and clean-background-before-redraw (`FullScreen`, `Rows`'s own clear step) —
+see [Pixel displays](#pixel-displays--gfxfmt) for a real device (`OledOut`) built this way,
+and `GfxFmt` for the format pairing it expects. Nothing above this layer needs to know or
+care that the device draws pixels instead of characters — same printer/format components
+work unchanged, `Cursor<>` just gets pixel-scaled `CharW`/`LineH` instead of `1`s.
+
+None of this needs touching `IOut`, `IItem`, or `INav` — those are OneMenu's own internal
+type-erasure boundaries (see the source comments in `out.h`/`nav.h`/`item.h` if you're
+modifying OneMenu itself, not consuming it); adding a device is purely additive component
+composition from the outside.
 
 ### Printers
 
