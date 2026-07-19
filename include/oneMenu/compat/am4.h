@@ -685,6 +685,15 @@ namespace am4compat {
     bool idling() const override { return Base::idling(); }
     void idleOn(oneMenu::AltRunFn fn) override { Base::idleOn(fn); }
     void idleOff() override { Base::idleOff(); }
+    // Same forwarding as the six above — required the moment oneMenu::INav
+    // gained these (nav.h), since NavRootDef inherits INav directly
+    // (separately from its own real TreeNav-based Base chain); without an
+    // explicit override here the two branches' same-named methods are an
+    // ambiguous base-class member on any NavRootDef instance.
+    bool open() override { return Base::open(); }
+    bool close() override { return Base::close(); }
+    bool padOpen() override { return Base::padOpen(); }
+    bool doNav(oneMenu::CKE cke, oneMenu::Sz len, bool w) override { return Base::doNav(cke,len,w); }
   };
 }
 

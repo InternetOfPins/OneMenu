@@ -110,6 +110,23 @@ namespace oneMenu {
     virtual bool idling() const {return false;}
     virtual void idleOn(AltRunFn) {}
     virtual void idleOff() {}
+
+    /// @brief level-mutating primitives (TreeNav::Part's own open/close/
+    /// padOpen/doNav, above) — the ONLY way a nav chain's selection/depth
+    /// actually changes. Not pure: a bare INav with no real TreeNav behind
+    /// it (there is no such thing today, but a future non-tree nav shape
+    /// might not have levels at all) safely no-ops rather than forcing every
+    /// INav-family type to implement level bookkeeping it doesn't have.
+    /// Needed so a type-erased item (IItem::_nav/_kbdNav, item.h — takes
+    /// INav&, not a concrete TreeNav type) can itself open/close a level or
+    /// move a selection, e.g. a virtual-dispatch item wrapping its own
+    /// Menu-shaped/submenu body. Same "escape hatch capped at one boundary"
+    /// pattern as idling()/idleOn()/idleOff() just above — purely additive,
+    /// every existing INavDef<...> chain keeps compiling unchanged.
+    virtual bool open() {return false;}
+    virtual bool close() {return false;}
+    virtual bool padOpen() {return false;}
+    virtual bool doNav(CKE,Sz,bool) {return false;}
   };
 
   template<typename... II>
@@ -129,6 +146,15 @@ namespace oneMenu {
     // idling()/idleOn()/idleOff() deliberately NOT overridden here — the
     // inherited INav no-op default stays; am4compat::NavRootDef (am4.h) is
     // the type that binds them to a real RunLoop<mainFn>, not this one.
+
+    // open()/close()/padOpen()/doNav() DO forward here — unlike idling()'s
+    // family above, every real INavDef<...> chain composes TreeNav (or
+    // IndexGo/EventDispatch above it), which already implements these for
+    // real; there's no "AM4-flavored, sketch-specific" axis to defer here.
+    bool open() override {return Base::open();}
+    bool close() override {return Base::close();}
+    bool padOpen() override {return Base::padOpen();}
+    bool doNav(CKE cke,Sz len,bool w) override {return Base::doNav(cke,len,w);}
   };
 
   /// @brief binds a nav chain to an external menu instance as the navigation root
