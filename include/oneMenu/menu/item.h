@@ -554,8 +554,20 @@ namespace oneMenu {
           // stepping or Enter/Esc must never leave stale chars for next time
           if(cke.cmd!=Cmd::Key) m_litLen=0;
           switch(cke.cmd){
-            case Cmd::Up: Base::down(); return true;
-            case Cmd::Down: Base::up(); return true;
+            // Natural mapping (Up increases, Down decreases) — matches
+            // AM4's own real shipped default (config::invertFieldKeys =
+            // false, confirmed against AM4's actual source; the config
+            // struct's own constructor default of true is overridden at
+            // the point of instantiation) and is consistent with plain
+            // (non-edit-mode) Up/Down semantics elsewhere in this
+            // codebase. Compose oneData::InvDir<Range,true> in place of a
+            // plain Range (e.g. NumField<InvDir<StaticNumRange<...>,true>,
+            // AsField<...>>) for a field that wants the opposite —
+            // AM4's own comment on the equivalent option suggests it
+            // exists to compensate for specific input devices (e.g. a
+            // rotary encoder), not as a universal default.
+            case Cmd::Up: Base::up(); return true;
+            case Cmd::Down: Base::down(); return true;
             case Cmd::Key: {
               char c=char(cke.key);
               if(c==8||c==127) {  // backspace — mirrors TextField::PartEnd
