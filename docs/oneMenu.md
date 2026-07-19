@@ -661,6 +661,18 @@ struct MyRawOut : aRawDevice {
 This alone is enough for `TextFmt` + any printer (`FullPrinter`/`ScrollPrinter`/...) — no
 colors, no partial redraw beyond the basic `changed()` gate.
 
+A device at this level gets `setPos()`/`getPos()` for free from `OutAPI`'s own terminal
+defaults — a silent no-op and a constant `{0,0}`, respectively — and that's genuinely safe
+to leave alone, not just a convenient placeholder. Every real call site of `getPos()`/
+`setPos()` anywhere in OneMenu's own printers/items (`Row`/`Rows`/`Liquid`/`FullScreen` in
+`item.h`, the scroll printers in `printers.h`) is either wrapped in
+`if constexpr(hapi::query<IsCursor,typename Out::Types>)` or belongs to a printer
+component that itself `static_assert(Requires<IsCursor,After>)`s at composition time — a
+chain without `Cursor<>` can't even be built with one of those printers, let alone reach
+the call at runtime. So a pure-stream device's `{0,0}` is dead code from the framework's
+own perspective; it only matters if your *own* code calls `out.getPos()` directly without
+checking `IsCursor` first.
+
 **2. + cursor tracking** — `Cursor<CharW,LineH>` (above) is *required*, not optional, the
 moment you want more than the most trivial always-redraw-everything behavior:
 `ItemPrinter`/`ScrollBodyPrinter`/`SelectBodyPrinter` all `static_assert(Requires<IsCursor,
