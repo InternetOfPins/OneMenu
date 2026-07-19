@@ -46,8 +46,22 @@ namespace oneMenu {
 
   template<typename T, T* data[], Sz _sz>
   struct CPtrArrayBody {
-    // see CArrayBody's own depth() doc comment above — same fix, same reason.
-    static constexpr Depth depth() {return T::depth();}
+    // Deliberately NOT T::depth() (unlike CArrayBody above) — every slot
+    // here is a genuinely different concrete type behind a common T*
+    // (that's the whole point of the pointer form), so T's own depth()
+    // (when T even has one — e.g. the abstract IItem itself doesn't) tells
+    // us nothing real about what's actually stored. A same-type CArrayBody
+    // can honestly report T::depth() because every slot really is T; a
+    // CPtrArrayBody can't without either a runtime walk (not viable —
+    // depth() must stay constexpr, sizes a compile-time PathData<> buffer)
+    // or an explicit per-instantiation depth NTTP (a real design surface,
+    // not worth building speculatively — see notes.md's own account of a
+    // declared-depth()-NTTP variant built then reverted as unused). Assumed
+    // 1 instead: every real caller today (neurMenu's iBody/sBody) only ever
+    // holds leaf items, so this is accurate, not just convenient — if a
+    // real caller needs deeper nesting through this exact type later, that
+    // NTTP is the fix to bring back then, not now.
+    static constexpr Depth depth() {return 1;}
     static constexpr Sz size() noexcept {return _sz;}
     static constexpr Sz size(Sz i) {assert(i<_sz);return data[i]->size();}
 
