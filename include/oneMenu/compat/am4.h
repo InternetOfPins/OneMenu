@@ -45,11 +45,17 @@
  *    involvement (see padDefStyle's doc comment).
  *    selFocusEvent/selBlurEvent/updateEvent/activateEvent have no dispatch yet either
  *    (see nav.h EventDispatch's own scope comment).
- *  - AM4 handler signature `result(*)(eventMask)` (and the 2/3-arg overloads) beyond
- *    the plain `void()`/`bool(int)` shapes EventCall/Action cover. A macro can't
- *    synthesize an adapter function *inside* a nested expression (no local function
- *    definitions in C++) — bridging the richer AM4 signatures
- *    needs a named wrapper declared before the MENU() call, out of scope here.
+ *  - AM4's real `result`-returning handler shapes (`Menu::result()`,
+ *    `Menu::result(oneMenu::EventMask)`, `Menu::result(oneMenu::EventMask,IItem&)`,
+ *    `Menu::result(oneMenu::EventMask,INav&,IItem&)`) are now covered by OP()'s
+ *    own auto-dispatch (am4compat::opItem, IsResultFn0/1/IsResultFn/
+ *    IsResultFnNav) — a real, unmodified AM4 handler returning `Menu::result`
+ *    (not bool) can be dropped into OP() as-is; quit's real "close this
+ *    level" effect is honored wherever INav& is reachable (the 0/1/3-arg
+ *    tiers), silently discarded (documented) for the 2-arg tier, which has
+ *    no INav& access. FIELD()/MENU()/PADMENU()/TOGGLE/SELECT/CHOOSE's own
+ *    fn/mask still only auto-dispatch on bool-returning shapes — extending
+ *    them the same way is a natural follow-up, not done yet.
  *  - FIELD()'s `step`/`tune` (accel) params are accepted but ignored — value
  *    always steps by 1. AM4's per-key step isn't wired to NumField yet.
  *
@@ -105,6 +111,44 @@
   // native/desktop-console-only macro anyway.
   #include <oneMenu/menu/IO/streamOut.h>
 #endif
+
+// Moved up from the main `namespace Menu { ... }` compat shim (further down
+// this file, alongside SystemStyles/doNothing): am4compat's own
+// IsResultFn*/ResultAction* template bodies below reference Menu::quit/
+// Menu::enterEvent as non-dependent names, resolved at template-DEFINITION
+// time (ordinary two-phase lookup) — a forward declaration isn't enough,
+// the real enumerators must already be visible here, not just later in the
+// file.
+//
+// noEvent/enterEvent/exitEvent/focusEvent/blurEvent/anyEvent are defined to be
+// bit-identical to oneMenu::EventMask's own values (not AM4's real bit positions —
+// this is a source-compat shim, not binary compat with AM4) so that
+// FIELD()'s mask arg (see EventCall wiring below) can be cast straight across with no
+// translation table. activateEvent/returnEvent/selFocusEvent/selBlurEvent/updateEvent
+// get distinct placeholder bits so call sites compile, but nothing dispatches them yet
+// (see EventDispatch's v1 scope in nav.h).
+namespace Menu {
+  enum EventMask : int {
+    noEvent       = (int)oneMenu::EventMask::None,
+    enterEvent    = (int)oneMenu::EventMask::Enter,
+    exitEvent     = (int)oneMenu::EventMask::Exit,
+    focusEvent    = (int)oneMenu::EventMask::Focus,
+    blurEvent     = (int)oneMenu::EventMask::Blur,
+    activateEvent = 1 << 4,
+    returnEvent   = 1 << 5,
+    selFocusEvent = 1 << 6,
+    selBlurEvent  = 1 << 7,
+    updateEvent   = 1 << 8,
+    anyEvent      = (int)oneMenu::EventMask::Any
+  };
+  // AM4's real handler return type (menuBase.h: `enum result {proceed=0,quit};`).
+  // A plain (unscoped) enum, deliberately: real AM4 handlers written against
+  // this exact name/values (`return proceed;`/`return quit;`) port unmodified.
+  // See am4compat::opItem's own doc comment for how quit's real "close this
+  // level" effect (AM4's nav.cpp: `if(go==quit&&!selected().isMenu()) exit();`)
+  // gets honored here.
+  enum result : int { proceed = 0, quit = 1 };
+}
 
 namespace am4compat {
   // subset of AM4's systemStyles actually wired up (menuBase.h's full enum has
@@ -251,12 +295,210 @@ namespace am4compat {
     };
   };
 
+  // ── Menu::result-returning handler shapes ───────────────────────────────
+  // AM4's own real handler return type is `result` (proceed/quit), not bool —
+  // every tier above (IsEventFn/IsEventFnNav/Action<fn>) requires a
+  // bool-returning fn, so a real, unmodified AM4 handler
+  // (`Menu::result myLedOn()`, `Menu::result doAlert(oneMenu::EventMask,
+  // oneMenu::IItem&)`, etc.) still couldn't be dropped into OP() as-is
+  // without these. Checked and dispatched BEFORE the bool-based tiers below:
+  // a Menu::result-returning fn is *also* silently callable through those
+  // (Menu::result is a plain enum, implicitly convertible to bool via its own
+  // underlying int — proceed=0->false, quit=1->true), which would compile but
+  // silently discard quit's real navigational effect (and invert its meaning
+  // relative to what "true" means to the bool-based tiers' own "handled"
+  // accumulator). Checking the return type explicitly (not just callability)
+  // avoids that trap. Deliberately NOT AM4's own mechanism (menuBase.h's
+  // `action` class raw-casts any handler's function pointer to a fixed 3-arg
+  // `result(*)(eventMask,navNode&,prompt&)` type and calls it with all 3 real
+  // arguments regardless of the handler's own declared arity — relying on the
+  // target ABI tolerating a call with more arguments than the callee
+  // declares, real UB even though AM4 has shipped on it for years) — this
+  // compat layer instead detects each real shape via ordinary SFINAE and
+  // calls fn with exactly the arguments it declares. No reinterpret casts,
+  // no calling-convention assumptions.
+  template<typename F, typename = void>
+  struct IsResultFnNav : std::false_type {};
+  template<typename F>
+  struct IsResultFnNav<F, std::enable_if_t<std::is_same_v<
+      decltype(std::declval<F>()(std::declval<oneMenu::EventMask>(),
+                                  std::declval<oneMenu::INav&>(),
+                                  std::declval<oneMenu::IItem&>())),
+      Menu::result>>> : std::true_type {};
+
+  template<typename F, typename = void>
+  struct IsResultFn : std::false_type {};
+  template<typename F>
+  struct IsResultFn<F, std::enable_if_t<std::is_same_v<
+      decltype(std::declval<F>()(std::declval<oneMenu::EventMask>(),
+                                  std::declval<oneMenu::IItem&>())),
+      Menu::result>>> : std::true_type {};
+
+  template<typename F, typename = void>
+  struct IsResultFn1 : std::false_type {};
+  template<typename F>
+  struct IsResultFn1<F, std::enable_if_t<std::is_same_v<
+      decltype(std::declval<F>()(std::declval<oneMenu::EventMask>())),
+      Menu::result>>> : std::true_type {};
+
+  template<typename F, typename = void>
+  struct IsResultFn0 : std::false_type {};
+  template<typename F>
+  struct IsResultFn0<F, std::enable_if_t<std::is_same_v<
+      decltype(std::declval<F>()()), Menu::result>>> : std::true_type {};
+
+  using ResultFunc0 = Menu::result(&)();
+  using ResultFunc1 = Menu::result(&)(oneMenu::EventMask);
+
+  /// @brief zero-cost tier for AM4's real `Menu::result()`/`Menu::result(
+  /// oneMenu::EventMask)` handler shapes — by far the most common real OP()
+  /// handler shape across real AM4 sketches (myLedOn(), doFeed(),
+  /// doRunCuts(), etc. — zero-arg, no event/nav/item needed at all).
+  /// Dispatched through nav() — the same call site Action<fn> already
+  /// occupies, only ever reachable on Cmd::Enter, same restriction Action<fn>
+  /// itself already has (no mask flexibility; real AM4 OP() handlers are
+  /// overwhelmingly enterEvent-triggered anyway) — which already carries a
+  /// real Nav&, so quit's real "close this level" effect (AM4's own
+  /// nav.cpp: `if(go==quit&&!selected().isMenu()) exit();`) is honored here
+  /// at zero extra cost: no IItemDef, no vtable, same footprint as
+  /// Action<fn> plus one comparison.
+  template<ResultFunc0 fn>
+  struct ResultAction0 {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      using Base::Base;
+      template<bool isKbd, typename Nav>
+      static bool nav(Nav& n, const oneMenu::CKE& cke, oneMenu::Path path) {
+        if (cke.cmd != oneMenu::Cmd::Enter) return false;
+        if (fn() == Menu::quit) n.close();
+        return true;
+      }
+    };
+  };
+
+  /// @brief sibling of ResultAction0 for the `oneMenu::EventMask` shape —
+  /// same zero-cost nav()-based dispatch, fn always called with
+  /// oneMenu::EventMask::Enter (the only bit reachable through nav(), same
+  /// as ResultAction0's own Enter-only restriction).
+  template<ResultFunc1 fn>
+  struct ResultAction1 {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      using Base::Base;
+      template<bool isKbd, typename Nav>
+      static bool nav(Nav& n, const oneMenu::CKE& cke, oneMenu::Path path) {
+        if (cke.cmd != oneMenu::Cmd::Enter) return false;
+        if (fn(oneMenu::EventMask::Enter) == Menu::quit) n.close();
+        return true;
+      }
+    };
+  };
+
+  using ResultFuncItemPtr    = Menu::result(*)(oneMenu::EventMask, oneMenu::IItem&);
+  using ResultFuncItemNavPtr = Menu::result(*)(oneMenu::EventMask, oneMenu::INav&, oneMenu::IItem&);
+
+  /// @brief vtable-cost tier for `Menu::result(oneMenu::EventMask,IItem&)` —
+  /// real AM4 handlers are often declared this way (e.g. `doAlert(eventMask,
+  /// prompt&)`, throughout many real ported examples).
+  ///
+  /// Dispatched through nav(), NOT onEvent — a real, empirically-confirmed
+  /// framework default forced this: menu.h's own Menu::Part::nav() closes
+  /// the current level on ANY unhandled Enter (`(cke.cmd==Cmd::Enter&&n.
+  /// close())`, its own fallback term when doNav/the item's own nav() don't
+  /// return true) — this is how EXIT() items work "for free," but it also
+  /// means EventActionItem/EventActionItemNav (which only override onEvent,
+  /// never nav()) already close the level after firing REGARDLESS of what
+  /// their handler returns, confirmed by testing the existing bool-based
+  /// tier directly. onEvent fires strictly AFTER doCmd's own nav()-driven
+  /// dispatch has already run (EventDispatch::doCmd, nav.h) — it is a
+  /// side-channel notification, not something that can suppress that
+  /// default close. So a result-returning tier that wants "stay unless
+  /// quit" MUST override nav() itself, mirroring Action<fn>'s own Enter-
+  /// only "return true to prevent the default close" shape — meaning this
+  /// tier, like Action<fn>/ResultAction0/ResultAction1, only actually fires
+  /// on Cmd::Enter (mask is still stored/accepted for OP(text,fn,mask)
+  /// call-site fidelity, but is not otherwise consulted here).
+  ///
+  /// No INav& reachable at this 2-arg call shape, so quit's real close()-
+  /// the-level effect can't be selectively honored — fn's return value is
+  /// discarded (documented, disclosed limitation, not silently wrong): the
+  /// item always stays put after firing (closer to AM4's own "proceed"
+  /// behavior than the alternative, since a plain OP staying put by
+  /// default is far more common in practice than one wanting to exit). Use
+  /// ResultActionItemNav (the 3-arg shape, below) if you need the real
+  /// effect. AM4's own real behavior for a 2-arg handler is actually MORE
+  /// fragile than this: its blind reinterpret-cast trick means such a
+  /// handler's own 2nd (`prompt&`) parameter secretly receives the real
+  /// navNode& reference reinterpreted as a prompt& — this compat layer
+  /// deliberately does not reproduce that.
+  struct ResultActionItem {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      oneMenu::EventMask mask;
+      ResultFuncItemPtr fn;
+      template<typename... Rest>
+      constexpr Part(oneMenu::EventMask m, ResultFuncItemPtr f, Rest&&... rest)
+        : Base(std::forward<Rest>(rest)...), mask(m), fn(f) {}
+      template<bool isKbd, typename Nav>
+      bool nav(Nav& n, const oneMenu::CKE& cke, oneMenu::Path path) {
+        if (cke.cmd != oneMenu::Cmd::Enter) return Base::template nav<isKbd>(n, cke, path);
+        fn(oneMenu::EventMask::Enter, static_cast<oneMenu::IItem&>(Base::obj()));
+        return true;
+      }
+    };
+  };
+
+  /// @brief vtable-cost tier for `Menu::result(oneMenu::EventMask,oneMenu::INav&,
+  /// oneMenu::IItem&)` — AM4's real, full 3-arg handler shape (result(
+  /// eventMask,navNode&,prompt&), menuBase.h), parameter order preserved.
+  /// Dispatched through nav() for the same reason ResultActionItem's own
+  /// doc comment explains (menu.h's default "unhandled Enter closes the
+  /// level" behavior must be overridden by returning true from nav()
+  /// itself — onEvent fires too late to prevent it). INav& is directly
+  /// available here (nav()'s own Nav& parameter — the concrete assembled
+  /// Nav type, itself always INav-derived, converts to oneMenu::INav&
+  /// implicitly), so quit's real close()-the-level effect IS honored: this
+  /// is the tier that gives a faithful AM4 port both the real handler
+  /// signature AND the real navigational consequence of its return value.
+  struct ResultActionItemNav {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      oneMenu::EventMask mask;
+      ResultFuncItemNavPtr fn;
+      template<typename... Rest>
+      constexpr Part(oneMenu::EventMask m, ResultFuncItemNavPtr f, Rest&&... rest)
+        : Base(std::forward<Rest>(rest)...), mask(m), fn(f) {}
+      template<bool isKbd, typename Nav>
+      bool nav(Nav& n, const oneMenu::CKE& cke, oneMenu::Path path) {
+        if (cke.cmd != oneMenu::Cmd::Enter) return Base::template nav<isKbd>(n, cke, path);
+        if (fn(oneMenu::EventMask::Enter, n, static_cast<oneMenu::IItem&>(Base::obj())) == Menu::quit) n.close();
+        return true;
+      }
+    };
+  };
+
   /// @brief OP()'s real factory (see OP()'s own doc comment, below). Picks
-  /// between the three OP() bindings based on fn's own signature — auto-dispatch,
-  /// not a caller-facing flag: nothing to opt into or out of at the call site.
+  /// between the seven OP() bindings based on fn's own signature —
+  /// auto-dispatch, not a caller-facing flag: nothing to opt into or out of
+  /// at the call site. Menu::result-returning shapes are checked FIRST — see
+  /// IsResultFnNav's own doc comment for why (a result-returning fn is also
+  /// silently callable through the bool-based checks below, with wrong,
+  /// silently-discarded quit semantics, if checked in the other order).
   template<oneMenu::EventMask mask, auto& fn, typename T>
   constexpr auto opItem(T&& text) {
-    if constexpr (IsEventFnNav<decltype(fn)>::value)
+    if constexpr (IsResultFnNav<decltype(fn)>::value)
+      return oneMenu::IItemDef<ResultActionItemNav, oneData::Text>{mask, &fn, text};
+    else if constexpr (IsResultFn<decltype(fn)>::value)
+      return oneMenu::IItemDef<ResultActionItem, oneData::Text>{mask, &fn, text};
+    else if constexpr (IsResultFn0<decltype(fn)>::value)
+      return oneMenu::ItemDef<ResultAction0<fn>, oneData::Text>{text};
+    else if constexpr (IsResultFn1<decltype(fn)>::value)
+      return oneMenu::ItemDef<ResultAction1<fn>, oneData::Text>{text};
+    else if constexpr (IsEventFnNav<decltype(fn)>::value)
       return oneMenu::IItemDef<EventActionItemNav, oneData::Text>{mask, &fn, text};
     else if constexpr (IsEventFn<decltype(fn)>::value)
       return oneMenu::IItemDef<oneMenu::EventActionItem, oneData::Text>{mask, &fn, text};
@@ -335,27 +577,10 @@ namespace am4compat {
 
 // AM4's `using namespace Menu;` surface — just enough for existing call sites
 // (MENU(...,Menu::doNothing,Menu::noEvent,Menu::wrapStyle,...)) to compile.
-// noEvent/enterEvent/exitEvent/focusEvent/blurEvent/anyEvent are defined to be
-// bit-identical to oneMenu::EventMask's own values (not AM4's real bit positions —
-// this is a source-compat shim, not binary compat with AM4) so that
-// FIELD()'s mask arg (see EventCall wiring below) can be cast straight across with no
-// translation table. activateEvent/returnEvent/selFocusEvent/selBlurEvent/updateEvent
-// get distinct placeholder bits so call sites compile, but nothing dispatches them yet
-// (see EventDispatch's v1 scope in nav.h).
+// EventMask/result themselves are defined earlier in this file now (see the
+// comment there for why — two-phase lookup in am4compat's own
+// IsResultFn*/ResultAction* templates needs them visible before this point).
 namespace Menu {
-  enum EventMask : int {
-    noEvent       = (int)oneMenu::EventMask::None,
-    enterEvent    = (int)oneMenu::EventMask::Enter,
-    exitEvent     = (int)oneMenu::EventMask::Exit,
-    focusEvent    = (int)oneMenu::EventMask::Focus,
-    blurEvent     = (int)oneMenu::EventMask::Blur,
-    activateEvent = 1 << 4,
-    returnEvent   = 1 << 5,
-    selFocusEvent = 1 << 6,
-    selBlurEvent  = 1 << 7,
-    updateEvent   = 1 << 8,
-    anyEvent      = (int)oneMenu::EventMask::Any
-  };
   enum SystemStyles : int { noStyle = am4compat::noStyle, wrapStyle = am4compat::wrapStyle };
   inline bool doNothing(int) noexcept { return false; }
   // NOTE: deliberately NOT also overloading doNothing() as void() here.
