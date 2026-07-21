@@ -53,9 +53,25 @@
  *    (not bool) can be dropped into OP() as-is; quit's real "close this
  *    level" effect is honored wherever INav& is reachable (the 0/1/3-arg
  *    tiers), silently discarded (documented) for the 2-arg tier, which has
- *    no INav& access. FIELD()/MENU()/PADMENU()/TOGGLE/SELECT/CHOOSE's own
- *    fn/mask still only auto-dispatch on bool-returning shapes — extending
- *    them the same way is a natural follow-up, not done yet.
+ *    no INav& access. TOGGLE()/SELECT()/CHOOSE()'s own fn/mask now also
+ *    auto-dispatch a `Menu::result(oneMenu::EventMask)` handler
+ *    (am4compat::ResultEventAction1, reusing IsResultFn1/ResultFunc1) —
+ *    quit suppresses that item's own default action (cycle/inline-open/
+ *    nested-open) for that Enter, a deliberate, disclosed narrower semantic
+ *    than AM4's own isMenu()-conditional exit()-on-quit branch (nav.cpp),
+ *    not a bug.
+ *    FIELD()/MENU()/PADMENU() remain bool-only — confirmed (by tracing
+ *    each one's real nav() chain) that their fn/mask slot sits INSIDE or
+ *    BELOW the component that already performs the default action
+ *    (Menu<T,B,OO...>::Part's own nav(), menu.h, hardcodes
+ *    n.open()/n.padOpen() for the p.len==0&&Enter case without ever
+ *    consulting OO...; EditField, item.h, sits outer to FIELD()'s own
+ *    EventCall slot and has already decided edit-mode entry by the time
+ *    EventCall would run) — unlike OP()/TOGGLE()/SELECT()/CHOOSE(), where
+ *    the fn slot sits directly above the component whose default action
+ *    it needs to pre-empt. Honoring quit there would need an actual
+ *    menu.h/item.h core hook, not a compat-side addition — a real scope
+ *    decision, not attempted here.
  *  - FIELD()'s `step`/`tune` (accel) params are accepted but ignored — value
  *    always steps by 1. AM4's per-key step isn't wired to NumField yet.
  *
@@ -517,6 +533,54 @@ namespace am4compat {
   // (IsPlainEventFn itself now lives above, ahead of menuDefStyle/padDefStyle
   // — same trait, reused here.)
 
+  /// @brief zero-cost `Menu::result(oneMenu::EventMask)` tier for TOGGLE/
+  /// SELECT/CHOOSE's own fn/mask — the same real-AM4 result-returning shape
+  /// OP() honors via ResultAction1, reused here (IsResultFn1/ResultFunc1,
+  /// both already declared above). Unlike ResultAction1 (which dispatches
+  /// through nav() only to decide close()-the-level), this component sits in
+  /// the EXACT chain slot EventAction<mask,fn> already occupies for these
+  /// three macros — one level ABOVE ToggleBehave/SelectBehave/RecallNavPos
+  /// (see toggleDef/selectDef/chooseDef below: `ItemDef<SyncValue<W>,
+  /// <event-slot>, <Behave>, Menu<...>>`) — confirmed by tracing each
+  /// Behave's own nav() that this slot is the one and only point from which
+  /// their default action (cycle/inline-open/nested-open) can be pre-empted:
+  /// unlike Menu<T,B,OO...>::Part's own nav() (menu.h), which hardcodes
+  /// `n.open()`/`n.padOpen()` for the p.len==0&&Enter case WITHOUT ever
+  /// consulting OO..., ToggleBehave/SelectBehave/RecallNavPos are themselves
+  /// the OO...-adjacent component being wrapped from the OUTSIDE by this
+  /// slot, so intercepting nav() here and simply not forwarding to
+  /// Base::nav() genuinely, safely skips their default action — no core
+  /// menu.h/item.h change needed, unlike MENU()/PADMENU()/FIELD() (see this
+  /// file's own header comment for why those three remain open).
+  ///
+  /// Semantics (a deliberate, disclosed scoping choice, not a literal port of
+  /// AM4's own isMenu()-conditional `nav.cpp:216` exit()-on-quit branch,
+  /// which additionally closes the *current* level for non-menu items —
+  /// replicating that would need its own INav&-driven close() decision this
+  /// slot has no clean access to without widening scope further): `quit`
+  /// suppresses the item's own default action for that Enter (no toggle
+  /// cycle / no inline picker open / no CHOOSE descend); `proceed` (or mask
+  /// not matching Enter) behaves exactly as if fn weren't there at all —
+  /// forwards straight to Base::nav(). Non-Enter keys always forward
+  /// unconditionally (this tier only ever intercepts the one edge the
+  /// default action fires on, same restriction OP()'s own tiers already
+  /// have).
+  template<oneMenu::EventMask mask, ResultFunc1 fn>
+  struct ResultEventAction1 {
+    template<typename I>
+    struct Part : I {
+      using Base = I;
+      using Base::Base;
+      template<bool isKbd, typename Nav>
+      bool nav(Nav& n, const oneMenu::CKE& cke, oneMenu::Path path) {
+        if (cke.cmd == oneMenu::Cmd::Enter && (mask & oneMenu::EventMask::Enter)
+            && fn(oneMenu::EventMask::Enter) == Menu::quit)
+          return true;
+        return Base::template nav<isKbd>(n, cke, path);
+      }
+    };
+  };
+
   // TOGGLE/SELECT/CHOOSE builders — SyncValue<W> (item.h) on top of a Behave
   // component wrapping Menu<T,B,...>. Each option in the body is a plain
   // ItemDef<EnumValue<val>,Text> (VALUE() below); SyncValue::nav() reads the
@@ -536,7 +600,12 @@ namespace am4compat {
   // precedent (InDef/InList's independent doInput, etc.).
   template<typename W, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto toggleDef(T&& t, B&& b) {
-    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+    if constexpr (IsResultFn1<decltype(fn)>::value)
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, ResultEventAction1<mask,fn>, oneMenu::ToggleBehave,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::ParentDraw, oneMenu::WrapNav>
+        >{std::forward<T>(t), std::forward<B>(b)};
+    else if constexpr (IsPlainEventFn<decltype(fn)>::value)
       return oneMenu::ItemDef<
           oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::ToggleBehave,
           oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::ParentDraw, oneMenu::WrapNav>
@@ -549,7 +618,12 @@ namespace am4compat {
   }
   template<typename W, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto selectDef(T&& t, B&& b) {
-    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+    if constexpr (IsResultFn1<decltype(fn)>::value)
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, ResultEventAction1<mask,fn>, oneMenu::SelectBehave,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::EditField, oneMenu::ParentDraw>
+        >{std::forward<T>(t), std::forward<B>(b)};
+    else if constexpr (IsPlainEventFn<decltype(fn)>::value)
       return oneMenu::ItemDef<
           oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::SelectBehave,
           oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::EditField, oneMenu::ParentDraw>
@@ -562,7 +636,12 @@ namespace am4compat {
   }
   template<typename W, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto chooseDef(T&& t, B&& b) {
-    if constexpr (IsPlainEventFn<decltype(fn)>::value)
+    if constexpr (IsResultFn1<decltype(fn)>::value)
+      return oneMenu::ItemDef<
+          oneMenu::SyncValue<W>, ResultEventAction1<mask,fn>, oneMenu::RecallNavPos,
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+        >{std::forward<T>(t), std::forward<B>(b)};
+    else if constexpr (IsPlainEventFn<decltype(fn)>::value)
       return oneMenu::ItemDef<
           oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::RecallNavPos,
           oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
@@ -734,9 +813,12 @@ namespace am4compat {
 /// @brief AM4 TOGGLE(var,id,label,fn,mask,style,...values) — single Enter
 ///        cycles to the next VALUE(...) and writes it into var (DataRef,
 ///        zero-copy, same binding style as FIELD). fn auto-dispatches like
-///        OP() (am4compat::toggleDef, above): bool(EventMask) gets a real
-///        EventAction<mask,fn> on the item, anything else keeps the original
-///        no-op (v1). style still ignored.
+///        OP() (am4compat::toggleDef, above): a real, unmodified
+///        `Menu::result(oneMenu::EventMask)` handler gets ResultEventAction1
+///        (quit suppresses the cycle for that Enter), a plain
+///        bool(EventMask) gets EventAction<mask,fn> (side-channel
+///        notification only), anything else keeps the original no-op (v1).
+///        style still ignored.
 #define TOGGLE(var, id, label, fn, mask, style, ...) \
   auto id = ::am4compat::toggleDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{label}, \
