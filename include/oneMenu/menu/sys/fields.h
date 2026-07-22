@@ -255,7 +255,7 @@ namespace oneMenu {
   template<typename T,typename B,typename... OO>
   using ChooseFieldDef=ItemDef<
     RecallNavPos<>,
-    Menu<T,B,OO...>
+    Menu<T,B,IsChoiceBody,OO...>
   >;
 
   // AsEditMode<> comes BEFORE T (the label component): AsEditMode/AsIndex/etc

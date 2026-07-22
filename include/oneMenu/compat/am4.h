@@ -639,17 +639,17 @@ namespace am4compat {
     if constexpr (IsResultFn1<decltype(fn)>::value)
       return oneMenu::ItemDef<
           oneMenu::SyncValue<W>, ResultEventAction1<mask,fn>, oneMenu::RecallNavPos<>,
-          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::IsChoiceBody>
         >{std::forward<T>(t), std::forward<B>(b)};
     else if constexpr (IsPlainEventFn<decltype(fn)>::value)
       return oneMenu::ItemDef<
           oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::RecallNavPos<>,
-          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::IsChoiceBody>
         >{std::forward<T>(t), std::forward<B>(b)};
     else
       return oneMenu::ItemDef<
           oneMenu::SyncValue<W>, oneMenu::RecallNavPos<>,
-          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
+          oneMenu::Menu<std::decay_t<T>, std::decay_t<B>, oneMenu::IsChoiceBody>
         >{std::forward<T>(t), std::forward<B>(b)};
   }
 }

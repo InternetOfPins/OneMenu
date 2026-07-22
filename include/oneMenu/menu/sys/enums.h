@@ -69,8 +69,17 @@ namespace oneMenu {
     // rendering); every other format's own base fmtStart/fmtStop default is
     // already a universal no-op for tags it doesn't handle, so this is safe
     // to add without touching ANSI/text/gfx rendering at all.
-    Option=1<<16,Selected=1<<17/*,
-    Footer=1<<18*/
+    Option=1<<16,Selected=1<<17,
+    // Choice: marks a <menu> as a Choose field's own inner body (as opposed
+    // to an ordinary nested submenu) — a constant attribute, no ctx-derived
+    // value, emitted once right after <menu>'s own tag opens (MenuPrinter,
+    // printers.h), gated on the Menu<> instance composing the IsChoiceBody
+    // marker (menu.h). Lets a web client (XmlFmt only) tell "these sibling
+    // items are selectable options, click one to choose it" apart from "this
+    // is a normal submenu with independently-editable fields" — same shape
+    // as Option/Selected above, consumed today only by XmlFmt.
+    Choice=1<<18/*,
+    Footer=1<<19*/
   };
 
   /// @brief lock/unlock print output
@@ -133,6 +142,7 @@ namespace oneMenu {
         case Fmt::High: return out<<"High";
         case Fmt::Option: return out<<"Option";
         case Fmt::Selected: return out<<"Selected";
+        case Fmt::Choice: return out<<"Choice";
         default: return out<<"Fmt::?";
       }
     }

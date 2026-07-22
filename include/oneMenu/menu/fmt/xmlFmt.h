@@ -70,12 +70,16 @@ namespace oneMenu  {
           case Fmt::High:       return "hi";
           case Fmt::Option:     return "opt";
           case Fmt::Selected:   return "sel";
+          case Fmt::Choice:     return "choice";
           default:              return "fmt";
         }
       }
 
       // EditCursor deliberately excluded — see fmtStart's own comment (no-op for XmlFmt).
-      static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditMode|Fmt::Accel;
+      // Choice is a constant marker (no ctx-derived value, unlike the others) —
+      // still fits attr_tags cleanly since it only ever needs "is there an open
+      // tag to attach to" (always true here: emitted right after <menu> opens).
+      static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditMode|Fmt::Accel|Fmt::Choice;
       static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
       static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
 
@@ -128,6 +132,7 @@ namespace oneMenu  {
               break;
             case Fmt::EditCursor: Base::put(ctx ? '|' : ' '); break;
             case Fmt::Accel:      Base::put(ctx.idx); break;
+            case Fmt::Choice:     Base::put('1'); break;
           }
           return;
         }

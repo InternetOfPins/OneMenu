@@ -31,6 +31,20 @@ namespace oneMenu {
     };
   };
 
+  /// @brief pure marker — no behavior of its own, just makes "this Menu<> is
+  /// a Choose field's own inner body" queryable via hapi::query<hapi::SameAs
+  /// <IsChoiceBody>,typename Menu::Types> (MenuPrinter, printers.h), letting
+  /// a web client (XmlFmt) tell "these sibling items are selectable options"
+  /// apart from an ordinary nested submenu with independently-editable
+  /// fields. Spliced into ChooseFieldDef's own Menu<T,B,IsChoiceBody,OO...>
+  /// (fields.h) / am4.h's chooseDef() only — no other Menu<> composes it.
+  struct IsChoiceBody {
+    template<typename I>
+    struct Part:I {
+      using I::I;
+    };
+  };
+
   struct PadDraw {
     template<typename Before, typename After>
     static constexpr bool rules() {

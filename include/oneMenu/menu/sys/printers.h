@@ -48,6 +48,20 @@ namespace oneMenu {
       bool printMenu(I& i,Ctx& ctx) {
         ctx.idx=0;
         Base::template fmtStart<Fmt::Menu>(ctx);
+        // Choice: a constant marker, emitted right after <menu> opens (attr
+        // still open) so a web client (XmlFmt) can tell "this level is a
+        // Choose field's own inner body — sibling items are selectable
+        // options" apart from an ordinary nested submenu. Gated on BOTH the
+        // active format (IsXmlFmt, via the fully-assembled Out reached
+        // through CRTP obj() — MenuPrinter itself has no direct Out&, unlike
+        // item.h's printItem) and the menu instance i's own composition
+        // (IsChoiceBody, spliced into ChooseFieldDef's Menu<T,B,IsChoiceBody,
+        // OO...> only, menu.h) — every other Menu<> is unaffected.
+        if constexpr(hapi::query<IsXmlFmt,typename std::decay_t<decltype(obj())>::Types>
+                  && hapi::query<hapi::SameAs<IsChoiceBody>,typename I::Types>) {
+          Base::template fmtStart<Fmt::Choice>(ctx);
+          Base::template fmtStop<Fmt::Choice>(ctx);
+        }
         // i.printTo(Base::obj());
         bool r=Base::printMenu(i,ctx);
         Base::template fmtStop<Fmt::Menu>(ctx);
