@@ -662,31 +662,40 @@ namespace oneMenu {
       constexpr Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
+        // XmlFmt-only, Choose (IsRealMenu): tag THIS item's own <item> tag
+        // with choice="1" BEFORE the title prints — while the tag's own
+        // attribute-writing window is still open (Base::printItem below,
+        // once called, prints title text and closes it). Choose still
+        // falls through to show its own current value inline (same as
+        // every other format, below) — the choice="1" marker is what lets
+        // a web client render THIS as a clickable link with its value
+        // shown, instead of the plain item[fld] editable-input template a
+        // bare <fld> child would otherwise match (Rui's own request,
+        // 2026-07-22: "choose should display its value on the Data
+        // fields... menu").
+        if constexpr(IsRealMenu && hapi::query<IsXmlFmt,typename Out::Types>) {
+          out.template fmtStart<Fmt::Choice>(ctx);
+          out.template fmtStop<Fmt::Choice>(ctx);
+        }
         Base::printItem(out,ctx);
         out.setPos(out.getPos());
-        // XmlFmt-only: a Choose item (IsRealMenu) already gets real nested-menu
-        // navigation (via Menu::Part::nav's own n.open()), so it needs no inline
-        // value preview at all — suppressing it here lets the existing
-        // item[not(fld)] XSLT template render it as a plain clickable submenu
-        // link, for free. A Toggle/Select item (!IsRealMenu) instead needs its
-        // FULL option list (for a radio-group/dropdown widget), not just the
-        // single currently-selected sub-item's own inline rendering below —
-        // walk every option, each wrapped in <opt>, tagged with a plain <sel>
-        // 0/1 (a stored index comparison, not ctx-derived — there is no real
-        // navigation focus on the non-selected options, only m_sel itself).
-        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
-          if constexpr(IsRealMenu) return;
-          else {
-            for(Sz i=0; i<Base::body.size(); i++) {
-              out.template fmtStart<Fmt::Option>(ctx);
-              out.template fmtStart<Fmt::Selected>(ctx);
-              out.put(i==m_sel ? 1 : 0);
-              out.template fmtStop<Fmt::Selected>(ctx);
-              Base::body.printItem(out,ctx,i);
-              out.template fmtStop<Fmt::Option>(ctx);
-            }
-            return;
+        // XmlFmt-only, Toggle/Select (!IsRealMenu): needs its FULL option
+        // list (for a radio-group/dropdown widget), not just the single
+        // currently-selected sub-item's own inline rendering below — walk
+        // every option, each wrapped in <opt>, tagged with a plain <sel>
+        // 0/1 (a stored index comparison, not ctx-derived — there is no
+        // real navigation focus on the non-selected options, only m_sel
+        // itself).
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types> && !IsRealMenu) {
+          for(Sz i=0; i<Base::body.size(); i++) {
+            out.template fmtStart<Fmt::Option>(ctx);
+            out.template fmtStart<Fmt::Selected>(ctx);
+            out.put(i==m_sel ? 1 : 0);
+            out.template fmtStop<Fmt::Selected>(ctx);
+            Base::body.printItem(out,ctx,i);
+            out.template fmtStop<Fmt::Option>(ctx);
           }
+          return;
         }
         if(ctx) {
           if(ctx.mode==NavMode::Edit||ctx.after()>1) Base::body.printItem(out,ctx,ctx.path.last());

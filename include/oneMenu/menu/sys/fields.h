@@ -229,6 +229,22 @@ namespace oneMenu {
       using Base=typename RecallNavPos<false>::template Part<I>;
       using Base::Base;
       template<typename... OO> Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
+      // XmlFmt-only: tag this item's own <item> tag with dropdown="1"
+      // BEFORE Base::printItem (RecallNavPos<false>'s own <opt> list emission)
+      // runs — same "constant attribute, emitted while the tag's own
+      // attribute window is still open" shape as RecallNavPos's own Choice
+      // marker. Toggle and Select both compose RecallNavPos<false> and emit
+      // an identical <opt> list otherwise; this is the only thing telling a
+      // web client "render me as an <select><option> dropdown" apart from
+      // Toggle's own row-of-pills (Rui's own request, 2026-07-22).
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
+          out.template fmtStart<Fmt::Dropdown>(ctx);
+          out.template fmtStop<Fmt::Dropdown>(ctx);
+        }
+        Base::printItem(out,ctx);
+      }
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
         if(cke.cmd==Cmd::Enter) {

@@ -78,8 +78,15 @@ namespace oneMenu {
     // items are selectable options, click one to choose it" apart from "this
     // is a normal submenu with independently-editable fields" — same shape
     // as Option/Selected above, consumed today only by XmlFmt.
-    Choice=1<<18/*,
-    Footer=1<<19*/
+    Choice=1<<18,
+    // Dropdown: marks a Select field's own <item> (a constant attribute,
+    // same shape as Choice above) so a web client can tell it apart from
+    // Toggle — both compose RecallNavPos<false> and emit an identical <opt>
+    // list otherwise, but Select wants an <select><option> dropdown while
+    // Toggle wants a row of clickable pills (SelectBehave::Part::printItem,
+    // fields.h — Toggle doesn't emit this tag at all).
+    Dropdown=1<<19/*,
+    Footer=1<<20*/
   };
 
   /// @brief lock/unlock print output
@@ -143,6 +150,7 @@ namespace oneMenu {
         case Fmt::Option: return out<<"Option";
         case Fmt::Selected: return out<<"Selected";
         case Fmt::Choice: return out<<"Choice";
+        case Fmt::Dropdown: return out<<"Dropdown";
         default: return out<<"Fmt::?";
       }
     }
