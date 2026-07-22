@@ -328,6 +328,29 @@ namespace oneMenu {
     };
   };
 
+  /// @brief triggers the item's own enabled/disabled state print — unlike
+  /// NavCursorPrinter's '@'/'-'/' ' (which only distinguishes enabled from
+  /// disabled when the item is ALSO the focused one), this fires for every
+  /// item unconditionally, same shape as IndexPrinter — a universal no-op
+  /// for any format that doesn't specifically handle Fmt::Enabled (out.h's
+  /// own base default), real output only from XmlFmt today (web clients:
+  /// render a disabled item as non-clickable instead of guessing from
+  /// nav-focus state alone).
+  struct EnabledPrinter : aPrinter {
+    template<typename O>
+    struct Part:O {
+      using IsPrinter=std::true_type;
+      using Base=O;
+      using This=Part<O>;
+      template<typename I>
+      bool printItem(I& i,Ctx& ctx) {
+        O::template fmtStart<Fmt::Enabled>(ctx);
+        O::template fmtStop<Fmt::Enabled>(ctx);
+        return O::printItem(i,ctx);
+      }
+    };
+  };
+
   /// @brief triggers the navigation cursor print
   struct NavCursorPrinter : aPrinter {
     template<typename O>
@@ -433,7 +456,7 @@ namespace oneMenu {
   template<typename... OO> using AsUnit=AsFmt<Fmt::Unit,OO...>;
     
 
-  using ItemsPrinter=ItemPrinter<IndexPrinter,NavCursorPrinter,ItemBodyPrinter>;
+  using ItemsPrinter=ItemPrinter<IndexPrinter,EnabledPrinter,NavCursorPrinter,ItemBodyPrinter>;
 
   // Full printers: title + body + footer
   using FullPrinter=Chain<

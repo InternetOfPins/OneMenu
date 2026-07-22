@@ -85,8 +85,20 @@ namespace oneMenu {
     // list otherwise, but Select wants an <select><option> dropdown while
     // Toggle wants a row of clickable pills (SelectBehave::Part::printItem,
     // fields.h — Toggle doesn't emit this tag at all).
-    Dropdown=1<<19/*,
-    Footer=1<<20*/
+    Dropdown=1<<19,
+    // Enabled: an item's own real enabled() state, ALWAYS emitted regardless
+    // of nav focus (unlike NavCursor's '@'/'-'/' ', which only distinguishes
+    // enabled-vs-disabled when the item is ALSO the focused one — an
+    // unfocused disabled item was otherwise indistinguishable from an
+    // unfocused enabled one). Value comes from ctx.enabled, already
+    // populated per-item by ItemPrinter (printers.h: `ctx.enabled=
+    // i.enabled();`, unconditional) regardless of format — same "always
+    // emitted, safe no-op default for formats that don't care" shape as
+    // the pre-existing Index tag, no IsXmlFmt gating needed (no raw put()
+    // call outside fmtStart/fmtStop the way Low/High's own value-printing
+    // needed one).
+    Enabled=1<<20/*,
+    Footer=1<<21*/
   };
 
   /// @brief lock/unlock print output
@@ -151,6 +163,7 @@ namespace oneMenu {
         case Fmt::Selected: return out<<"Selected";
         case Fmt::Choice: return out<<"Choice";
         case Fmt::Dropdown: return out<<"Dropdown";
+        case Fmt::Enabled: return out<<"Enabled";
         default: return out<<"Fmt::?";
       }
     }
