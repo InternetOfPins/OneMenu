@@ -36,6 +36,36 @@ namespace oneMenu {
         return this->root().setStr(this->obj(), s, this->focus(this->level()+1));
       }
 
+      // Apply a value at an EXPLICIT absolute path, with NO navigation at
+      // all — no go()/Enter/padOpen() side effects, unlike async()+set()
+      // (which walks the path via async()'s own per-segment Enter-firing).
+      // That matters specifically when an intermediate segment happens to
+      // be a pad item (e.g. dateField): async()'s own Enter on it calls
+      // n.padOpen(), which leaves the nav's own edit-mode/pad state
+      // lingering — found 2026-07-22, real ESP32 hardware: editing one of
+      // dateField's own sub-fields left subsequent edits to OTHER,
+      // unrelated fields silently ignored. Menu::setStr's own recursion is
+      // purely structural (walks the given Path array directly — no go(),
+      // no doCmd, no nav-state mutation anywhere in the call chain), so
+      // this sidesteps the whole problem: parse "path" into a small local
+      // buffer, then apply val via setStr exactly the way set() already
+      // does, just against a caller-supplied path instead of the nav's own
+      // current (level-dependent) position.
+      bool setAt(const char* path,const char* val) {
+        if(!path) return false;
+        if(*path=='/') path++;
+        Sz buf[8]; Depth n=0;
+        while(*path && n<8) {
+          Sz v=0;
+          while(*path>='0'&&*path<='9') v=Sz(v*10u+unsigned(*path++-'0'));
+          buf[n++]=v;
+          if(*path=='/') path++;
+        }
+        if(n==0) return false;
+        Path p{n,buf};
+        return this->root().setStr(this->obj(),val,p);
+      }
+
       // Navigate to the path position. Resets to root first — safe to call
       // from any current position. Returns false only if path is null.
       bool async(const char* path) {
