@@ -8,8 +8,16 @@
 
 namespace oneMenu {
 
-  // WebOut: raw output device that streams directly to a WebServer via sendContent().
-  // No host-side buffer — each put() sends immediately; TCP Nagle coalesces small writes.
+  // WebOut: raw output device that buffers one full render into a String,
+  // then sends it as a single WebServer::sendContent() call on flush()
+  // (called automatically by TreeNav::printTo/DefinedNav::doOutput, out.h).
+  // NOT one sendContent() per character (an earlier, real design mistake,
+  // found 2026-07-22 — a ~200-byte XML render took 5+ real seconds over
+  // WiFi: WebServer.cpp uses chunked transfer encoding whenever content
+  // length is unknown, so every single-character put() was its own HTTP
+  // chunk — hundreds of tiny chunked writes, each subject to real-world
+  // Nagle/delayed-ACK stalls). Same buffer-then-flush pattern WebSocketOut
+  // already used correctly from the start.
   // Call WebOut::begin(server) once before serving requests.
   struct WebOut : aRawDevice {
     inline static WebServer* _server = nullptr;
@@ -56,19 +64,17 @@ namespace oneMenu {
 
     template<typename O>
     struct _Part : O {
-      static void put(char c) {
-        if(_server) { char b[2] = {c, '\0'}; _server->sendContent(b); }
-      }
-      static void put(const char* s) {
-        if(_server) _server->sendContent(s);
-      }
-      static void put(const char* s, Sz n) {
-        if(_server) { for(Sz i = 0; i < n && s[i]; i++) put(s[i]); }
-      }
+      inline static String _buf;
+      static void put(char c) { _buf += c; }
+      static void put(const char* s) { _buf += s; }
+      static void put(const char* s, Sz n) { for(Sz i = 0; i < n && s[i]; i++) put(s[i]); }
       static void nl()                     { put('\n'); O::nl(); }
       static constexpr void setPos(const Pos&) {}
-      static void clear()                  { O::clear(); }
-      static constexpr void flush()        {}
+      static void clear()                  { _buf = ""; O::clear(); }
+      static void flush() {
+        if(_server) _server->sendContent(_buf);
+        _buf = "";
+      }
       static constexpr Sz charWidth()      { return 1; }
       static constexpr Sz lineSpacing()    { return 1; }
     };
