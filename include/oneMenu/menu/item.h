@@ -527,9 +527,43 @@ namespace oneMenu {
       using Base::get;
       using Base::up;
       using Base::down;
+      using Base::low;
+      using Base::high;
       using Type=typename Base::Type;
       constexpr bool valid() const {return Base::valid(get());}
       constexpr bool clamp() {return Base::set(Base::clamp(get()));}
+
+      // Real child tags (Fmt::Low/High — not attribute-only, see enums.h's
+      // own comment), emitted BEFORE the field's own <fld> so a consumer
+      // sees range-then-value in document order. low()/high() are plain
+      // OneData accessors (StaticNumRange, added alongside this) — safe to
+      // call from here since this Part already lives in oneMenu, not
+      // oneData.
+      //
+      // Gated on hapi::query<IsXmlFmt,Out::Types> — NOT unconditional.
+      // fmtStart/fmtStop alone would be safely no-op on other formats (out.h's
+      // own base default), but the out.put(low()/high()) calls in between are
+      // NOT — put() is a real, unconditional device write on every format,
+      // so without this gate a real ANSI/graphics display would show
+      // "Power0100755%" (confirmed empirically, 2026-07-22: the raw ANSI
+      // render literally printed the range numbers before the real value).
+      // IsXmlFmt is a plain hapi::TagIs<aXmlFmt> predicate (base.h) — same
+      // hapi::query<...,typename Out::Types> pattern already used
+      // throughout this file (IsCursor/IsFillRect checks) — Out is the same
+      // single, top-level device object type threaded through the whole
+      // printItem recursion, so this check is genuinely per-active-format.
+      template<typename Out>
+      void printItem(Out& out, Ctx& ctx) {
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
+          out.template fmtStart<Fmt::Low>(ctx);
+          out.put(low());
+          out.template fmtStop<Fmt::Low>(ctx);
+          out.template fmtStart<Fmt::High>(ctx);
+          out.put(high());
+          out.template fmtStop<Fmt::High>(ctx);
+        }
+        Base::printItem(out,ctx);
+      }
 
       // Digit-literal accumulator: numeric fields need to deliver Cmd::Key
       // when nav is on edit mode (see nav.h's IndexGo, idParser.h). AM4's

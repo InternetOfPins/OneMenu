@@ -5,7 +5,7 @@
 
 namespace oneMenu  {
   /// @brief XML format: element-per-item, attributes for nav state, CDATA for label text
-  struct XmlFmt : aFormat {
+  struct XmlFmt : aFormat, aXmlFmt {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsPrinter, After>, "XmlFmt: printer layers must be placed above XmlFmt");
@@ -66,6 +66,8 @@ namespace oneMenu  {
           case Fmt::EditCursor: return "ecur";
           case Fmt::Data:       return "data";
           case Fmt::Unit:       return "un";
+          case Fmt::Low:        return "lo";
+          case Fmt::High:       return "hi";
           default:              return "fmt";
         }
       }
@@ -195,7 +197,11 @@ namespace oneMenu  {
           }
           return;
         }
-        if(tag==Fmt::Item && autoCDATA) { Base::put("]]>"); autoCDATA=false; inItem=false; }
+        // Any tag closing (not just Item) may need to close a pending
+        // auto-CDATA first — e.g. Fmt::Low/High (item.h's NumField::Part)
+        // call raw put() directly between their own fmtStart/fmtStop,
+        // which auto-opens CDATA the same way bare item body text does.
+        closeCDATA();
         closeAttr();
         if(tag==Fmt::Item) inItem=false;
         if(tag&(Fmt::View|Fmt::Menu|Fmt::Body)) {

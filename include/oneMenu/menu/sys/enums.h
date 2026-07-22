@@ -53,8 +53,15 @@ namespace oneMenu {
   enum class Fmt:int {
     None=0<<0,View=1<<0,Title=1<<1,Menu=1<<2,Body=1<<3,Item=1<<4,
     Index=1<<5,Accel=1<<6,NavCursor=1<<7,
-    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13/*,
-    Footer=1<<14*/
+    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13,
+    // Low/High: a numeric field's own range (StaticRange's low<T>()/high<T>()) —
+    // real child tags (not attribute-only), consumed today only by XmlFmt (a
+    // <fld>'s own min/max, e.g. for a web client's slider widget); every
+    // other format's own base fmtStart/fmtStop default (out.h) is already a
+    // universal no-op for any tag it doesn't specifically handle, so this is
+    // safe to add without touching ANSI/text/gfx rendering at all.
+    Low=1<<14,High=1<<15/*,
+    Footer=1<<16*/
   };
 
   /// @brief lock/unlock print output
@@ -113,6 +120,8 @@ namespace oneMenu {
         case Fmt::EditCursor: return out<<"EditCursor";
         case Fmt::Data: return out<<"Data";
         case Fmt::Unit: return out<<"Unit";
+        case Fmt::Low: return out<<"Low";
+        case Fmt::High: return out<<"High";
         default: return out<<"Fmt::?";
       }
     }

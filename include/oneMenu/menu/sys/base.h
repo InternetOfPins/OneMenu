@@ -183,11 +183,17 @@ namespace oneMenu {
   struct aRawDevice {};
   struct aScrollBody{};
   struct aFillRect  {};
+  // XmlFmt-specific marker — lets a component (e.g. NumField, item.h) ask
+  // "is the currently active format XmlFmt" via hapi::query<IsXmlFmt,
+  // typename Out::Types> without item.h needing to include xmlFmt.h at all
+  // (XmlFmt itself just inherits aXmlFmt alongside the generic aFormat).
+  struct aXmlFmt    {};
 
   // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
   using IsCursor     = hapi::TagIs<aCursor>;
   using IsScrollBody = hapi::TagIs<aScrollBody>;
   using IsFormat     = hapi::TagIs<aFormat>;
+  using IsXmlFmt     = hapi::TagIs<aXmlFmt>;
   using IsPrinter    = hapi::TagIs<aPrinter>;
   using IsParser     = hapi::TagIs<aParser>;
   using IsArea       = hapi::TagIs<anArea>;
