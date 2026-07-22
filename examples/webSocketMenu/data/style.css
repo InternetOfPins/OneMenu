@@ -1,0 +1,90 @@
+/* OneMenu demo — dark "dev console" theme, served as a real static asset
+   (SPIFFS /style.css, main.cpp) rather than embedded in menu.xslt's own
+   <head>, so styling can be iterated on/cached independently of the XSLT
+   itself. Adapted from Rui's own reference mockups (aux/raw/onemenu_main
+   .html, onemenu_fields.html) — palette/fonts/spacing/effects kept as
+   designed; the mockups' own per-row-type colored status dots (CSS :has()
+   detecting nav/text/slider/toggle/select/choose/pad-group/disabled) were
+   dropped per Rui's own follow-up request, 2026-07-22. */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0a0d13;
+  --bg-vignette:radial-gradient(120% 140% at 50% -10%,#14202a 0%,#0a0d13 55%);
+  --panel:#11151d;
+  --row:#161b25;
+  --row-hover:#1b2130;
+  --line:rgba(255,255,255,.07);
+  --text:#e7ebf1;
+  --muted:#7c8797;
+  --accent:#34d399;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent-glow:rgba(52,211,153,.35);
+  --disabled:#4b5563;
+}
+body{margin:0;padding:2.5em 1.25em;background:var(--bg-vignette),var(--bg);color:var(--text);
+     font-family:'Inter',-apple-system,Helvetica,Arial,sans-serif;text-shadow:none;position:relative}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+     background:repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px);
+     mix-blend-mode:overlay}
+.panel{max-width:380px;margin:0 auto;position:relative;z-index:1}
+.masthead{display:flex;align-items:center;gap:.7em;justify-content:center;margin:0 0 1.6em;
+     text-decoration:none;transition:opacity .15s}
+.masthead:hover{opacity:.8}
+.masthead .logo{width:2em;height:2em;flex:none;filter:drop-shadow(0 0 6px var(--accent-glow))}
+.masthead span{font-family:'JetBrains Mono',monospace;font-size:.95em;font-weight:600;
+     letter-spacing:.14em;text-transform:uppercase;color:var(--text)}
+h3{margin:0 0 .9em;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.85em;
+   letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-bottom:.5em;
+   border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.5em}
+h3::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);
+   box-shadow:0 0 6px var(--accent-glow)}
+/* Title doubles as the "‹ Back" link (see menu.xslt's own menu/title
+   template) — same visual slot the old standalone .back anchor used to
+   occupy, just merged into the title row itself. */
+.title-back{color:inherit;text-decoration:none;display:flex;align-items:center;gap:.5em;
+     transition:color .15s}
+.title-back:hover{color:var(--accent)}
+.back-arrow{color:var(--accent)}
+ul{list-style:none;margin:0;padding:0;background:var(--panel);border-radius:10px;overflow:hidden;
+   border:1px solid var(--line);box-shadow:0 12px 30px rgba(0,0,0,.35)}
+li{position:relative;background:var(--row);border-bottom:1px solid var(--line);transition:background .15s}
+li:last-child{border-bottom:none}
+li:hover{background:var(--row-hover)}
+li.cur{background:var(--accent-soft);box-shadow:inset 3px 0 0 0 var(--accent)}
+a{display:block;padding:.9em 1.1em;color:var(--text);text-decoration:none;font-size:.95em}
+a:active,a:hover{background:transparent;color:var(--accent)}
+.disabled{display:block;padding:.9em 1.1em;color:var(--disabled)}
+a.choose-link{display:flex;justify-content:space-between;align-items:center;gap:.5em}
+a.choose-link .preview{color:var(--accent);font-family:'JetBrains Mono',monospace;
+   font-variant-numeric:tabular-nums;font-size:.9em}
+.field{display:flex;align-items:center;justify-content:space-between;padding:.85em 1.1em;gap:.75em}
+.field label{flex:0 1 auto;font-weight:500;font-size:.92em;color:var(--text)}
+.field select{flex:1 1 auto;min-width:0;padding:.4em .6em;border:1px solid var(--line);
+   border-radius:6px;background:#0d1119;color:var(--accent);font:inherit;
+   font-family:'JetBrains Mono',monospace;font-size:.85em}
+.field select option{background:#0d1119;color:var(--accent)}
+.field input{flex:1 1 auto;min-width:0;width:auto;text-align:left;padding:.4em .6em;
+   border:1px solid var(--line);border-radius:6px;background:#0d1119;color:var(--accent);
+   font:inherit;font-family:'JetBrains Mono',monospace;font-size:.85em;transition:border-color .15s}
+.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field .unit{color:var(--muted);min-width:1.6em;font-family:'JetBrains Mono',monospace;font-size:.85em}
+.pad-menu{flex:1 1 auto;min-width:0;padding:.6em .7em;background:#0d1119;border-radius:6px;
+   border:1px solid var(--line)}
+.pad-menu ul{display:flex;align-items:center;gap:.4em;box-shadow:none;border-radius:0;
+   background:transparent;border:none}
+.pad-menu li{background:none;border:none;flex:none}
+.pad-menu .field{display:flex;align-items:center;padding:0;gap:.3em}
+.pad-menu .field label{font-weight:400;color:var(--muted);font-family:'JetBrains Mono',monospace;
+   font-size:.75em}
+.pad-menu input[type=number]{width:4.4em;padding:.4em .3em;text-align:center}
+.field input.slider{border:none;padding:0;accent-color:var(--accent);background:none;height:4px}
+.field output{color:var(--accent);min-width:2.6em;text-align:right;font-family:'JetBrains Mono',monospace;
+   font-variant-numeric:tabular-nums;font-size:.85em}
+.opts{display:flex;flex-wrap:wrap;gap:.45em;justify-content:flex-end}
+.opt{padding:.4em .9em;border:1px solid var(--line);border-radius:999px;color:var(--muted);
+   font-size:.85em;text-decoration:none;font-family:'JetBrains Mono',monospace;transition:all .15s}
+.opt:hover{border-color:var(--accent);color:var(--accent)}
+.opt.sel{background:var(--accent);border-color:var(--accent);color:#06231a;font-weight:600}
+.opt.sel:hover{background:var(--accent)}
