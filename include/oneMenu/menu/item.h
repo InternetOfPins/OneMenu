@@ -630,6 +630,29 @@ namespace oneMenu {
   };
 
   /// @brief store and restore navigation position
+  ///
+  /// IsRealMenu (NTTP, default true) distinguishes ChooseFieldDef's own real
+  /// nested-menu navigation (Enter causes Menu::Part::nav's own n.open() — no
+  /// PadDraw/ParentDraw in its composition, so isPad() stays at its default
+  /// false) from ToggleBehave/SelectBehave, whose own nav() overrides Enter's
+  /// default action entirely (cycle-in-place / n.padOpen()) and which compose
+  /// RecallNavPos<false>::Part<I> as their own base instead of the bare,
+  /// default-true form ChooseFieldDef/am4.h's chooseDef() use directly.
+  /// (isPad() itself was checked and rejected as the discriminator: neither
+  /// ToggleFieldDef nor SelectFieldDef's own Menu<...,ParentDraw,...> sets it
+  /// true — only a separate, unrelated component, PadDraw, does — so all
+  /// three fields share the same isPad()==false default; ParentDraw's own
+  /// nav() (item.h, just above) is what actually redirects Enter to
+  /// n.padOpen() for Toggle/Select, not isPad().)
+  ///
+  /// A plain NTTP (not a runtime-overridable method) is used deliberately —
+  /// a method meant to be "overridden" by a derived Part would hit the same
+  /// static-dispatch trap already documented elsewhere in this codebase
+  /// (calling a chain-overridable op from the base that defines it binds to
+  /// that base's own scope, not a further-derived Part) — the NTTP sidesteps
+  /// this entirely: ToggleBehave/SelectBehave name RecallNavPos<false>
+  /// explicitly as their own base, so there is no dispatch to get wrong.
+  template<bool IsRealMenu=true>
   struct RecallNavPos {
     template<typename I>
     struct Part:I {
@@ -641,6 +664,30 @@ namespace oneMenu {
       void printItem(Out& out,Ctx& ctx) {
         Base::printItem(out,ctx);
         out.setPos(out.getPos());
+        // XmlFmt-only: a Choose item (IsRealMenu) already gets real nested-menu
+        // navigation (via Menu::Part::nav's own n.open()), so it needs no inline
+        // value preview at all — suppressing it here lets the existing
+        // item[not(fld)] XSLT template render it as a plain clickable submenu
+        // link, for free. A Toggle/Select item (!IsRealMenu) instead needs its
+        // FULL option list (for a radio-group/dropdown widget), not just the
+        // single currently-selected sub-item's own inline rendering below —
+        // walk every option, each wrapped in <opt>, tagged with a plain <sel>
+        // 0/1 (a stored index comparison, not ctx-derived — there is no real
+        // navigation focus on the non-selected options, only m_sel itself).
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
+          if constexpr(IsRealMenu) return;
+          else {
+            for(Sz i=0; i<Base::body.size(); i++) {
+              out.template fmtStart<Fmt::Option>(ctx);
+              out.template fmtStart<Fmt::Selected>(ctx);
+              out.put(i==m_sel ? 1 : 0);
+              out.template fmtStop<Fmt::Selected>(ctx);
+              Base::body.printItem(out,ctx,i);
+              out.template fmtStop<Fmt::Option>(ctx);
+            }
+            return;
+          }
+        }
         if(ctx) {
           if(ctx.mode==NavMode::Edit||ctx.after()>1) Base::body.printItem(out,ctx,ctx.path.last());
           else Base::body.printItem(out,ctx,m_sel);
@@ -661,6 +708,29 @@ namespace oneMenu {
       }
       template<typename Fn>
       auto visit(Fn&& fn) {return Base::body.visit(m_sel,std::forward<Fn>(fn));}
+      // Web/async value-set path (AsyncNav::set() -> Menu::setStr() -> here,
+      // reached via the item's OWN path — e.g. /set?path=/3/2/&val=1 for
+      // Toggle/Select's option index): parse the given string as a plain
+      // option index and jump directly to it. Same strtol+p.len==0 pattern
+      // oneData's own StaticNumRange/StaticRange already use for their own
+      // /set endpoint — NOT the same mechanism as nav()'s own path.len check
+      // above (that one reflects the nav's stored multi-level cursor state
+      // for physical multi-level restore, not a caller-supplied index; an
+      // earlier attempt to reuse it for direct web option-jump via a deeper
+      // /nav?path=... turned out to misfire — AsyncNav::async() fires a real
+      // Cmd::Enter on every *intermediate* path segment, which cycles/opens
+      // whatever item sits there rather than reaching m_sel — confirmed on
+      // real ESP32 hardware, 2026-07-22 — this setStr()-based route sidesteps
+      // that entirely by addressing the field directly, one path, no nested
+      // segment).
+      template<typename Nav,typename P>
+      bool setStr(Nav&,const char* s,P p) {
+        if(p.len==0) {
+          Sz i=(Sz)strtol(s,nullptr,10);
+          if(i<Base::body.size()) { m_sel=i; return true; }
+        }
+        return false;
+      }
       protected: Sz m_sel{0};
     };
   };
@@ -708,7 +778,7 @@ namespace oneMenu {
   struct ParentDraw {
     template<typename Before, typename After>
     static constexpr bool rules() {
-      static_assert(Excludes<hapi::SameAs<RecallNavPos>, After>,
+      static_assert(Excludes<hapi::SameAs<RecallNavPos<>>, After>,
         "ParentDraw: RecallNavPos must be placed above ParentDraw in the ItemDef chain");
       static_assert(Excludes<hapi::SameAs<ItemNav>, Before, After>,
         "ParentDraw: ItemNav cannot coexist with ParentDraw — ParentDraw handles Enter/close by itself; remove ItemNav");

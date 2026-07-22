@@ -638,17 +638,17 @@ namespace am4compat {
   constexpr auto chooseDef(T&& t, B&& b) {
     if constexpr (IsResultFn1<decltype(fn)>::value)
       return oneMenu::ItemDef<
-          oneMenu::SyncValue<W>, ResultEventAction1<mask,fn>, oneMenu::RecallNavPos,
+          oneMenu::SyncValue<W>, ResultEventAction1<mask,fn>, oneMenu::RecallNavPos<>,
           oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
         >{std::forward<T>(t), std::forward<B>(b)};
     else if constexpr (IsPlainEventFn<decltype(fn)>::value)
       return oneMenu::ItemDef<
-          oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::RecallNavPos,
+          oneMenu::SyncValue<W>, oneMenu::EventAction<mask,fn>, oneMenu::RecallNavPos<>,
           oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
         >{std::forward<T>(t), std::forward<B>(b)};
     else
       return oneMenu::ItemDef<
-          oneMenu::SyncValue<W>, oneMenu::RecallNavPos,
+          oneMenu::SyncValue<W>, oneMenu::RecallNavPos<>,
           oneMenu::Menu<std::decay_t<T>, std::decay_t<B>>
         >{std::forward<T>(t), std::forward<B>(b)};
   }

@@ -187,8 +187,8 @@ namespace oneMenu {
   /// is implicitly: a RecallDraw and Recall
   struct ToggleBehave {
     template<typename I>
-    struct Part:RecallNavPos::template Part<I> {
-      using Base=typename RecallNavPos::template Part<I>;
+    struct Part:RecallNavPos<false>::template Part<I> {
+      using Base=typename RecallNavPos<false>::template Part<I>;
       using Base::Base;
       using Base::sync;  // keep ItemAPI's inherited sync(Out&) template
                          // reachable — this Part's own sync() (0-arg) would
@@ -225,8 +225,8 @@ namespace oneMenu {
   // ParentDraw (not PadDraw) in Menu<> prevents body.printInline from showing all items.
   struct SelectBehave {
     template<typename I>
-    struct Part:RecallNavPos::template Part<I> {
-      using Base=typename RecallNavPos::template Part<I>;
+    struct Part:RecallNavPos<false>::template Part<I> {
+      using Base=typename RecallNavPos<false>::template Part<I>;
       using Base::Base;
       template<typename... OO> Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
       template<bool isKbd,typename Nav>
@@ -254,7 +254,7 @@ namespace oneMenu {
 
   template<typename T,typename B,typename... OO>
   using ChooseFieldDef=ItemDef<
-    RecallNavPos,
+    RecallNavPos<>,
     Menu<T,B,OO...>
   >;
 

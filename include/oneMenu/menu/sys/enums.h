@@ -60,8 +60,17 @@ namespace oneMenu {
     // other format's own base fmtStart/fmtStop default (out.h) is already a
     // universal no-op for any tag it doesn't specifically handle, so this is
     // safe to add without touching ANSI/text/gfx rendering at all.
-    Low=1<<14,High=1<<15/*,
-    Footer=1<<16*/
+    Low=1<<14,High=1<<15,
+    // Option/Selected: a Toggle/Select field's own full option list — each
+    // sibling in the field's body, wrapped individually, plus which one is
+    // currently selected (a plain 0/1 child, not ctx-derived like NavCursor —
+    // there is no real navigation focus on non-selected options, only a
+    // stored index) — consumed today only by XmlFmt (radio-group/dropdown
+    // rendering); every other format's own base fmtStart/fmtStop default is
+    // already a universal no-op for tags it doesn't handle, so this is safe
+    // to add without touching ANSI/text/gfx rendering at all.
+    Option=1<<16,Selected=1<<17/*,
+    Footer=1<<18*/
   };
 
   /// @brief lock/unlock print output
@@ -122,6 +131,8 @@ namespace oneMenu {
         case Fmt::Unit: return out<<"Unit";
         case Fmt::Low: return out<<"Low";
         case Fmt::High: return out<<"High";
+        case Fmt::Option: return out<<"Option";
+        case Fmt::Selected: return out<<"Selected";
         default: return out<<"Fmt::?";
       }
     }

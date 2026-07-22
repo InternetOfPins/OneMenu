@@ -68,6 +68,8 @@ namespace oneMenu  {
           case Fmt::Unit:       return "un";
           case Fmt::Low:        return "lo";
           case Fmt::High:       return "hi";
+          case Fmt::Option:     return "opt";
+          case Fmt::Selected:   return "sel";
           default:              return "fmt";
         }
       }
