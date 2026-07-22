@@ -383,9 +383,20 @@ namespace oneMenu {
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         out.template fmtStart<tag>(ctx);
-        out.template fmtStart<Fmt::Data>(ctx);
-        Base::printItem(out,ctx);
-        out.template fmtStop<Fmt::Data>(ctx);
+        // Only wrap in a Data/CDATA section when there's real content to
+        // print (OO... non-empty) — a zero-arg marker like AsEditMode<>
+        // wraps nothing (Base::printItem is PartEnd's own no-op), and
+        // XmlFmt's Fmt::Data::fmtStart calls closeAttr() unconditionally,
+        // which wrongly force-closes an attribute-style tag's still-open
+        // value (e.g. mode="...) if invoked here regardless. Found
+        // 2026-07-22 rendering a real NumField (AsEditMode<>) over XmlFmt.
+        if constexpr(sizeof...(OO)>0) {
+          out.template fmtStart<Fmt::Data>(ctx);
+          Base::printItem(out,ctx);
+          out.template fmtStop<Fmt::Data>(ctx);
+        } else {
+          Base::printItem(out,ctx);
+        }
         out.template fmtStop<tag>(ctx);
         O::printItem(out,ctx);
       }

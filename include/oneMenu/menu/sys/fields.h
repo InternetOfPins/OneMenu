@@ -258,9 +258,18 @@ namespace oneMenu {
     Menu<T,B,OO...>
   >;
 
+  // AsEditMode<> comes BEFORE T (the label component): AsEditMode/AsIndex/etc
+  // are attribute-only Fmt tags (XmlFmt's attr_tags) that must fire while the
+  // enclosing <item> tag is still open — T (AsLabel<...>) opens+closes its
+  // own <lbl> child first, which force-closes <item>'s own tag in the
+  // process (XmlFmt::fmtStart closes any pending open tag before printing
+  // inline content) — putting AsEditMode<> after T meant its mode="..."
+  // attribute fired too late, landing as malformed loose text after </lbl>
+  // instead of as a real <item> attribute (found 2026-07-22 rendering a real
+  // NumField over XmlFmt on real ESP32 hardware).
   template<typename T,typename O,typename... OO>
   using NumFieldDef
-    =ItemDef<T,AsEditMode<>,EditField,O,OO...>;
+    =ItemDef<AsEditMode<>,T,EditField,O,OO...>;
 
   // TextField<N, Mask> is self-contained (storage inside the field),
   // so TextFieldDef needs no DataRef/Watch layer — just title + size + mask.
