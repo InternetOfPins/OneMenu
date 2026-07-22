@@ -24,6 +24,17 @@ namespace oneMenu  {
       // Close open element tag before any inline content
       void closeAttr() { if(attr) { attr=false; Base::put('>'); } }
 
+      // Close a pending auto-opened CDATA section before starting any real
+      // child element — items whose own bare (non-AsLabel-wrapped) text
+      // auto-opens a CDATA section (put()'s own lazy-open, below) can still
+      // have further Fmt-tagged children after that text (e.g. Toggle/
+      // Choose's own inline current-value <fld>) — without this, a child
+      // tag's `<` lands as raw characters INSIDE the still-open outer CDATA,
+      // and CDATA sections can't nest, so the child's own `]]>` prematurely
+      // truncates the outer one, corrupting everything after it (found
+      // 2026-07-22, real ESP32 hardware: Toggle/Choose's own inline value).
+      void closeCDATA() { if(autoCDATA) { Base::put("]]>"); autoCDATA=false; } }
+
       // put() from CRTP outer — plain item body text needs auto CDATA wrap.
       // puts from own handlers use Base::put() directly, bypassing this.
       template<typename T> void put(T v) {
@@ -59,7 +70,8 @@ namespace oneMenu  {
         }
       }
 
-      static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditCursor|Fmt::EditMode|Fmt::Accel;
+      // EditCursor deliberately excluded — see fmtStart's own comment (no-op for XmlFmt).
+      static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditMode|Fmt::Accel;
       static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
       static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
 
@@ -79,7 +91,22 @@ namespace oneMenu  {
 
       template<Fmt tag>
       void fmtStart(const Ctx& ctx) {
+        // EditCursor tracks a physical device cursor position (out.h's own
+        // Cursor<> component) — meaningless for a static XML snapshot, and
+        // TextField::printItem (fields.h) fires it INLINE, mid-CDATA-text,
+        // not right after an item's own tag opens like the other attr_tags
+        // — treating it as an attribute there corrupts the field's own
+        // CDATA content (found 2026-07-22, real ESP32 hardware). No-op here;
+        // mode="edit" already conveys "this field is being edited".
+        if constexpr(tag==Fmt::EditCursor) return;
         if(tag&attr_tags) {
+          // No open tag to attach an attribute to — e.g. a pad-mode inline
+          // sub-item (dateField's own month/day cells), which never gets its
+          // own <item> wrapper the way a top-level item does. Silently
+          // no-op rather than emit stray, malformed loose text (found
+          // 2026-07-22, real ESP32 hardware: dateField's own AsEditMode<>).
+          // fmtStop mirrors this same check so the pair stays balanced.
+          if(!attr) return;
           // attribute: space + name + =" + value (fmtStop closes the quote)
           Base::put(' ');
           Base::put(tagName<tag>());
@@ -103,12 +130,14 @@ namespace oneMenu  {
 
         if(tag&(Fmt::Data)) {
           closeAttr();
+          closeCDATA();
           if(datasec==0) Base::put("<![CDATA[");
           datasec++;
           return;
         }
 
         // block/inline element open: close previous open tag with >, nl for block children
+        closeCDATA();
         if(attr) {
           attr=false;
           Base::put('>');
@@ -153,7 +182,9 @@ namespace oneMenu  {
       template<Fmt tag>
       void fmtStop(const Ctx& ctx) {
         Base::template fmtStop<tag>(ctx);
+        if constexpr(tag==Fmt::EditCursor) return;  // see fmtStart's own comment
         if(tag&attr_tags) {
+          if(!attr) return;  // matches fmtStart's own no-open-tag guard
           Base::put('"');  // close attribute value quote
           return;
         }

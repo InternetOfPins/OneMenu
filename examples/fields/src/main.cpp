@@ -187,8 +187,15 @@ using Power = NumFieldDef<
 >;
 
 // Toggle: cycles Rise/Fall/Both inline on each Enter (WrapNav baked in)
+// AsEditMode<> deliberately listed FIRST — it's an attribute-only Fmt tag
+// (XmlFmt's own attr_tags) that must fire while this item's own XML tag is
+// still open; a label/text component listed before it would open+close its
+// own child tag first, force-closing the item's tag in the process, and
+// AsEditMode's mode="..." would land as malformed loose text instead of a
+// real attribute (found 2026-07-22 rendering this exact item through
+// XmlFmt — same root cause NumFieldDef itself had, fixed in fields.h).
 using ToggleDemo = ToggleFieldDef<
-  ItemDef<StaticText<&text::toggle_demo>, AsEditMode<>>,
+  ItemDef<AsEditMode<>, StaticText<&text::toggle_demo>>,
   StaticBody<
     ItemDef<AsField<StaticText<&text::rise>>>,
     ItemDef<AsField<StaticText<&text::fall>>>,
@@ -200,8 +207,8 @@ using ToggleDemo = ToggleFieldDef<
 // Select: pick one from a list; selected value shown inline
 using SelectDemo = SelectFieldDef<
   ItemDef<
-    AsLabel<StaticText<&text::select_demo>>,
     AsEditMode<>,
+    AsLabel<StaticText<&text::select_demo>>,
     BodyAction<action::subIdx>
   >,
   StaticBody<
@@ -218,8 +225,8 @@ using SelectDemo = SelectFieldDef<
 // Choose: navigate into sub-body to pick; chosen value shown on item row
 using ChooseDemo = ChooseFieldDef<
   ItemDef<
-    StaticText<&text::choose_demo>,
     AsEditMode<>,
+    StaticText<&text::choose_demo>,
     BodyAction<action::subIdx>
   >,
   StaticBody<
@@ -236,7 +243,7 @@ using ChooseDemo = ChooseFieldDef<
 // Date: composite pad — three EditField/ParentDraw columns (year.month.day)
 auto dateField(const char* lbl) {
   return padDef(
-    ItemDef<AsLabel<Text>, AsEditMode<>>{lbl},
+    ItemDef<AsEditMode<>, AsLabel<Text>>{lbl},
     staticBody(
       ItemDef<
         EditField,
@@ -244,13 +251,15 @@ auto dateField(const char* lbl) {
         NumField<StaticNumRange<StaticRange<1900,2150,true>>, AsField<Watch<Default<Int,2026>>>>
       >{2026},
       ItemDef<
+        AsEditMode<>,
         StaticText<&text::dateSep>,
-        EditField, ParentDraw, AsEditMode<>,
+        EditField, ParentDraw,
         NumField<StaticNumRange<StaticRange<1,12,true>>, AsField<Watch<Int>>>
       >{1},
       ItemDef<
+        AsEditMode<>,
         StaticText<&text::dateSep>,
-        EditField, ParentDraw, AsEditMode<>,
+        EditField, ParentDraw,
         NumField<StaticNumRange<StaticRange<1,31,true>>, AsField<Watch<Int>>>
       >{1}
     )
@@ -269,8 +278,8 @@ auto mainMenu = menuDef<WrapNav>(
       ItemDef<StaticText<&text::settings>>{},
       staticBody(
         ItemDef<
-          AsLabel<Text>,
           AsEditMode<>,
+          AsLabel<Text>,
           EditField,
           ParentDraw,
           AsField<TextField<15>>
