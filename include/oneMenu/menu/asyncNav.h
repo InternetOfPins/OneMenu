@@ -33,7 +33,7 @@ namespace oneMenu {
       // Call after async() has positioned the nav at the target item.
       // Returns true if the field handled it (TextField: strcpy, NumField: parsed+clamped).
       bool set(const char* s) {
-        return root().setStr(obj(), s, focus(level()+1));
+        return this->root().setStr(this->obj(), s, this->focus(this->level()+1));
       }
 
       // Navigate to the path position. Resets to root first — safe to call
