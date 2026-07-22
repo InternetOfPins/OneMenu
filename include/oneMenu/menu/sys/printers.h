@@ -5,7 +5,7 @@
 namespace oneMenu {
 
   /// @brief will call fmtStart(tag) + Base::print + fmtStop(tag)
-  /// @tparam tag 
+  /// @tparam tag
   template<Fmt tag>
   struct FmtPrinter : aPrinter {
     template<typename O>
@@ -15,11 +15,25 @@ namespace oneMenu {
       using Base::fmtStart;
       using Base::fmtStop;
       using This=Part<O>;
+      // Re-entrant guard: a NESTED printMenu call for the SAME tag (e.g.
+      // Menu::Part::printItem's own pad-mode handling re-entering the whole
+      // out.printMenu(...) chain from within an already-open <item>, to
+      // reuse the exact Menu/Title/Body/Item wrapping a real submenu gets —
+      // see item.h/menu.h) must NOT re-wrap; only the OUTERMOST call (the
+      // real top-level print pass, ViewPrinter=FmtPrinter<Fmt::View>) should
+      // ever emit this tag. `active` is a real per-instance member (not a
+      // stack local), so it correctly reflects "already inside" across the
+      // WHOLE print pass regardless of call depth — `out` is one single,
+      // persistent object for the pass's own duration.
+      bool active{false};
       template<typename I>
       bool printMenu(I& i,Ctx& ctx) {
+        if(active) return Base::printMenu(i,ctx);
+        active=true;
         Base::template fmtStart<tag>(ctx);
         bool r=Base::printMenu(i,ctx);
         Base::template fmtStop<tag>(ctx);
+        active=false;
         return r;
       }
     };
@@ -416,7 +430,20 @@ namespace oneMenu {
     struct Part:Chain<OO...,PartEnd>::template Part<O> {
       using Base=typename Chain<OO...,PartEnd>::template Part<O>;
       using Base::Base;
-      template<typename Out> void print(Out& out) const { O::print(out); }
+      // Must thread through BOTH halves printItem() below already does —
+      // Base::print (the wrapped OO... content, e.g. AsLabel<Text>'s own
+      // Text) AND O::print (the NEXT sibling in the SAME ItemDef fold,
+      // e.g. AsEditMode<>'s own "O" is whatever component comes after it,
+      // such as StaticText<&title>) — calling only one silently drops the
+      // other. Found 2026-07-22: every real menu title in this codebase
+      // happens to be a bare StaticText<&...> preceded by a zero-arg marker
+      // (AsEditMode<>), so .print() (called only by TitlePrinter, for a
+      // Menu's own title) had only ever been exercised through the "O"
+      // half — a first attempt that called ONLY Base::print (to fix
+      // dateField's own AsLabel<Text> title, the first REAL title with
+      // wrapped content instead of a plain sibling) broke every OTHER
+      // title's own O::print reach instead. Both halves are needed.
+      template<typename Out> void print(Out& out) const { Base::print(out); O::print(out); }
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         out.template fmtStart<tag>(ctx);

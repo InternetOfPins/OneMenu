@@ -107,13 +107,58 @@ namespace oneMenu {
       bool printItem(Out& out,Ctx& ctx) {
         bool r=title.printItem(out,ctx);
         if constexpr(Base::isPad()) {
-          // Inline body display: one level deeper so focus-check uses the pad's selection.
-          // pad=true suppresses newlines between items (TextFmt::fmtStop skips nl when pad).
-          // pIdx=ctx.idx: tells ANSIFmt which parent-body slot owns this pad, enabling
-          // the psel() focus check for color/EditMode highlighting of inline sub-items.
-          Ctx inner{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,
-                    (Depth)(ctx.at+1),ctx.prev,true,0,ctx.idx};
-          body.printInline(out,inner);
+          if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
+            // Real menu/title/body/item structure, for a web client — the
+            // SAME shape a genuine nested submenu gets (MenuPrinter/
+            // TitlePrinter/BodyPrinter/ItemsPrinter, printers.h), so the
+            // exact same generic XSLT templates apply with zero pad-
+            // specific logic on the client side (Rui's own request,
+            // 2026-07-22: "without this reflection the xslt reuse is not
+            // possible"). Reached via out.printMenu(*this,inner) — the SAME
+            // call Menu::Part::printMenu itself makes for a real top-level
+            // submenu — re-entering the WHOLE printer chain from the top;
+            // FmtPrinter<Fmt::View>'s own re-entrant guard (printers.h)
+            // keeps this from re-wrapping a nested, invalid <view> around
+            // it (the real, outermost <view> from the top-level print pass
+            // is already open at this point).
+            //
+            // Pad items never actually open a real nav level (Enter calls
+            // n.padOpen(), not n.open() — see nav() below), so ctx.path's
+            // own REAL stored array has no entry for THIS item's own index
+            // at the right depth — unlike a genuine nested submenu, whose
+            // own index IS stored there by a real n.open(). Synthesized
+            // here instead, mirroring putPath's own "ctx.path always holds
+            // exactly ctx.at entries, with the LAST one excluded from the
+            // printed prefix since idx supplies it separately" convention
+            // (confirmed against a real, working item's own path — e.g.
+            // Toggle at depth 2 reads exactly ctx.path.data[0..0], one real
+            // ancestor entry, excluding data[1]): THIS item's own real
+            // ancestor prefix is ctx.path.data[0..ctx.at-2] (ctx.at-1
+            // entries — Toggle-at-depth-2's own equivalent would be just
+            // data[0]) — copy that, then place ctx.idx (this item's own
+            // index within ITS parent, captured before resetting the inner
+            // ctx's own idx to 0 for the sub-items below) as the new "last,
+            // excluded" entry — giving pad sub-items real, addressable
+            // paths (e.g. "/4/0/") the same way a genuine nested submenu's
+            // own items get theirs.
+            Sz padPath[8]{};
+            Depth n=(Depth)(ctx.at>0?ctx.at-1:0);
+            if(n>6) n=6;
+            for(Depth i=0;i<n;i++) padPath[i]=ctx.path.data[i];
+            padPath[n]=ctx.idx;
+            Path syntheticPath{(Depth)(n+2),padPath};
+            Ctx inner{syntheticPath,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,
+                      (Depth)(ctx.at+1),ctx.prev,ctx.pad,0,ctx.idx};
+            out.printMenu(*this,inner);
+          } else {
+            // Inline body display: one level deeper so focus-check uses the pad's selection.
+            // pad=true suppresses newlines between items (TextFmt::fmtStop skips nl when pad).
+            // pIdx=ctx.idx: tells ANSIFmt which parent-body slot owns this pad, enabling
+            // the psel() focus check for color/EditMode highlighting of inline sub-items.
+            Ctx inner{ctx.path,ctx.mode,ctx.pAt,ctx.enabled,ctx.tops,
+                      (Depth)(ctx.at+1),ctx.prev,true,0,ctx.idx};
+            body.printInline(out,inner);
+          }
         }
         return r;
       }
