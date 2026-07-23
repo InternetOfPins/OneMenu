@@ -32,6 +32,26 @@
   #include <limits>
   #include <algorithm>
 #endif
+
+#ifdef ESP8266
+  // ESP8266's own <assert.h> expands assert(e) via PSTR(__FILE__) —
+  // sys/pgmspace.h's PSTR() is a GCC statement-expression that declares a
+  // local `static const char __pstr__[]` to place the string in flash. That's
+  // incompatible with using assert() inside a constexpr function (Path::
+  // next(), Ctx::sel() below): "'__pstr__' declared 'static' in 'constexpr'
+  // function" — found 2026-07-23, publishing examples/webSocketMenu for
+  // ESP8266 (d1_mini). Redefine assert() to call __assert_func with plain
+  // (RAM) string literals instead of PSTR() ones — same real runtime check,
+  // just skips the PROGMEM-placement trick assert() doesn't need for
+  // correctness, only for the flash bytes it'd otherwise save.
+  #undef assert
+  #ifdef NDEBUG
+    #define assert(e) ((void)0)
+  #else
+    #define assert(e) ((e) ? (void)0 : __assert_func(__FILE__, __LINE__, __ASSERT_FUNC, #e))
+  #endif
+#endif
+
 #include <oneChip/clock.h>
 
 #include <hapi/hapi.h>
