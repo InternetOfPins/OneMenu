@@ -1,11 +1,11 @@
 // Web menu example, hardware-verified on ESP32 (lolin32) and ESP8266
 // (d1_mini): oneMenu::WebSocketOut/WebSocketDisplay (push-based menu output
 // over a real WebSocketsServer) + oneMenu::translateCmd (shorthand-command
-// dispatch) + WebServer::serveStatic (static front-end assets from SPIFFS,
-// ESP32 only — see webOut.h note below). The real menu view is /menu, an
-// HTTP+xml-stylesheet-PI route rendered client-side by data/menu.xslt
-// (upload the data/ folder via "pio run -t uploadfs"); "/" is a secondary,
-// minimal WebSocket-push demo. Fill in your own WiFi credentials below.
+// dispatch) + WebServer::serveStatic (static front-end assets from SPIFFS).
+// The real menu view is /menu, an HTTP+xml-stylesheet-PI route rendered
+// client-side by data/menu.xslt (upload the data/ folder via
+// "pio run -t uploadfs"); "/" is a secondary, minimal WebSocket-push demo.
+// Fill in your own WiFi credentials below.
 #include <Arduino.h>
 #ifdef ESP8266
   #include <ESP8266WiFi.h>
@@ -28,13 +28,10 @@
 #include <WebSocketsServer.h>
 #include <oneMenu/oneMenu.h>
 #include <oneMenu/menu/IO/arduino/webSocketOut.h>
-#ifndef ESP8266
-  // webOut.h (WebOut/WebDisplay, the HTTP+xml-stylesheet-PI route the new
-  // menu.xslt is designed for) hardcodes <WebServer.h> — ESP32's class name,
-  // not ESP8266's ESP8266WebServer. Untested on ESP8266 (disclosed gap, see
-  // project_am4_compat_layer memory) — real ESP32 hardware only for now.
-  #include <oneMenu/menu/IO/arduino/webOut.h>
-#endif
+// webOut.h (WebOut/WebDisplay, the HTTP+xml-stylesheet-PI route menu.xslt is
+// designed for) platform-switches its own WebServer type internally
+// (ESP8266WebServer vs WebServer) — real ESP32+ESP8266 hardware verified.
+#include <oneMenu/menu/IO/arduino/webOut.h>
 #include <oneMenu/menu/cmdTable.h>
 #include <oneMenu/menu/asyncNav.h>
 #include <hapi/hapi.h>
@@ -182,9 +179,7 @@ bool action::op2(Sz) {
 NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;
 
 WebSocketDisplay wsDisplay;
-#ifndef ESP8266
 WebDisplay webDisplay;
-#endif
 
 // shorthand command table, same convention as AquaGrow's own web.cpp cmds[][2]
 static const CmdEntry cmds[] = {
@@ -197,7 +192,6 @@ void pushRender() {
   webNav.sync(wsDisplay);
 }
 
-#ifndef ESP8266
 // Strip the trailing "<idx>/" segment from an absolute path, e.g.
 // "/3/2/" -> "/3/", "/3/" -> "/", "/" -> "/". Used to derive the plain-HTTP
 // /set handler's own redirect target purely from the field's own path — no
@@ -237,7 +231,6 @@ int fieldSelIndex(const char* path, const char* at) {
   while(*p>='0'&&*p<='9') v=v*10+(*p++-'0');
   return v;
 }
-#endif
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if(type == WStype_CONNECTED) { pushRender(); return; }
@@ -281,15 +274,12 @@ void setup() {
   WebSocketOut::begin(webSocket);
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-#ifndef ESP8266
   WebOut::begin(server);
-#endif
 
   server.on("/", [](){
     server.send_P(200, "text/html", indexHtml);
   });
 
-#ifndef ESP8266
   // Real HTTP+xml-stylesheet-PI route: the browser fetches this XML
   // directly and applies data/menu.xslt client-side (same architecture as
   // AquaGrow's own web.cpp pageStart(), and WebOut's own existing design)
@@ -386,7 +376,6 @@ void setup() {
   server.serveStatic("/style.css", SPIFFS, "/style.css");
   server.serveStatic("/style-dark.css", SPIFFS, "/style-dark.css");
   server.serveStatic("/style-light.css", SPIFFS, "/style-light.css");
-#endif
 
   server.begin();
 }
