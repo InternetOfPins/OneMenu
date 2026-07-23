@@ -1,6 +1,4 @@
-# OneMenu
-
-<img src="logo.png" alt="OneMenu logo" width="64" height="64">
+# <img src="logo.png" alt="OneMenu logo" width="32" height="32"> OneMenu
 
 HAPI-based composable menu system for embedded targets. Zero dynamic allocation, zero-overhead output chain, streaming-first (no host framebuffer). Tested on AVR, ESP32, and Linux native.
 
