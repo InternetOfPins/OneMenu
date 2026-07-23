@@ -1,0 +1,53 @@
+/* OneMenu demo — light theme complement (see data/style.css for the
+   shared rules, data/style-dark.css for the dark complement). Light
+   variant of the dark console theme, supplied by Rui (aux/onemenu light
+   theme.zip, 2026-07-23): body/panel/rows/fields flip to a light surface;
+   the masthead stays a full-bleed dark bar (logo + "InternetOfPins Menu
+   System") so brand identity holds across both themes. Linked with
+   media="(prefers-color-scheme: light)" so the browser applies it
+   automatically when the system/browser is set to light, or has no
+   preference at all (light is the spec's initial value) — no JS, no
+   server-side detection. */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#eef1f6;
+  --panel:#ffffff;
+  --row:#ffffff;
+  --row-hover:#f4f6fa;
+  --line:rgba(15,23,42,.09);
+  --text:#1b2331;
+  --muted:#6b7688;
+  --accent:#047857;
+  --accent-soft:rgba(4,120,87,.09);
+  --accent-glow:rgba(4,120,87,.22);
+  --disabled:#a3acb9;
+  --input-bg:#eafcf3;
+  --input-border:rgba(4,120,87,.25);
+  --option-bg:#ffffff;
+  --shadow:rgba(15,23,42,.08);
+  --opt-sel-text:#f4fffa;
+  /* dark bar only — independent of the light theme above */
+  --bar-bg-top:#111722;
+  --bar-bg-bottom:#0a0d13;
+  --bar-text:#eef2f7;
+  --bar-accent:#34d399;
+  --bar-glow:rgba(52,211,153,.45);
+}
+body{background:var(--bg)}
+
+/* Full-bleed dark top bar, breaks out of .panel's max-width and body's
+   padding regardless of nesting so it always spans the viewport edge to
+   edge, flush with the top of the page. */
+.masthead{display:flex;align-items:center;gap:.7em;justify-content:center;
+     width:100vw;position:relative;left:50%;transform:translateX(-50%);
+     margin-top:-2.5em;margin-bottom:2em;padding:1.15em 1.25em;
+     background:linear-gradient(180deg,var(--bar-bg-top) 0%,var(--bar-bg-bottom) 100%);
+     border-bottom:1px solid rgba(255,255,255,.07);
+     box-shadow:0 6px 24px rgba(15,23,42,.18);
+     text-decoration:none;transition:opacity .15s}
+.masthead:hover{opacity:.85}
+.masthead .logo{width:2em;height:2em;flex:none;filter:drop-shadow(0 0 6px var(--bar-glow))}
+.masthead span{font-family:'JetBrains Mono',monospace;font-size:.95em;font-weight:600;
+     letter-spacing:.14em;text-transform:uppercase;color:var(--bar-text)}

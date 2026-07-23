@@ -13,6 +13,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <title>OneMenu</title>
         <link rel="stylesheet" href="/style.css"/>
+        <link rel="stylesheet" href="/style-dark.css" media="(prefers-color-scheme: dark)"/>
+        <link rel="stylesheet" href="/style-light.css" media="(prefers-color-scheme: light)"/>
       </head>
       <body>
           <a class="masthead" href="/menu?at=/">

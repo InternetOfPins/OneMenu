@@ -1,0 +1,41 @@
+/* OneMenu demo — dark theme complement (see data/style.css for the shared
+   rules, data/style-light.css for the light complement). Adapted from
+   Rui's own reference mockups (aux/raw/onemenu_main.html, onemenu_fields
+   .html) — palette/fonts/spacing/effects kept as designed; the mockups'
+   own per-row-type colored status dots were dropped per Rui's own
+   follow-up request, 2026-07-22. Linked with
+   media="(prefers-color-scheme: dark)" so the browser applies it
+   automatically when the system/browser is set to dark — no JS, no
+   server-side detection. */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0a0d13;
+  --bg-vignette:radial-gradient(120% 140% at 50% -10%,#14202a 0%,#0a0d13 55%);
+  --panel:#11151d;
+  --row:#161b25;
+  --row-hover:#1b2130;
+  --line:rgba(255,255,255,.07);
+  --text:#e7ebf1;
+  --muted:#7c8797;
+  --accent:#34d399;
+  --accent-soft:rgba(52,211,153,.14);
+  --accent-glow:rgba(52,211,153,.35);
+  --disabled:#4b5563;
+  --input-bg:#0d1119;
+  --input-border:var(--line);
+  --option-bg:#0d1119;
+  --shadow:rgba(0,0,0,.35);
+  --opt-sel-text:#06231a;
+}
+body{background:var(--bg-vignette),var(--bg)}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+     background:repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px);
+     mix-blend-mode:overlay}
+.masthead{display:flex;align-items:center;gap:.7em;justify-content:center;margin:0 0 1.6em;
+     text-decoration:none;transition:opacity .15s}
+.masthead:hover{opacity:.8}
+.masthead .logo{width:2em;height:2em;flex:none;filter:drop-shadow(0 0 6px var(--accent-glow))}
+.masthead span{font-family:'JetBrains Mono',monospace;font-size:.95em;font-weight:600;
+     letter-spacing:.14em;text-transform:uppercase;color:var(--text)}

@@ -378,8 +378,14 @@ void setup() {
   server.serveStatic("/menu.xslt", SPIFFS, "/menu.xslt");
   // Styling now lives in its own real static asset too (not embedded in
   // menu.xslt's own <head>) — same serveStatic pattern, lets the browser
-  // cache CSS independently of the XML payload.
+  // cache CSS independently of the XML payload. Split into a shared
+  // common file plus two theme complements (menu.xslt links all three,
+  // the two complements via media="(prefers-color-scheme: ...)" so the
+  // browser picks the right one from the system's own light/dark setting
+  // — no JS, no server-side detection needed).
   server.serveStatic("/style.css", SPIFFS, "/style.css");
+  server.serveStatic("/style-dark.css", SPIFFS, "/style-dark.css");
+  server.serveStatic("/style-light.css", SPIFFS, "/style-light.css");
 #endif
 
   server.begin();
