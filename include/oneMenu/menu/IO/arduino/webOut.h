@@ -1,7 +1,13 @@
 #pragma once
 #ifdef ARDUINO
 #include <Arduino.h>
-#include <WebServer.h>
+#ifdef ESP8266
+  #include <ESP8266WebServer.h>
+  using OneMenuWebServerT = ESP8266WebServer;
+#else
+  #include <WebServer.h>
+  using OneMenuWebServerT = WebServer;
+#endif
 #include "oneMenu/menu/out.h"
 #include "oneMenu/menu/fmt/xmlFmt.h"
 #include "oneMenu/menu/sys/printers.h"
@@ -20,8 +26,8 @@ namespace oneMenu {
   // already used correctly from the start.
   // Call WebOut::begin(server) once before serving requests.
   struct WebOut : aRawDevice {
-    inline static WebServer* _server = nullptr;
-    static void begin(WebServer& srv) { _server = &srv; }
+    inline static OneMenuWebServerT* _server = nullptr;
+    static void begin(OneMenuWebServerT& srv) { _server = &srv; }
 
     static const char* xsl() {
       static const char s[] =
