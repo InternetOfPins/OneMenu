@@ -34,8 +34,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;
      background:repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px);
      mix-blend-mode:overlay}
 .masthead{display:flex;align-items:center;gap:.7em;justify-content:center;margin:0 0 1.6em;
-     text-decoration:none;transition:opacity .15s}
-.masthead:hover{opacity:.8}
+     text-decoration:none}
 .masthead .logo{width:2em;height:2em;flex:none;filter:drop-shadow(0 0 6px var(--accent-glow))}
 .masthead span{font-family:'JetBrains Mono',monospace;font-size:.95em;font-weight:600;
      letter-spacing:.14em;text-transform:uppercase;color:var(--text)}

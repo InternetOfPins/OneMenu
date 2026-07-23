@@ -46,8 +46,7 @@ body{background:var(--bg)}
      background:linear-gradient(180deg,var(--bar-bg-top) 0%,var(--bar-bg-bottom) 100%);
      border-bottom:1px solid rgba(255,255,255,.07);
      box-shadow:0 6px 24px rgba(15,23,42,.18);
-     text-decoration:none;transition:opacity .15s}
-.masthead:hover{opacity:.85}
+     text-decoration:none}
 .masthead .logo{width:2em;height:2em;flex:none;filter:drop-shadow(0 0 6px var(--bar-glow))}
 .masthead span{font-family:'JetBrains Mono',monospace;font-size:.95em;font-weight:600;
      letter-spacing:.14em;text-transform:uppercase;color:var(--bar-text)}
