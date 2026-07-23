@@ -37,10 +37,17 @@ li{position:relative;background:var(--row);border-bottom:1px solid var(--line);t
 li:last-child{border-bottom:none}
 li:hover{background:var(--row-hover)}
 li.cur{background:var(--accent-soft);box-shadow:inset 3px 0 0 0 var(--accent)}
-a:not(.masthead):not(.title-back){display:block;padding:.9em 1.1em;color:var(--text);text-decoration:none;font-size:.95em}
-a:not(.masthead):not(.title-back):active,a:not(.masthead):not(.title-back):hover{background:transparent;color:var(--accent)}
+a:not(.masthead):not(.title-back):not(.choose-link){display:block;padding:.9em 1.1em;color:var(--text);text-decoration:none;font-size:.95em}
+a:not(.masthead):not(.title-back):not(.choose-link):active,a:not(.masthead):not(.title-back):not(.choose-link):hover{background:transparent;color:var(--accent)}
 .disabled{display:block;padding:.9em 1.1em;color:var(--disabled)}
-a.choose-link{display:flex;justify-content:space-between;align-items:center;gap:.5em}
+/* own complete rule, not just a display:flex override — a:not()'s chained
+   negations outrank a single class in specificity, so this used to get
+   silently clobbered by the generic a{} rule above (display:block winning),
+   collapsing label+value together with no gap/alignment at all; found
+   2026-07-23. */
+a.choose-link{display:flex;justify-content:space-between;align-items:center;gap:.5em;
+   padding:.9em 1.1em;color:var(--text);text-decoration:none;font-size:.95em}
+a.choose-link:hover{color:var(--accent)}
 a.choose-link .preview{color:var(--accent);font-family:'JetBrains Mono',monospace;
    font-variant-numeric:tabular-nums;font-size:.9em}
 .field{display:flex;align-items:center;justify-content:space-between;padding:.85em 1.1em;gap:.75em}
@@ -67,8 +74,8 @@ a.choose-link .preview{color:var(--accent);font-family:'JetBrains Mono',monospac
 .field output{color:var(--accent);min-width:2.6em;text-align:right;font-family:'JetBrains Mono',monospace;
    font-variant-numeric:tabular-nums;font-size:.85em}
 .opts{display:flex;flex-wrap:wrap;gap:.45em;justify-content:flex-end}
-.opt{padding:.4em .9em;border:1px solid var(--line);border-radius:999px;color:var(--muted);
-   font-size:.85em;text-decoration:none;font-family:'JetBrains Mono',monospace;transition:all .15s}
+.opt{padding:.25em .8em;border:1px solid var(--line);border-radius:999px;color:var(--muted);
+   font-size:.85em;line-height:1;text-decoration:none;font-family:'JetBrains Mono',monospace;transition:all .15s}
 .opt:hover{border-color:var(--accent);color:var(--accent)}
 .opt.sel{background:var(--accent);border-color:var(--accent);color:var(--opt-sel-text);font-weight:600}
 .opt.sel:hover{background:var(--accent)}
