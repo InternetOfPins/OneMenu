@@ -554,7 +554,12 @@ namespace oneMenu {
       // printItem recursion, so this check is genuinely per-active-format.
       template<typename Out>
       void printItem(Out& out, Ctx& ctx) {
-        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
+        // JsonFmt admitted alongside XmlFmt — jsonFmt.h implements
+        // Fmt::Low/High itself (its own quoted-"lo"/"hi"-string
+        // convention), reusing the same fmtStart/put/fmtStop calls below
+        // unchanged for both formats.
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>
+                  || hapi::query<IsJsonFmt,typename Out::Types>) {
           out.template fmtStart<Fmt::Low>(ctx);
           out.put(low());
           out.template fmtStop<Fmt::Low>(ctx);
@@ -662,31 +667,33 @@ namespace oneMenu {
       constexpr Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
-        // XmlFmt-only, Choose (IsRealMenu): tag THIS item's own <item> tag
-        // with choice="1" BEFORE the title prints — while the tag's own
+        // Choose (IsRealMenu): tag THIS item's own <item> tag with
+        // choice="1" BEFORE the title prints — while the tag's own
         // attribute-writing window is still open (Base::printItem below,
         // once called, prints title text and closes it). Choose still
         // falls through to show its own current value inline (same as
         // every other format, below) — the choice="1" marker is what lets
         // a web client render THIS as a clickable link with its value
         // shown, instead of the plain item[fld] editable-input template a
-        // bare <fld> child would otherwise match (Rui's own request,
-        // 2026-07-22: "choose should display its value on the Data
-        // fields... menu").
-        if constexpr(IsRealMenu && hapi::query<IsXmlFmt,typename Out::Types>) {
+        // bare <fld> child would otherwise match. JsonFmt is admitted
+        // alongside XmlFmt here and below — jsonFmt.h implements
+        // Fmt::Choice/Option/Selected itself, reusing the same
+        // fmtStart/put/fmtStop calls unchanged for both formats.
+        if constexpr(IsRealMenu && (hapi::query<IsXmlFmt,typename Out::Types>
+                                 || hapi::query<IsJsonFmt,typename Out::Types>)) {
           out.template fmtStart<Fmt::Choice>(ctx);
           out.template fmtStop<Fmt::Choice>(ctx);
         }
         Base::printItem(out,ctx);
         out.setPos(out.getPos());
-        // XmlFmt-only, Toggle/Select (!IsRealMenu): needs its FULL option
-        // list (for a radio-group/dropdown widget), not just the single
-        // currently-selected sub-item's own inline rendering below — walk
-        // every option, each wrapped in <opt>, tagged with a plain <sel>
-        // 0/1 (a stored index comparison, not ctx-derived — there is no
-        // real navigation focus on the non-selected options, only m_sel
-        // itself).
-        if constexpr(hapi::query<IsXmlFmt,typename Out::Types> && !IsRealMenu) {
+        // Toggle/Select (!IsRealMenu): needs its FULL option list (for a
+        // radio-group/dropdown widget), not just the single currently-
+        // selected sub-item's own inline rendering below — walk every
+        // option, each wrapped in <opt>, tagged with a plain <sel> 0/1 (a
+        // stored index comparison, not ctx-derived — there is no real
+        // navigation focus on the non-selected options, only m_sel itself).
+        if constexpr((hapi::query<IsXmlFmt,typename Out::Types>
+                   || hapi::query<IsJsonFmt,typename Out::Types>) && !IsRealMenu) {
           for(Sz i=0; i<Base::body.size(); i++) {
             out.template fmtStart<Fmt::Option>(ctx);
             out.template fmtStart<Fmt::Selected>(ctx);

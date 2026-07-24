@@ -31,8 +31,18 @@ namespace oneMenu {
       static void nl()                     { put('\n'); O::nl(); }
       static constexpr void setPos(const Pos&) {}
       static void clear()                  { _buf = ""; O::clear(); }
+      // Skip the broadcast when nothing was actually buffered — flush() is
+      // called unconditionally at the end of every printTo() pass (out.h),
+      // including nav.sync(out)'s own SECOND, Gate-locked printTo() pass
+      // (nav.h) that clears per-item dirty flags after a real render. On a
+      // physical display that second pass is a true no-op (Gate blocks all
+      // bytes, no pixels change, no separate "flush" event visible) — but
+      // for a network push device, flush() firing again is a REAL,
+      // observable side effect: broadcastTXT("") sends every connected
+      // client an empty WS text frame right after each real update, which
+      // a JSON client's `JSON.parse("")` would throw on.
       static void flush() {
-        if(_server) _server->broadcastTXT(_buf);
+        if(_server && _buf.length()) _server->broadcastTXT(_buf);
         _buf = "";
       }
       static constexpr Sz charWidth()      { return 1; }

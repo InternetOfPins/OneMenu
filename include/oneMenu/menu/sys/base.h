@@ -208,12 +208,21 @@ namespace oneMenu {
   // typename Out::Types> without item.h needing to include xmlFmt.h at all
   // (XmlFmt itself just inherits aXmlFmt alongside the generic aFormat).
   struct aXmlFmt    {};
+  // Same marker convention, JsonFmt's own — item.h/menu.h's structured-tag
+  // call sites (NumField's lo/hi, RecallNavPos's Option/Selected/Choice,
+  // Menu::Part's own pad-mode nested-menu branch) gate on
+  // `hapi::query<IsXmlFmt,...> || hapi::query<IsJsonFmt,...>` rather than
+  // XmlFmt alone — the print CALLS themselves (fmtStart/put/fmtStop) are
+  // format-agnostic, dispatching through whichever Fmt is actually active;
+  // only the gate deciding which formats reach them needed widening.
+  struct aJsonFmt   {};
 
   // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
   using IsCursor     = hapi::TagIs<aCursor>;
   using IsScrollBody = hapi::TagIs<aScrollBody>;
   using IsFormat     = hapi::TagIs<aFormat>;
   using IsXmlFmt     = hapi::TagIs<aXmlFmt>;
+  using IsJsonFmt    = hapi::TagIs<aJsonFmt>;
   using IsPrinter    = hapi::TagIs<aPrinter>;
   using IsParser     = hapi::TagIs<aParser>;
   using IsArea       = hapi::TagIs<anArea>;

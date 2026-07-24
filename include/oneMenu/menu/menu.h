@@ -107,14 +107,19 @@ namespace oneMenu {
       bool printItem(Out& out,Ctx& ctx) {
         bool r=title.printItem(out,ctx);
         if constexpr(Base::isPad()) {
-          if constexpr(hapi::query<IsXmlFmt,typename Out::Types>) {
+          // JsonFmt admitted alongside XmlFmt — out.printMenu() below
+          // re-enters the WHOLE printer chain format-agnostically;
+          // jsonFmt.h's own Menu/Title handling needed a small nesting fix
+          // (a named "menu" wrapper key, since JSON can't rely on XML's
+          // free element nesting) to be safely re-entrant here.
+          if constexpr(hapi::query<IsXmlFmt,typename Out::Types>
+                    || hapi::query<IsJsonFmt,typename Out::Types>) {
             // Real menu/title/body/item structure, for a web client — the
             // SAME shape a genuine nested submenu gets (MenuPrinter/
             // TitlePrinter/BodyPrinter/ItemsPrinter, printers.h), so the
             // exact same generic XSLT templates apply with zero pad-
-            // specific logic on the client side (Rui's own request,
-            // 2026-07-22: "without this reflection the xslt reuse is not
-            // possible"). Reached via out.printMenu(*this,inner) — the SAME
+            // specific logic on the client side. Reached via
+            // out.printMenu(*this,inner) — the SAME
             // call Menu::Part::printMenu itself makes for a real top-level
             // submenu — re-entering the WHOLE printer chain from the top;
             // FmtPrinter<Fmt::View>'s own re-entrant guard (printers.h)
