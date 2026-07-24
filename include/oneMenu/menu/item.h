@@ -457,6 +457,47 @@ namespace oneMenu {
     };
   };
 
+  /// @brief oneMenu's own extension of oneData::IdText<id,Src> (oneData.h) —
+  /// the id-lookup/language-selector logic itself lives there (format-
+  /// agnostic, always resolves real text). This layer adds the one piece
+  /// that genuinely needs oneMenu's own Fmt/Out machinery: for web-facing
+  /// formats (XmlFmt/JsonFmt) emit a marked id ("#N") instead of resolved
+  /// text, so a browser client can do its own client-side translation
+  /// lookup — the device never resolves text into a web payload for an
+  /// IdText-labeled field. The '#' prefix (not a bare number) matters once
+  /// IdText is composed inside an option list (Toggle/Select/Choose's own
+  /// <opt><fld>) alongside genuinely-numeric literal values (e.g. a plain
+  /// percentage option "10") — without a marker, a client-side "is this
+  /// string purely numeric" translation heuristic can't tell an id from a
+  /// literal value once the id space grows large enough to collide (id 10
+  /// existing would otherwise silently mistranslate a literal "10"). Any
+  /// other format (ANSI/OLED/Serial/...) falls through to oneData::IdText's
+  /// own resolved-text behavior unchanged. Same IsXmlFmt/IsJsonFmt gate
+  /// already used by NumField's own lo/hi emission and Choose/Toggle/
+  /// Select's own Fmt::Choice/Option/Selected markers — deliberately does
+  /// NOT forward through Base (which would also print the resolved text
+  /// first, double-emitting), same reasoning oneData's own Trans/Translated
+  /// already document for their own non-forwarding.
+  template<int id, typename Src>
+  struct IdText {
+    template<typename I>
+    struct Part:oneData::IdText<id,Src>::template Part<I> {
+      using Base=typename oneData::IdText<id,Src>::template Part<I>;
+      using Base::Base;
+      template<typename Out>
+      void printItem(Out& out, Ctx& ctx) {
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>
+                  || hapi::query<IsJsonFmt,typename Out::Types>) {
+          out.put('#');
+          out.put(id);
+          I::printItem(out,ctx);
+        } else {
+          Base::printItem(out,ctx);
+        }
+      }
+    };
+  };
+
   template<typename... II>
   struct Decor {
     template<typename I>
@@ -812,12 +853,17 @@ namespace oneMenu {
     };
   };
 
-  /// @brief syncs the selected choice's EnumValue<V> out to an external storage W on Enter —
-  /// enum fields (Select/Choose/Toggle) otherwise only ever hold their own m_sel index
-  /// (RecallNavPos), with no equivalent to how NumField's value can be owned or externally
-  /// referenced/composed. W follows the same Data-chain shape as everywhere else — Data<T>
-  /// for an owned member, DataRef<&ext>/DataFn<Src> for external — so SyncValue<Data<T>>,
-  /// SyncValue<DataRef<&ext>>, SyncValue<DataFn<Src>> are all equally valid.
+  /// @brief syncs the selected choice's EnumValue<V> out to an external storage W, both on a
+  /// real physical/keyboard-driven commit (nav()'s own Cmd::Enter) AND on a web-driven
+  /// setStr() (AsyncNav::setAt(), the /set and WS "S|" path) — enum fields (Select/Choose/
+  /// Toggle) otherwise only ever hold their own m_sel index (RecallNavPos), with no
+  /// equivalent to how NumField's value can be owned or externally referenced/composed.
+  /// W follows the same Data-chain shape as everywhere else — Data<T> for an owned member,
+  /// DataRef<&ext>/DataFn<Src> for external — so SyncValue<Data<T>>, SyncValue<DataRef<&ext>>,
+  /// SyncValue<DataFn<Src>> are all equally valid. W can also be a real multi-component
+  /// chain, e.g. SyncValue<hapi::Chain<OnChange<fn>,DataRef<&ext>>> — OnChange<fn> fires on
+  /// every sync same as it would inside a NumField's own chain, since m_value.set(...) below
+  /// routes straight through it.
   /// Place above a RecallNavPos-based field (SelectFieldDef/ChooseFieldDef/ToggleFieldDef).
   template<typename W>
   struct SyncValue {
@@ -830,10 +876,26 @@ namespace oneMenu {
 
       auto value() const noexcept { return m_value.get(); }
 
+      void syncFromSel() { Base::visit([this](auto& item){ m_value.set(item.value()); }); }
+
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
         bool r = Base::template nav<isKbd>(n,cke,path);
-        if(cke.cmd==Cmd::Enter) Base::visit([this](auto& item){ m_value.set(item.value()); });
+        if(cke.cmd==Cmd::Enter) syncFromSel();
+        return r;
+      }
+
+      // AsyncNav::setAt() (the web /set and WS "S|" path) writes m_sel via
+      // RecallNavPos::setStr() directly, bypassing nav()/Cmd::Enter entirely
+      // (by design — see asyncNav.h's own comment) — so the mirror-sync
+      // above never fired for a web-driven selection change, only a real
+      // physical/keyboard-driven commit. Mirroring here too closes that gap
+      // with the same logic, not a new mechanism: whichever path actually
+      // moved m_sel, sync the newly-selected item's value right after.
+      template<typename Nav,typename P>
+      bool setStr(Nav& n,const char* s,P p) {
+        bool r = Base::setStr(n,s,p);
+        if(r) syncFromSel();
         return r;
       }
     };

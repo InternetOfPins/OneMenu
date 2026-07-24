@@ -178,7 +178,12 @@ namespace oneMenu {
 
         switch(tag) {
           case Fmt::View:
-            Base::put("{\"view\":{");
+            // Current language index, mirroring xmlFmt.h's own <view lang="N">
+            // attribute — lets a WS client (menu.js) detect a language change
+            // from a pushed render and re-fetch/re-translate accordingly.
+            Base::put("{\"view\":{\"lang\":");
+            Base::put((int)oneData::MultiLangText::current);
+            Base::put(',');
             break;
           case Fmt::Menu: {
             // inItem is reliable HERE (fmtStart), before any nested item of

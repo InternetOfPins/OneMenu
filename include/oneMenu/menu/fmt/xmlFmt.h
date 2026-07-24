@@ -170,6 +170,16 @@ namespace oneMenu  {
               : ctx.pAt);
             Base::put('"');
           }
+          // Current language index, on the root <view> only — lets a stateless
+          // XSLT transform (no server round-trip, no JS) know which /lang/N.xml
+          // translation file to document()-fetch for IdText's own id-only
+          // <lbl>/<title> values (item.h's IsXmlFmt gate emits the bare id
+          // there instead of resolved text).
+          if(tag==Fmt::View) {
+            Base::put(" lang=\"");
+            Base::put((int)oneData::MultiLangText::current);
+            Base::put('"');
+          }
           indent++;
         }
         if(tag==Fmt::Item) {
