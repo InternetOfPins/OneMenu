@@ -41,10 +41,9 @@ a:not(.masthead):not(.title-back):not(.choose-link){display:block;padding:.9em 1
 a:not(.masthead):not(.title-back):not(.choose-link):active,a:not(.masthead):not(.title-back):not(.choose-link):hover{background:transparent;color:var(--accent)}
 .disabled{display:block;padding:.9em 1.1em;color:var(--disabled)}
 /* own complete rule, not just a display:flex override — a:not()'s chained
-   negations outrank a single class in specificity, so this used to get
-   silently clobbered by the generic a{} rule above (display:block winning),
-   collapsing label+value together with no gap/alignment at all; found
-   2026-07-23. */
+   negations outrank a single class in specificity, so a mere override here
+   would get silently clobbered by the generic a{} rule above (display:block
+   winning), collapsing label+value together with no gap/alignment at all. */
 a.choose-link{display:flex;justify-content:space-between;align-items:center;gap:.5em;
    padding:.9em 1.1em;color:var(--text);text-decoration:none;font-size:.95em}
 a.choose-link:hover{color:var(--accent)}
@@ -74,8 +73,18 @@ a.choose-link .preview{color:var(--accent);font-family:'JetBrains Mono',monospac
 .field output{color:var(--accent);min-width:2.6em;text-align:right;font-family:'JetBrains Mono',monospace;
    font-variant-numeric:tabular-nums;font-size:.85em}
 .opts{display:flex;flex-wrap:wrap;gap:.45em;justify-content:flex-end}
-.opt{padding:.25em .8em;border:1px solid var(--line);border-radius:999px;color:var(--muted);
+.opt{border:1px solid var(--line);border-radius:999px;color:var(--muted);
    font-size:.85em;line-height:1;text-decoration:none;font-family:'JetBrains Mono',monospace;transition:all .15s}
+/* Toggle/Select's own pills only (.opts .opt) — NOT Choose's own bare
+   .opt (its full-width submenu buttons, no .opts wrapper, meant to look
+   like a normal list row via the generic a{} rule above). !important is
+   deliberate, not laziness: that generic rule's own 3 chained :not()s
+   outrank a plain .opts .opt selector on raw specificity (0,3,1 vs 0,2,1),
+   so a normal override wouldn't stick. */
+.opts .opt{padding:.5em .5em !important}
 .opt:hover{border-color:var(--accent);color:var(--accent)}
 .opt.sel{background:var(--accent);border-color:var(--accent);color:var(--opt-sel-text);font-weight:600}
 .opt.sel:hover{background:var(--accent)}
+.result-box{margin:1em auto 0;max-width:380px;padding:.85em 1.1em;
+   background:var(--panel);border:1px solid var(--line);border-radius:10px;
+   color:var(--text);font-size:.9em;box-shadow:0 12px 30px var(--shadow)}

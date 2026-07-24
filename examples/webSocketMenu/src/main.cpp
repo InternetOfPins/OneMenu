@@ -1,11 +1,22 @@
 // Web menu example, hardware-verified on ESP32 (lolin32) and ESP8266
-// (d1_mini): oneMenu::WebSocketOut/WebSocketDisplay (push-based menu output
-// over a real WebSocketsServer) + oneMenu::translateCmd (shorthand-command
-// dispatch) + WebServer::serveStatic (static front-end assets from SPIFFS).
-// The real menu view is /menu, an HTTP+xml-stylesheet-PI route rendered
-// client-side by data/menu.xslt (upload the data/ folder via
-// "pio run -t uploadfs"); "/" is a secondary, minimal WebSocket-push demo.
-// Fill in your own WiFi credentials below.
+// (d1_mini). Two ways to reach the same live menu tree:
+//   - /menu: an HTTP+xml-stylesheet-PI route (WebOut/WebDisplay, XmlFmt)
+//     rendered client-side by data/menu.xslt — stateless, one full render
+//     per request, works with no JS at all.
+//   - a WebSocket channel (WebSocketOut/WsJsonDisplay, JsonFmt) that
+//     data/menu.js overlays on top: field edits and live updates push to
+//     every connected browser instantly, while navigation itself re-runs
+//     menu.xslt's own transform client-side (fetch + XSLTProcessor) instead
+//     of a full page reload — see menu.js's own header comment.
+// Also: a plain-text Serial "checkup" route (SerialDisplay/serialNav,
+// TextFmt) with PC-keyboard-over-serial input (SerialIn/PCKbd), on its own
+// independent Nav instance — a way to verify the underlying menu tree
+// directly, unaffected by anything in the web layer above it. And an FTP
+// server (xreef/SimpleFTPServer) onto the same SPIFFS data/ folder, so
+// menu.xslt/style.css/menu.js can be edited over the LAN without a full
+// firmware reflash.
+// Upload data/ via "pio run -e <env> -t uploadfs" before flashing/running.
+// Fill in your own WiFi (and FTP) credentials below.
 #include <Arduino.h>
 #ifdef ESP8266
   #include <ESP8266WiFi.h>
@@ -26,12 +37,41 @@
   using WebServerT = WebServer;
 #endif
 #include <WebSocketsServer.h>
+// FTP access to the same SPIFFS data/ folder WebOut serves (menu.xslt,
+// style.css) — lets those be edited/uploaded directly over the LAN without
+// re-flashing the whole firmware for every front-end tweak (same dev-
+// workflow role Rui's own MicroTC360 project used an FTP server for, though
+// that one — nailbuster/esp8266FTPServer — had a licensing conflict in its
+// own repo, LGPL-2.1 LICENSE file vs GPL-3 source headers, and only ever
+// targeted ESP8266; xreef/SimpleFTPServer is MIT-licensed and supports both
+// ESP32 and ESP8266 under one API). Storage backend forced to SPIFFS via
+// platformio.ini's own build_flags (its own FtpServerKey.h otherwise
+// defaults to LittleFS on ESP8266, SD on ESP32 — neither matches what this
+// project already mounts).
+#include <SimpleFTPServer.h>
 #include <oneMenu/oneMenu.h>
 #include <oneMenu/menu/IO/arduino/webSocketOut.h>
 // webOut.h (WebOut/WebDisplay, the HTTP+xml-stylesheet-PI route menu.xslt is
 // designed for) platform-switches its own WebServer type internally
 // (ESP8266WebServer vs WebServer) — real ESP32+ESP8266 hardware verified.
 #include <oneMenu/menu/IO/arduino/webOut.h>
+// JsonFmt: shipped but unused anywhere else in the codebase until now — the
+// WS push path's own wire format (native JSON.parse() client-side, no XSLT/
+// DOMParser needed to read a pushed update; see WsJsonDisplay below).
+#include <oneMenu/menu/fmt/jsonFmt.h>
+// Plain-text Serial checkup route (SerialDisplay/serialNav below) — a
+// bare-bones, non-web output on the SAME mainMenu tree, independent nav, no
+// XML/JSON/XSLT/WS anywhere in its path. Verifies the CORE library's own
+// state (Watch<>/m_sel/etc.) directly, unaffected by any bug in the web
+// overlay built on top of it.
+#include <oneMenu/menu/fmt/textFmt.h>
+#include <oneMenu/menu/IO/arduino/serialOut.h>
+// PC-keyboard-over-serial input for the checkup route: SerialIn supplies
+// raw bytes off Serial, PCKbd parses VT100 arrow keys (Up/Down/Left/Right)
+// + Enter, and passes anything else through as Cmd::Key for field editing —
+// standard compose order per its own header comment.
+#include <oneMenu/menu/IO/arduino/serialIn.h>
+#include <oneMenu/menu/IO/pcKbdIn.h>
 #include <oneMenu/menu/cmdTable.h>
 #include <oneMenu/menu/asyncNav.h>
 #include <hapi/hapi.h>
@@ -44,8 +84,14 @@ using namespace oneMenu;
 static const char* wifi_ssid = "YOUR_WIFI_SSID";
 static const char* wifi_pass = "YOUR_WIFI_PASSWORD";
 
+// Plaintext FTP (no FTPS/TLS support in this library) — fine for a private
+// LAN behind NAT, not for a network exposed beyond that. Change these.
+static const char* ftp_user = "YOUR_FTP_USER";
+static const char* ftp_pass = "YOUR_FTP_PASSWORD";
+
 WebServerT server(80);
 WebSocketsServer webSocket(81);
+FtpServer ftpSrv;
 
 // ── Text — grabbed from examples/fields/src/main.cpp (Rui's own menu tree,
 // covers plain items, a disabled-by-default item, a numeric field, and a
@@ -73,8 +119,21 @@ namespace text {
 
 enum ids { op3_id };
 
+// Output capture: action fns write result text here; if non-empty when
+// /menu renders, it's wrapped as <output><![CDATA[...]]></output> ahead of
+// <view> inside a new <result> root (see /menu handler below) — same idiom
+// Rui's own AquaGrow/MicroTC360 web.cpp used (serverOut's own <output
+// state="..."><![CDATA[...]]></output> wrap around handleMenu()), adapted to
+// WebOut's buffer-then-flush model instead of a live per-character stream.
+// Single global buffer is safe: WebServerT handles one request at a time.
+namespace webResult {
+  static String buf;
+  static void print(const char* s) { buf += s; }
+  static void clear() { buf = ""; }
+}
+
 namespace action {
-  bool op1(Sz) { return true; }
+  bool op1(Sz) { webResult::print("Option 1 executed."); return true; }
   bool op2(Sz);  // toggles op3's enabled state, defined after mainMenu (needs find<>)
   bool op3(Sz) { return true; }
   bool subIdx(Sz) { return false; }
@@ -87,8 +146,7 @@ using Power = NumFieldDef<
 >;
 
 // AsEditMode<> listed FIRST throughout below — attribute-only Fmt tags must
-// fire while the item's own XML tag is still open (see fields.h/xmlFmt.h
-// fix notes, 2026-07-22).
+// fire while the item's own XML tag is still open (see fields.h/xmlFmt.h).
 using ToggleDemo = ToggleFieldDef<
   ItemDef<AsEditMode<>, StaticText<&text::toggle_demo>>,
   StaticBody<
@@ -178,8 +236,57 @@ bool action::op2(Sz) {
 // Web nav — AsyncNav for stateless path jumps driven by translated commands.
 NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;
 
-WebSocketDisplay wsDisplay;
+// Local JSON variant of webSocketOut.h's own WebSocketDisplay (which uses
+// XmlFmt) — defined here rather than editing that shared header, so the
+// plain-HTTP path (WebDisplay/XmlFmt/menu.xslt) stays untouched and this
+// stays example-scoped.
+using WsJsonDisplay = OutDef<
+  FullPrinter,
+  JsonFmt,
+  DataParser<>,
+  Cursor<1, 1>,
+  WebSocketOut,
+  StaticPos<0, 0>,
+  StaticArea<80, 25>
+>;
+
+WsJsonDisplay wsDisplay;
 WebDisplay webDisplay;
+
+// Plain-text Serial checkup route: TextFmt (one line per item, '>'/'-'/' '
+// cursor markers, no color/ANSI) + FullPrinter, no Gate/ColorTrack/CtrlChars
+// — "no extras" beyond what's structurally required. Cursor<1,1> is that
+// one required extra: ItemPrinter's own static_assert demands IsCursor be
+// present below it in the chain (same reason WebOut/WebSocketOut both carry
+// it) even though SerialOut's own setPos() is a no-op for this streaming
+// device — position tracking is harmless, just unused.
+using SerialDisplay = OutDef<
+  FullPrinter,
+  TextFmt,
+  DataParser<>,
+  Cursor<1, 1>,
+  SerialOut,
+  StaticPos<0, 0>,
+  StaticArea<80, 25>
+>;
+
+SerialDisplay serialDisplay;
+// Independent nav — its own cursor/level state, NOT shared with webNav —
+// so this checkup route reflects the tree exactly as a plain, non-web
+// OneMenu consumer would see it, unaffected by whatever level/selection
+// webNav's own web-driven state happens to currently sit at. Same
+// mainMenu tree (shared field VALUES — Watch<>/m_sel/etc. live on the
+// items themselves, not per-nav), so edits made over the web ARE visible
+// here too; only the Nav's OWN cursor/level is independent.
+NavDef<TreeNav, Root<decltype(mainMenu), mainMenu>> serialNav;
+
+// PC keyboard over Serial: send arrow keys via a VT100-capable terminal
+// (or a serial monitor that forwards raw escape sequences — plain
+// Arduino IDE Serial Monitor does NOT, use a real terminal like
+// `pio device monitor` in raw mode, minicom, or screen) for Up/Down/
+// Enter; anything else typed goes to the currently-focused field as
+// Cmd::Key (digits/letters for text/number editing).
+InDef<SerialIn, PCKbd> serialIn;
 
 // shorthand command table, same convention as AquaGrow's own web.cpp cmds[][2]
 static const CmdEntry cmds[] = {
@@ -232,14 +339,70 @@ int fieldSelIndex(const char* path, const char* at) {
   return v;
 }
 
+// Wire format for client->server commands: plain path/shorthand strings
+// (same convention translateCmd/async() already used, unchanged — matches
+// Rui's own AquaGrow/MicroTC360 r-site.js client, which also sends plain
+// path strings rather than a JSON envelope on this leg) plus one new,
+// minimal "S|<path>|<val>" prefix for field edits (menu.js's own
+// replacement for the HTTP fallback's /set request) — deliberately NOT
+// JSON: parsing arbitrary JSON on-device for a two-field command would
+// need a real JSON library for no real benefit here, unlike the JSON
+// server->client render payload (JsonFmt), which is pure serialization,
+// no parsing.
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if(type == WStype_CONNECTED) { pushRender(); return; }
   if(type != WStype_TEXT) return;
-  char path[32];
-  const char* target = translateCmd((const char*)payload, cmds, path, sizeof(path))
-    ? path : (const char*)payload;
-  webNav.async(target);
-  pushRender();
+  const char* msg = (const char*)payload;
+  if(msg[0] == 'S' && msg[1] == '|') {
+    char buf[64];
+    strncpy(buf, msg + 2, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    char* bar = strchr(buf, '|');
+    if(bar) {
+      *bar = '\0';
+      // webNav.changed(wsDisplay) below only probes whatever level webNav's
+      // OWN shared cursor currently sits at — setAt() itself is path-driven
+      // and works from anywhere, but a field edited OUTSIDE that level
+      // would apply silently with no push at all. Navigate there first,
+      // same async()+enter() pair /menu's own HTTP handler uses, so the
+      // change lands somewhere the very next changed(out) probe (and
+      // pushRender()'s own printTo()) actually looks.
+      char parent[32];
+      parentPath(buf, parent, sizeof(parent));
+      webNav.async(parent);
+      // enter() resets the submenu's own selection to its first child —
+      // reposition to the field ACTUALLY being edited before rendering, or
+      // every WS-driven set shows item 0 focused regardless of which field
+      // the user touched.
+      if(strcmp(parent, "/") != 0) webNav.enter();
+      webNav.go(fieldSelIndex(buf, parent));
+      webNav.setAt(buf, bar + 1);
+      // Always push after a SET, skipping the changed(wsDisplay) gate below
+      // entirely — RecallNavPos (Toggle/Select's own m_sel, item.h) has no
+      // changed()/sync() override at all, so a pure selection edit is
+      // invisible to that deep probe (NumField's own Watch<> DOES
+      // register, which is why Power always worked without this). The
+      // gate was only ever an optimization against redundant broadcasts —
+      // one extra push per user edit costs nothing a human will notice.
+      pushRender();
+      return;
+    }
+  } else {
+    char path[32];
+    const char* target = translateCmd(msg, cmds, path, sizeof(path)) ? path : msg;
+    webNav.async(target);
+    // Same as /menu's own HTTP handler: async() alone only selects the
+    // leaf (its own documented contract — "caller issues Enter"), it
+    // doesn't expand/descend into it. Without this, a plain item click
+    // over WS would move the cursor but never render the target submenu's
+    // body.
+    if(strcmp(target, "/") != 0) webNav.enter();
+  }
+  // changed(wsDisplay) gates whether to push at all (e.g. a SET with the
+  // same value, or a no-op nav) — sync() (inside pushRender()) only needs
+  // to run right after an actual push, so skipping both together here is
+  // consistent: changed()==false already means nothing was dirty to clear.
+  if(webNav.changed(wsDisplay)) pushRender();
 }
 
 static const char indexHtml[] PROGMEM = R"HTML(<!doctype html><html><head><meta charset="utf-8">
@@ -276,6 +439,11 @@ void setup() {
   webSocket.onEvent(webSocketEvent);
   WebOut::begin(server);
 
+  // FTP onto the same SPIFFS this server already mounted above — lets
+  // data/menu.xslt, style.css etc. be updated over the LAN (any FTP client,
+  // e.g. lftp/FileZilla) without a full firmware reflash.
+  ftpSrv.begin(ftp_user, ftp_pass);
+
   server.on("/", [](){
     server.send_P(200, "text/html", indexHtml);
   });
@@ -292,11 +460,9 @@ void setup() {
   // carries meaning ACROSS separate requests — it's one server-wide object,
   // and "wherever the last request happened to leave it" breaks the moment
   // two browser tabs (or two different devices) talk to the same server, or
-  // a client simply reloads the page (found 2026-07-22: got stuck inside
-  // Choose's own submenu with no way back, since /menu had no way to ask
-  // for anything OTHER than "wherever webNav currently sits"). Every link
-  // menu.xslt generates embeds its own target ?at=, so a client can always
-  // get back to any level directly — there is no implicit "current page".
+  // a client simply reloads the page. Every link menu.xslt generates embeds
+  // its own target ?at=, so a client can always get back to any level
+  // directly — there is no implicit "current page".
   server.on("/menu", [](){
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/xml", "");
@@ -305,6 +471,7 @@ void setup() {
       "<?xml-stylesheet type=\"text/xsl\" href=\"/menu.xslt\"?>\n"
     );
     String at = server.hasArg("at") ? server.arg("at") : String("/");
+    webResult::clear();
     webNav.async(at.c_str());
     // async() only selects the leaf (its own documented contract — "caller
     // issues Enter"); "/" alone means "just show the root", nothing to
@@ -318,8 +485,31 @@ void setup() {
     // one. go() is a pure index write (TreeNav::Part::go) — no Enter/
     // padOpen side effects, safe to call unconditionally here.
     if(server.hasArg("sel")) webNav.go(server.arg("sel").toInt());
+    // <view> (below) is one atomic render — Fmt::View fully brackets
+    // Fmt::Menu inside XmlFmt's own walk, so there's no seam to inject an
+    // <output> sibling between them from out here. Simplest fix: wrap the
+    // whole response in a new <result> root instead, holding the captured
+    // text (if any) ahead of the unchanged <view> — menu.xslt's own
+    // result/output template renders it as a box below the menu panel.
+    server.sendContent("<result>\n");
+    if(webResult::buf.length()) {
+      server.sendContent("<output><![CDATA[");
+      server.sendContent(webResult::buf);
+      server.sendContent("]]></output>\n");
+    }
     webDisplay.lockMode(LockMode::None);
     webNav.printTo(webDisplay);
+    // This HTTP route is ALSO how an action item's side effect reaches the
+    // server (e.g. op2 toggling op3's own enabled state) — menu.js's own
+    // nav links deliberately don't go over WS at all (shared-cursor risk,
+    // see this handler's own header comment), so without this, another
+    // connected tab would never learn an action just changed something.
+    // Safe regardless of which level THIS request targets: client-side
+    // patching is keyed by absolute path (menu.js's own patchItem), so a
+    // tab showing an unrelated level just finds no matching element and
+    // silently ignores it.
+    pushRender();
+    server.sendContent("</result>");
     // CONTENT_LENGTH_UNKNOWN makes WebServer use chunked transfer encoding
     // (WebServer.cpp: _chunked=true whenever content length is unknown on
     // HTTP/1.1) — a bare client().stop() here abruptly drops the connection
@@ -327,31 +517,25 @@ void setup() {
     // so the browser/curl has to wait out its own socket-read timeout
     // (~5s) before giving up and rendering whatever it got. sendContent("")
     // sends that proper terminator (WebServer::sendContent: contentLength==0
-    // -> _chunked=false) — found 2026-07-22, "why does /menu take 5.39s".
+    // -> _chunked=false).
     server.sendContent("");
   });
 
   // Apply a value at path, then redirect back to the page that generated
   // this link — the caller's own ?at= (menu.xslt's own /view/menu/@at,
   // baked into every /set link it generates), not a value derived from
-  // `path` itself. Found 2026-07-22, real ESP32 hardware: a pad sub-field
-  // (dateField's own year/month/day) has a path TWO levels deeper than its
-  // real enclosing menu (e.g. "/3/5/0/" for year, when "Data fields..."
-  // itself is "/3/") — computing the redirect via parentPath(path) alone
-  // landed on "/3/5/" (dateField's own synthetic path, not a real,
-  // navigable level), and requesting THAT via /menu?at=... fired a real
-  // Enter on dateField (async()'s own per-segment Enter-firing plus
-  // /menu's own explicit enter() call), which calls n.padOpen() — leaving
-  // the nav's own edit-mode/pad state lingering and silently breaking
-  // subsequent edits to OTHER, unrelated fields. webNav.setAt() (new,
-  // asyncNav.h) sidesteps the other half of the same problem: it applies
-  // the value via a plain path-driven setStr() walk, with NO go()/Enter/
-  // padOpen() navigation at all — unlike async()+set(), which walked the
-  // path via async()'s own Enter-firing and could trigger the exact same
-  // padOpen() side effect during the SET itself, not just the redirect.
-  // parentPath(path) is kept as a fallback for any caller that doesn't
-  // supply ?at= (there shouldn't be one left, but failing toward the
-  // field's own immediate parent is still safer than failing toward "/").
+  // `path` itself: a pad sub-field (dateField's own year/month/day) has a
+  // path TWO levels deeper than its real enclosing menu (e.g. "/3/5/0/"
+  // for year, when "Data fields..." itself is "/3/"), so computing the
+  // redirect via parentPath(path) alone would land on dateField's own
+  // synthetic path, not a real navigable level, and requesting THAT via
+  // /menu?at=... fires a real Enter on dateField (n.padOpen()), leaving
+  // the nav's own edit-mode/pad state lingering and breaking subsequent
+  // edits to OTHER, unrelated fields. webNav.setAt() (asyncNav.h) sidesteps
+  // the other half of the same problem: it applies the value via a plain
+  // path-driven setStr() walk, with NO go()/Enter/padOpen() navigation at
+  // all. parentPath(path) is kept as a fallback for any caller that
+  // doesn't supply ?at=, failing toward the field's own immediate parent.
   server.on("/set", [](){
     String path = server.arg("path");
     webNav.setAt(path.c_str(), server.arg("val").c_str());
@@ -359,6 +543,19 @@ void setup() {
     if(server.hasArg("at")) at = server.arg("at");
     else { char parent[32]; parentPath(path.c_str(),parent,sizeof(parent)); at = parent; }
     int sel = fieldSelIndex(path.c_str(), at.c_str());
+    // Broadcast to every connected WS client too — this HTTP path (Choose's
+    // own in-submenu option buttons, and the plain fallback for any field
+    // when WS is down) otherwise never touches the WS side at all. Then
+    // reposition to the edited field (go(sel)) before pushRender() — the
+    // redirect's own ?sel= only helps the ORIGINATING browser, which follows
+    // it as a real second request; other WS-connected tabs only ever see
+    // whatever's broadcast right here. RecallNavPos (Choose/Toggle/Select,
+    // item.h) has no changed()/sync() override at all, so pushRender() is
+    // unconditional rather than gated on changed(wsDisplay).
+    webNav.async(at.c_str());
+    if(at != "/") webNav.enter();
+    webNav.go(sel);
+    pushRender();
     server.sendHeader("Location", String("/menu?at=")+at+"&sel="+String(sel));
     server.send(302, "text/plain", "");
   });
@@ -376,11 +573,42 @@ void setup() {
   server.serveStatic("/style.css", SPIFFS, "/style.css");
   server.serveStatic("/style-dark.css", SPIFFS, "/style-dark.css");
   server.serveStatic("/style-light.css", SPIFFS, "/style-light.css");
+  // WS overlay's own client script (menu.js) — same static-asset pattern,
+  // FTP-editable via the FTP server above, no reflash needed to iterate on it.
+  server.serveStatic("/menu.js", SPIFFS, "/menu.js");
 
   server.begin();
 }
 
+// Unconditional timer, NOT gated on changed() — Watch<>'s own dirty bit
+// (oneData.h) is a single shared snapshot per field, not tracked per
+// consumer: webNav's own sync(wsDisplay) call (pushRender(), above) already
+// clears it after every web-driven push, so a SEPARATE nav's changed()
+// check here would almost always see "nothing changed" even when the field
+// genuinely did, moments earlier, from webNav's own perspective. A plain
+// periodic dump sidesteps that shared-state race entirely — also doubles
+// as a "the checkup route itself is alive" heartbeat.
+static unsigned long lastSerialCheckup = 0;
 void loop() {
   server.handleClient();
   webSocket.loop();
+  ftpSrv.handleFTP();
+
+  // Keyboard input drives its own immediate redraw — doInput() returns
+  // whether it actually processed anything this call (a keypress moved the
+  // cursor, entered/left edit mode, or typed a character into a field),
+  // so typing feels live rather than waiting on the periodic timer below.
+  if(serialIn.doInput(serialNav)) {
+    serialDisplay.lockMode(LockMode::None);
+    serialDisplay.clear();
+    serialNav.printTo(serialDisplay);
+    lastSerialCheckup = millis(); // don't ALSO redraw again a moment later
+  }
+
+  if(millis() - lastSerialCheckup > 5000) {
+    lastSerialCheckup = millis();
+    serialDisplay.lockMode(LockMode::None);
+    serialDisplay.clear();
+    serialNav.printTo(serialDisplay);
+  }
 }

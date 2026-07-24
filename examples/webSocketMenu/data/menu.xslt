@@ -15,6 +15,7 @@
         <link rel="stylesheet" href="/style.css"/>
         <link rel="stylesheet" href="/style-dark.css" media="(prefers-color-scheme: dark)"/>
         <link rel="stylesheet" href="/style-light.css" media="(prefers-color-scheme: light)"/>
+        <script src="/menu.js"></script>
       </head>
       <body>
           <a class="masthead" href="/menu?at=/">
@@ -23,8 +24,9 @@
             <span>InternetOfPins Menu system</span>
           </a>
         <div class="panel">
-          <xsl:apply-templates/>
+          <xsl:apply-templates select="result/view"/>
         </div>
+        <xsl:apply-templates select="result/output"/>
       </body>
     </html>
   </xsl:template>
@@ -67,6 +69,12 @@
     <xsl:apply-templates select="menu"/>
   </xsl:template>
 
+  <!-- captured action-fn output (server: /menu handler's own webResult
+       buffer), rendered as a box below the menu panel -->
+  <xsl:template match="output">
+    <div class="result-box"><xsl:value-of select="."/></div>
+  </xsl:template>
+
   <!-- title doubles as the "back" link (parent of menu/@at), except at root -->
   <xsl:template match="menu/title">
     <h3>
@@ -93,7 +101,7 @@
   <!-- pad-mode composite field (e.g. dateField): render its nested menu/body inline -->
   <xsl:template match="item[menu]" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <div class="field">
         <label>
           <xsl:choose>
@@ -111,7 +119,7 @@
   <!-- numeric field nested inside a pad-menu: plain number input, not a slider -->
   <xsl:template match="item[count(fld)=1 and lo and hi and ancestor::item[menu]]" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <div class="field">
         <label>
           <xsl:choose>
@@ -129,7 +137,7 @@
   <xsl:template match="item[count(fld)=1 and lo and hi]" priority="1">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
     <xsl:variable name="rowId">row<xsl:value-of select="translate(@path,'/','_')"/></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <div class="field">
         <label>
           <xsl:choose>
@@ -151,7 +159,7 @@
   <!-- Toggle/Select: full option list as clickable pills, radio-group style -->
   <xsl:template match="item[opt]" priority="1">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <div class="field">
         <label>
           <xsl:choose>
@@ -184,7 +192,7 @@
         <xsl:with-param name="path" select="ancestor::menu[1]/@at"/>
       </xsl:call-template>
     </xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <a class="opt" href="/set?path={ancestor::menu[1]/@at}&amp;val={@idx}&amp;at={$parentAt}">
         <xsl:value-of select="fld"/>
         <xsl:if test="un"><xsl:text> </xsl:text><xsl:value-of select="un"/></xsl:if>
@@ -195,7 +203,7 @@
   <!-- Choose's own row in the parent list: clickable link into its own submenu -->
   <xsl:template match="item[fld and @choice='1']" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <a class="choose-link" href="/menu?at={@path}">
         <span>
           <xsl:choose>
@@ -214,7 +222,7 @@
   <!-- Select: a real <select><option> dropdown -->
   <xsl:template match="item[opt and @dropdown='1']" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <div class="field">
         <label>
           <xsl:choose>
@@ -238,7 +246,7 @@
   <!-- field item: has a fld child, render label + a plain text input -->
   <xsl:template match="item[fld]">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <div class="field">
         <label>
           <xsl:choose>
@@ -258,7 +266,7 @@
   <!-- plain item: no fld child; @en='0' renders disabled items as non-clickable text -->
   <xsl:template match="item[not(fld)]">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}">
+    <li class="{$curClass}" data-path="{@path}">
       <xsl:choose>
         <xsl:when test="@en='0'">
           <span class="disabled">
