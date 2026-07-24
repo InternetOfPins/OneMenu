@@ -516,6 +516,56 @@ namespace oneMenu {
     };
   };
 
+  /// @brief fires fn(v) on every value mutation while editing — every encoder
+  /// step, keystroke, or externally-driven set() (e.g. AsyncNav::setAt()).
+  /// fn receives the value re-read via get() AFTER Base::set(), not the raw
+  /// argument, since an inward component (e.g. StaticNumRange) may clamp/
+  /// transform it — same reasoning NumField::clamp() already re-reads get()
+  /// after a set(). auto fn (bare NTTP function pointer) mirrors oneData's
+  /// Trans<getFn,setFn> convention, letting fn's parameter type follow the
+  /// field's own Type instead of a fixed signature.
+  /// Compose as one of NumField<...>'s own II... args (inside the range/
+  /// storage chain), e.g.
+  /// NumField<StaticNumRange<...>, OnChange<fn>, AsField<Watch<...>>>.
+  template<auto fn>
+  struct OnChange {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      using Base::get;
+      using Type=typename Base::Type;
+      void set(Type v) {Base::set(v); fn(Base::get());}
+    };
+  };
+
+  /// @brief fires fn(v) once, when edit mode is left — Enter-to-commit or
+  /// Esc-while-editing. EditField has no revert/undo logic, so Esc leaves
+  /// whatever was live-edited; from the value's own perspective that IS the
+  /// final commit, not a cancel — documented behavior, not a bug.
+  /// Compose OUTSIDE (wrapping) EditField in the ItemDef list, e.g.
+  /// ItemDef<..., OnUpdate<fn>, EditField, NumField<...>> — brackets
+  /// EditField's own nav() call and compares navMode() before/after to catch
+  /// the Edit->Nav transition EditField performs internally, without
+  /// duplicating its Enter/Esc logic.
+  template<auto fn>
+  struct OnUpdate {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      using Base::get;
+      using Type=typename Base::Type;
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path& path) {
+        bool wasEdit=n.navMode()==NavMode::Edit;
+        bool r=I::template nav<isKbd>(n,cke,path);
+        if(wasEdit&&n.navMode()!=NavMode::Edit) fn(get());
+        return r;
+      }
+    };
+  };
+
   //use range and data field to change value
   template<typename...II>
   struct NumField {
