@@ -59,6 +59,59 @@
     </xsl:choose>
   </xsl:template>
 
+  <!-- Renders an item's own label/title/option value, resolving it through
+       the current language's translation file when it's an IdText-composed
+       field (its raw value is "#N" — a marked id, item.h's IsXmlFmt gate —
+       see oneMenu's IdText). $raw defaults to this item's own <lbl> child
+       (the common case — every field-style template below calls this with
+       no param from inside <xsl:when test="lbl">) but callers with no <lbl>
+       at all (Toggle/Choose/plain-item titles, and <opt><fld> option
+       values, none of which have a <lbl> wrapper) pass raw=./text()/fld
+       explicitly — same lookup either way. The leading '#' is the whole
+       point, not decoration: without it, "is this string purely numeric"
+       can't tell an id apart from a genuinely-numeric literal value (e.g.
+       Select/Choose's own percentage options "10"/"40"/...) once the id
+       space grows past 10 — a plain StaticText/literal value is never
+       '#'-prefixed, so it always falls through to the otherwise branch
+       unchanged, regardless of its own text. document()+lookup runs as
+       part of this SAME transform pass, so there's no separate JS round-
+       trip and no flash of untranslated content for a real page load —
+       resolves before first paint, works with no JS at all (client-side
+       re-transforms are a separate, JS-side fallback — see menu.js's own
+       translateFallback). /result/view/@lang (written by xmlFmt.h, from
+       oneData::MultiLangText::current) is the field's own raw numeric
+       index — mapped to a language CODE here for a readable file name
+       (menu.js keeps its own matching LANG_CODES table; three separate
+       runtimes, no single shared table to draw from). -->
+  <xsl:template name="renderLbl">
+    <xsl:param name="raw" select="lbl"/>
+    <xsl:variable name="langCode">
+      <xsl:choose>
+        <xsl:when test="/result/view/@lang='1'">pt</xsl:when>
+        <xsl:otherwise>en</xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:choose>
+      <xsl:when test="starts-with($raw,'#')">
+        <xsl:variable name="id" select="substring-after($raw,'#')"/>
+        <xsl:variable name="translated"
+          select="document(concat('/lang/',$langCode,'.xml'))/lang/t[@id=$id]"/>
+        <xsl:choose>
+          <xsl:when test="$translated"><xsl:value-of select="$translated"/></xsl:when>
+          <!-- Lookup came back empty — real page loads never hit this
+               (document() resolves fine there, confirmed), only a client-
+               side XSLTProcessor re-transform does. Print $raw ("#N"),
+               NOT just $id: keeping the '#' marker lets menu.js's own
+               translateFallback still find and fix this afterward. Printing
+               bare $id here would silently swallow the marker before the
+               JS fallback ever runs — the actual bug this comment replaced. -->
+          <xsl:otherwise><xsl:value-of select="$raw"/></xsl:otherwise>
+        </xsl:choose>
+      </xsl:when>
+      <xsl:otherwise><xsl:value-of select="$raw"/></xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
   <!-- reused for both the top-level view and a pad item's own nested menu -->
   <xsl:template match="menu">
     <xsl:apply-templates select="title"/>
@@ -105,8 +158,8 @@
       <div class="field">
         <label>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </label>
         <div class="pad-menu">
@@ -123,8 +176,8 @@
       <div class="field">
         <label>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </label>
         <input type="number" min="{lo}" max="{hi}" value="{fld}" data-src="{@path}"
@@ -141,8 +194,8 @@
       <div class="field">
         <label>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </label>
         <input type="range" class="slider" min="{lo}" max="{hi}" value="{fld}"
@@ -163,8 +216,8 @@
       <div class="field">
         <label>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </label>
         <div class="opts">
@@ -175,7 +228,7 @@
                 <xsl:if test="sel=1"><xsl:text> sel</xsl:text></xsl:if>
               </xsl:attribute>
               <xsl:attribute name="href">/set?path=<xsl:value-of select="../@path"/>&amp;val=<xsl:value-of select="position()-1"/>&amp;at=<xsl:value-of select="/view/menu/@at"/></xsl:attribute>
-              <xsl:value-of select="fld"/>
+              <xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="fld"/></xsl:call-template>
               <xsl:if test="un"><xsl:text> </xsl:text><xsl:value-of select="un"/></xsl:if>
             </a>
           </xsl:for-each>
@@ -207,8 +260,8 @@
       <a class="choose-link" href="/menu?at={@path}">
         <span>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </span>
         <span class="preview">
@@ -226,15 +279,15 @@
       <div class="field">
         <label>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </label>
         <select data-src="{@path}" onchange="window.location='/set?path='+this.getAttribute('data-src')+'&amp;val='+this.value+'&amp;at={/view/menu/@at}'">
           <xsl:for-each select="opt">
             <option value="{position()-1}">
               <xsl:if test="sel=1"><xsl:attribute name="selected">selected</xsl:attribute></xsl:if>
-              <xsl:value-of select="fld"/>
+              <xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="fld"/></xsl:call-template>
               <xsl:if test="un"><xsl:text> </xsl:text><xsl:value-of select="un"/></xsl:if>
             </option>
           </xsl:for-each>
@@ -250,8 +303,8 @@
       <div class="field">
         <label>
           <xsl:choose>
-            <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-            <xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise>
+            <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+            <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
           </xsl:choose>
         </label>
         <input type="text" value="{fld}" data-src="{@path}"
@@ -271,16 +324,16 @@
         <xsl:when test="@en='0'">
           <span class="disabled">
             <xsl:choose>
-              <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-              <xsl:otherwise><xsl:value-of select="."/></xsl:otherwise>
+              <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+              <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="."/></xsl:call-template></xsl:otherwise>
             </xsl:choose>
           </span>
         </xsl:when>
         <xsl:otherwise>
           <a href="/menu?at={@path}">
             <xsl:choose>
-              <xsl:when test="lbl"><xsl:value-of select="lbl"/></xsl:when>
-              <xsl:otherwise><xsl:value-of select="."/></xsl:otherwise>
+              <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
+              <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="."/></xsl:call-template></xsl:otherwise>
             </xsl:choose>
           </a>
         </xsl:otherwise>

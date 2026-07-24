@@ -84,24 +84,65 @@ FtpServer ftpSrv;
 // Menu tree: plain items, a disabled-by-default item, a numeric field, and
 // a submenu with TextField/NumField/Toggle/Select/Choose/date-pad.
 namespace text {
-  static constexpr CText op1         {"Option 1"};
-  static constexpr CText op2         {"Option 2"};
-  static constexpr CText op3         {"Option 3"};
-  static constexpr CText settings    {"Data fields..."};
-  static constexpr CText power       {"Power"};
+  // Numeric option labels ("10"/"40"/.../"100"), the percent sign, the date
+  // pad's own "." separator, and the language selector's own option names
+  // (English/Português — a language selector conventionally shows each
+  // language's own native name, not a translation of it) stay plain
+  // StaticText: not translatable content, or deliberately not translated.
+  // Rise/Fall/Both DID move to IdText below — item.h's IdText now emits a
+  // "#N" MARKED id (not a bare number) specifically so option values like
+  // these can be told apart from a genuinely-numeric literal option (the
+  // s10..s100 percentages just below) once the id space grows past 10;
+  // menu.xslt's renderLbl and menu.js's translateFallback both key off
+  // that same '#' marker now, not "is this string purely numeric".
   static constexpr CText percent     {"%"};
-  static constexpr CText toggle_demo {"Toggle"};
-  static constexpr CText rise        {"Rise"};
-  static constexpr CText fall        {"Fall"};
-  static constexpr CText both        {"Both"};
-  static constexpr CText select_demo {"Select"};
-  static constexpr CText choose_demo {"Choose"};
   static constexpr CText s10         {"10"};
   static constexpr CText s40         {"40"};
   static constexpr CText s60         {"60"};
   static constexpr CText s80         {"80"};
   static constexpr CText s100        {"100"};
   static constexpr CText dateSep     {"."};
+  static constexpr CText langEn      {"English"};
+  static constexpr CText langPt      {"Português"};
+
+  // Multilingual demo: id-indexed via SPIFFS-backed per-language files
+  // (/lang/en.txt, /lang/pt.txt on SPIFFS — plain text, line N = the text
+  // for id N, FTP-editable without reflashing). Filenames use language
+  // CODES, not MultiLangText::current's own raw numeric index — codes are
+  // this example's own presentation concern (readable file/URL names),
+  // the index stays what the core library and the field's own
+  // StaticNumRange<0,1> actually operate on. langCodes[lang] bridges the
+  // two, here and in menu.xslt/menu.js (each needs its own copy — they're
+  // three separate runtimes, not something a single shared table could
+  // cover). The same lang/*.txt files are ALSO served, wrapped as XML, at
+  // /lang/<code>.xml purely for menu.xslt's own document()-based
+  // translation lookup (see that route in setup() below) — one file on
+  // SPIFFS, two served representations, no duplicated data. Read-per-
+  // lookup (no RAM cache) — this is only used by the Serial-checkup
+  // route's local rendering, never a hot path.
+  enum Id {
+    txtPower, txtOp1, txtOp2, txtOp3, txtSettings,
+    txtToggleDemo, txtSelectDemo, txtChooseDemo, txtLang,
+    txtName, txtRise, txtFall, txtBoth, txtDate
+  };
+
+  static const char* const langCodes[] = {"en","pt"};
+
+  struct Src {
+    static const char* text(int id, uint8_t lang) {
+      static char buf[32];
+      char path[16];
+      snprintf(path,sizeof(path),"/lang/%s.txt",langCodes[lang<2?lang:0]);
+      File f = SPIFFS.open(path,"r");
+      if(!f) return "?";
+      for(int i=0;i<id && f.available();i++) f.readStringUntil('\n');
+      String line = f.available() ? f.readStringUntil('\n') : String("?");
+      f.close();
+      strncpy(buf,line.c_str(),sizeof(buf)-1);
+      buf[sizeof(buf)-1]='\0';
+      return buf;
+    }
+  };
 }
 
 enum ids { op3_id };
@@ -123,6 +164,7 @@ namespace action {
   bool op3(Sz) { return true; }
   bool subIdx(Sz) { return false; }
   void onPowerChange(int v);  // defined after pushRender() (needs it)
+  void onLangChange(int v);  // defined after pushRender() (needs it)
 }
 
 // OnChange<action::onPowerChange> composed inside NumField's own chain, so
@@ -131,9 +173,17 @@ namespace action {
 // regardless of which input path produced it. Hand-composed as a full
 // ItemDef rather than through NumFieldDef (fields.h), which has no slot for
 // this between the range component and storage.
+//
+// AsLabel<oneMenu::IdText<...>> demonstrates the multilingual label: for
+// XmlFmt/JsonFmt (web formats) it emits the bare id "0" instead of resolved
+// text (item.h's own IsXmlFmt/IsJsonFmt gate) — menu.xslt resolves it via
+// document()-based lookup against /lang/<idx>.xml (no JS, no flicker,
+// see menu.xslt's own renderLbl template); menu.js's WS path resolves the
+// same id client-side. Any other format (the Serial-checkup route) gets
+// real resolved text straight from text::Src, unaffected.
 using Power = ItemDef<
   AsEditMode<>,
-  AsLabel<StaticText<&text::power>>,
+  AsLabel<oneMenu::IdText<text::txtPower, text::Src>>,
   EditField,
   NumField<
     StaticNumRange<StaticRange<0,100,false>>,
@@ -143,20 +193,52 @@ using Power = ItemDef<
   AsUnit<StaticText<&text::percent>>
 >;
 
+// Language selector, on the root menu (not buried in "Data fields...").
+// Select rather than Toggle — scales to a real language list (a dozen+),
+// where a pill-per-language Toggle wouldn't. A first Toggle+SyncValue
+// attempt didn't work over the web: SyncValue's own mirror-sync used to
+// fire only on a genuine Cmd::Enter routed through nav(), but the web's
+// /set and WS "S|" paths both go through AsyncNav::setAt(), which bypasses
+// nav()/Cmd::Enter entirely (confirmed live: the pill flipped, the synced
+// variable didn't). Fixed at the source instead of working around it:
+// SyncValue<W> (item.h) now ALSO syncs on setStr() (the same choke point
+// RecallNavPos already uses to apply a web-driven selection), so this
+// works for Select/Choose/Toggle alike, not just physical nav.
+// OnChange<action::onLangChange> composed straight into the same W chain
+// SyncValue mirrors through — fires on every sync (web or physical),
+// exactly like it does inside a NumField's own chain.
+using LangSel = ItemDef<
+  SyncValue<Chain<OnChange<action::onLangChange>, DataRef<&oneData::MultiLangText::current>>>,
+  SelectBehave,
+  Menu<
+    ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtLang, text::Src>>, BodyAction<action::subIdx>>,
+    StaticBody<
+      ItemDef<EnumValue<0>, AsField<StaticText<&text::langEn>>>,
+      ItemDef<EnumValue<1>, AsField<StaticText<&text::langPt>>>
+    >,
+    EditField, ParentDraw, WrapNav
+  >
+>;
+
 // AsEditMode<> listed FIRST throughout below — attribute-only Fmt tags must
 // fire while the item's own XML tag is still open (see fields.h/xmlFmt.h).
+// Rise/Fall/Both are IdText too — their <opt><fld> option values render
+// through menu.xslt's own renderLbl (now keyed off the '#' marker item.h's
+// IdText emits, not "is this string purely numeric"), so they can't
+// collide with a genuinely-numeric literal option elsewhere (Select/
+// Choose's own 10/40/60/80/100 below, plain StaticText, never marked).
 using ToggleDemo = ToggleFieldDef<
-  ItemDef<AsEditMode<>, StaticText<&text::toggle_demo>>,
+  ItemDef<AsEditMode<>, oneMenu::IdText<text::txtToggleDemo, text::Src>>,
   StaticBody<
-    ItemDef<AsField<StaticText<&text::rise>>>,
-    ItemDef<AsField<StaticText<&text::fall>>>,
-    ItemDef<AsField<StaticText<&text::both>>>
+    ItemDef<AsField<oneMenu::IdText<text::txtRise, text::Src>>>,
+    ItemDef<AsField<oneMenu::IdText<text::txtFall, text::Src>>>,
+    ItemDef<AsField<oneMenu::IdText<text::txtBoth, text::Src>>>
   >,
   BodyAction<action::subIdx>
 >;
 
 using SelectDemo = SelectFieldDef<
-  ItemDef<AsEditMode<>, AsLabel<StaticText<&text::select_demo>>, BodyAction<action::subIdx>>,
+  ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtSelectDemo, text::Src>>, BodyAction<action::subIdx>>,
   StaticBody<
     ItemDef<AsField<StaticText<&text::s10>>,  AsUnit<StaticText<&text::percent>>>,
     ItemDef<AsField<StaticText<&text::s40>>,  AsUnit<StaticText<&text::percent>>>,
@@ -169,7 +251,7 @@ using SelectDemo = SelectFieldDef<
 >;
 
 using ChooseDemo = ChooseFieldDef<
-  ItemDef<AsEditMode<>, StaticText<&text::choose_demo>, BodyAction<action::subIdx>>,
+  ItemDef<AsEditMode<>, oneMenu::IdText<text::txtChooseDemo, text::Src>, BodyAction<action::subIdx>>,
   StaticBody<
     ItemDef<AsField<StaticText<&text::s10>>,  AsUnit<StaticText<&text::percent>>>,
     ItemDef<AsField<StaticText<&text::s40>>,  AsUnit<StaticText<&text::percent>>>,
@@ -181,9 +263,9 @@ using ChooseDemo = ChooseFieldDef<
   BodyAction<action::subIdx>
 >;
 
-auto dateField(const char* lbl) {
+auto dateField() {
   return padDef(
-    ItemDef<AsEditMode<>, AsLabel<Text>>{lbl},
+    ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtDate, text::Src>>>{},
     staticBody(
       ItemDef<
         EditField, ParentDraw,
@@ -204,18 +286,19 @@ auto dateField(const char* lbl) {
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"OneMenu demo"},
   staticBody(
-    ItemDef<Action<action::op1>, StaticText<&text::op1>>{},
-    ItemDef<Action<action::op2>, StaticText<&text::op2>>{},
-    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, StaticText<&text::op3>>{},
+    ItemDef<Action<action::op1>, oneMenu::IdText<text::txtOp1, text::Src>>{},
+    ItemDef<Action<action::op2>, oneMenu::IdText<text::txtOp2, text::Src>>{},
+    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, oneMenu::IdText<text::txtOp3, text::Src>>{},
+    LangSel{},
     menuDef<WrapNav>(
-      ItemDef<StaticText<&text::settings>>{},
+      ItemDef<oneMenu::IdText<text::txtSettings, text::Src>>{},
       staticBody(
-        ItemDef<AsEditMode<>, AsLabel<Text>, EditField, ParentDraw, AsField<TextField<15>>>{"Name"},
+        ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtName, text::Src>>, EditField, ParentDraw, AsField<TextField<15>>>{},
         Power{55},
         ToggleDemo{},
         SelectDemo{},
         ChooseDemo{},
-        dateField("Date")
+        dateField()
       )
     )
     // no static "<Back" item anywhere in the tree — the web view's own
@@ -240,11 +323,11 @@ NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;
 using WsJsonDisplay = OutDef<
   FullPrinter,
   JsonFmt,
-  DataParser<>,
-  Cursor<1, 1>,
-  WebSocketOut,
-  StaticPos<0, 0>,
-  StaticArea<80, 25>
+  // DataParser<>,
+  // Cursor<1, 1>,
+  WebSocketOut
+  // StaticPos<0, 0>,
+  // StaticArea<80, 25>
 >;
 
 WsJsonDisplay wsDisplay;
@@ -258,11 +341,11 @@ WebDisplay webDisplay;
 using SerialDisplay = OutDef<
   FullPrinter,
   TextFmt,
-  DataParser<>,
-  Cursor<1, 1>,
-  SerialOut,
-  StaticPos<0, 0>,
-  StaticArea<80, 25>
+  // DataParser<>,
+  // Cursor<1, 1>,
+  SerialOut
+  // StaticPos<0, 0>,
+  // StaticArea<80, 25>
 >;
 
 SerialDisplay serialDisplay;
@@ -304,6 +387,16 @@ void pushRender() {
 // a serialNav-driven Power edit won't show up live on connected browsers
 // until they next navigate there themselves. Known scope limit, not a bug.
 void action::onPowerChange(int) {
+  pushRender();
+}
+
+// Same reasoning as onPowerChange above — broadcasts from wherever webNav
+// already sits. A language switch is global (MultiLangText::current), so
+// unlike Power's own value this affects every field's rendering at once;
+// pushRender() only refreshes whatever level webNav is currently showing,
+// same known scope limit as onPowerChange (a client on a different level
+// picks up the new language next time it navigates/refreshes there).
+void action::onLangChange(int) {
   pushRender();
 }
 
@@ -425,6 +518,33 @@ ws.onmessage=function(e){document.getElementById('out').textContent=e.data;};
 ws.onopen=function(){document.getElementById('out').textContent='connected';};
 function send(s){ws.send(s);}
 </script></body></html>)HTML";
+
+// Serves /lang/<code>.txt (the SAME plain-text file text::Src reads locally
+// for the Serial-checkup route) wrapped as XML, purely so menu.xslt's own
+// document()-based translation lookup (renderLbl template) has something
+// to fetch — one file on SPIFFS, two representations, no duplicated data.
+// Line content is device-authored (FTP-edited plain text, not user input),
+// so no escaping is done — matches this file's own <output><![CDATA[...
+// convention of not sanitizing device-originated content.
+void sendLangXml(const char* code) {
+  char path[16];
+  snprintf(path,sizeof(path),"/lang/%s.txt",code);
+  File f = SPIFFS.open(path,"r");
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/xml", "");
+  server.sendContent("<lang>");
+  if(f) {
+    int id=0;
+    while(f.available()) {
+      String line = f.readStringUntil('\n');
+      server.sendContent("<t id=\""+String(id)+"\">"+line+"</t>");
+      id++;
+    }
+    f.close();
+  }
+  server.sendContent("</lang>");
+  server.sendContent("");
+}
 
 void setup() {
   Serial.begin(115200);
@@ -581,6 +701,11 @@ void setup() {
   // WS overlay's own client script (menu.js) — same static-asset pattern,
   // FTP-editable via the FTP server above, no reflash needed to iterate on it.
   server.serveStatic("/menu.js", SPIFFS, "/menu.js");
+  // Translation files for menu.xslt's own document() lookup — see
+  // sendLangXml's own comment. Only 2 languages in this demo, so two
+  // explicit routes rather than a generic wildcard handler.
+  server.on("/lang/en.xml", [](){ sendLangXml("en"); });
+  server.on("/lang/pt.xml", [](){ sendLangXml("pt"); });
 
   server.begin();
 }

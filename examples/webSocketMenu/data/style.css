@@ -53,7 +53,7 @@ a.choose-link .preview{color:var(--accent);font-family:'JetBrains Mono',monospac
 .field label{flex:0 1 auto;font-weight:500;font-size:.92em;color:var(--text)}
 .field select{flex:1 1 auto;min-width:0;padding:.4em .6em;border:1px solid var(--input-border);
    border-radius:6px;background:var(--input-bg);color:var(--accent);font:inherit;
-   font-family:'JetBrains Mono',monospace;font-size:.85em}
+   font-family:'JetBrains Mono',monospace;font-size:.85em;text-align:right}
 .field select option{background:var(--option-bg);color:var(--accent)}
 .field input{flex:1 1 auto;min-width:0;width:auto;text-align:left;padding:.4em .6em;
    border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--accent);

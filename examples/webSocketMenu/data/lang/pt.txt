@@ -1,0 +1,14 @@
+Potência
+Opção 1
+Opção 2
+Opção 3
+Campos de dados...
+Alternar
+Selecionar
+Escolher
+Idioma
+Nome
+Subir
+Descer
+Ambos
+Data

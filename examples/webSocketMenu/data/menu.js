@@ -65,6 +65,63 @@
     });
   }
 
+  // Maps MultiLangText::current's own raw numeric index (what jsonFmt.h/
+  // xmlFmt.h actually emit — see their own comments) to a readable
+  // filename code — menu.xslt keeps its own matching table (three
+  // separate runtimes: C++/XSLT/JS, no single shared source for this).
+  var LANG_CODES = ['en', 'pt'];
+
+  // Cache of the current language's {id: text} translation dictionary —
+  // see translateFallback() below for why this exists at all.
+  var langDict = null;
+  var langDictLang = null;
+
+  function loadLangDict(lang, cb) {
+    if (langDict && langDictLang === lang) { cb(); return; }
+    var code = LANG_CODES[lang] || 'en';
+    fetch('/lang/' + code + '.xml').then(function (r) { return r.text(); }).then(function (text) {
+      var doc = new DOMParser().parseFromString(text, 'application/xml');
+      var dict = {};
+      doc.querySelectorAll('t').forEach(function (t) { dict[t.getAttribute('id')] = t.textContent; });
+      langDict = dict;
+      langDictLang = lang;
+      cb();
+    }).catch(function (err) {
+      console.log('[menu.js] loadLangDict failed:', err);
+      cb(); // proceed without a dict — translateFallback then just no-ops
+    });
+  }
+
+  // menu.xslt's own document()-based translation (renderLbl template) only
+  // works for a real top-level page load — confirmed this session that the
+  // SAME stylesheet's document() call does not resolve through the JS-
+  // exposed XSLTProcessor API used here for a client-side re-transform
+  // (transformToFragment hangs/fails on it, a real browser-engine
+  // limitation, not a bug in the stylesheet itself). So after a client-side
+  // transform, any label/option still showing a "#N" marker means that
+  // lookup silently didn't happen — patch those specifically, client-side,
+  // using the exact same "id -> text, else leave the marker's own id
+  // number" logic menu.xslt's own renderLbl already applies for a real
+  // page load. The '#' marker (item.h's IdText, not a bare number) is what
+  // lets this scan option VALUES too (Toggle's own pills, Select's own
+  // dropdown) without also mistranslating a genuinely-numeric literal
+  // option (e.g. a percentage "10") that happens to share a real id.
+  function translateFallback(lang) {
+    loadLangDict(lang, function () {
+      if (!langDict) return;
+      var els = document.querySelectorAll(
+        '.panel label, .panel .choose-link > span:first-child, ' +
+        '.panel a[href^="/menu?at="]:not(.choose-link), ' +
+        '.panel .opts a.opt, .panel select[data-src] option, ' +
+        '.panel span.disabled'
+      );
+      els.forEach(function (el) {
+        var m = /#(\d+)/.exec(el.textContent);
+        if (m && langDict[m[1]] !== undefined) el.textContent = el.textContent.replace(m[0], langDict[m[1]]);
+      });
+    });
+  }
+
   // Swaps the transformed .panel/.result-box into the live document —
   // everything OUTSIDE .panel (head, masthead, this script itself) is left
   // completely alone, so CSS/JS never gets re-fetched or re-run.
@@ -81,6 +138,8 @@
     if (newPanel && oldPanel) oldPanel.replaceWith(newPanel);
     if (newOutput) (newPanel || oldPanel).after(newOutput);
     wire(); // freshly-swapped DOM has none of the old listeners
+    var viewEl = xmlDoc.querySelector('view');
+    if (viewEl) translateFallback(viewEl.getAttribute('lang'));
   }
 
   // push=false is used for both popstate (URL already changed, no new entry
@@ -88,14 +147,21 @@
   // fallbackHref: real click-driven navigations fall back to a plain
   // browser navigation if the fetch/transform fails for any reason —
   // background polls just silently skip a failed round, no fallback needed.
-  function navigate(at, push, fallbackHref) {
+  // force: skips the focus guard below even when push===false — for a
+  // deliberate user action (e.g. picking a new language from a <select>)
+  // rather than a passive background poll. Needed because the <select>
+  // itself is still document.activeElement right after the user's own
+  // 'change' fires it — the guard existed to protect a text field being
+  // typed into from an unrelated poll, not to block the very reload the
+  // user's own selection just asked for.
+  function navigate(at, push, fallbackHref, force) {
     loadXslt(function () {
       fetch('/menu?at=' + encodeURIComponent(at)).then(function (r) { return r.text(); }).then(function (xml) {
         if (xml === lastXml) return; // nothing changed, skip the swap entirely
         // A background poll must never yank focus out from under an
         // in-progress edit — a real click-driven navigate() (push!==false)
         // still always applies, since the user explicitly asked to leave.
-        if (push === false) {
+        if (push === false && !force) {
           var panel = document.querySelector('.panel');
           if (panel && document.activeElement && panel.contains(document.activeElement)) return;
         }
@@ -295,8 +361,27 @@
     if (item.menu && item.menu.body) item.menu.body.forEach(patchItem);
   }
 
+  // Tracks the device's own current language index (jsonFmt.h's own new
+  // "lang" key on the view root, mirroring xmlFmt.h's <view lang="N">).
+  // null until the first push — never treated as "changed" on that one.
+  var lastLang = null;
+
   function applyRender(data) {
     if (!data.view || !data.view.body) return;
+    // A language switch changes every label's resolved TEXT, but patchItem()
+    // below only ever writes raw id/value fields — it has no client-side
+    // translation table (that's deliberately the XSLT no-JS path's job, see
+    // menu.xslt's own renderLbl template). Patching in place after a
+    // language change would just re-write the same bare ids nothing here
+    // can resolve. Instead, treat it like a navigation: re-fetch /menu and
+    // re-run the real XSLT transform, which resolves every label fresh
+    // against the new language's own /lang/<idx>.xml.
+    if (lastLang !== null && data.view.lang !== lastLang) {
+      lastLang = data.view.lang;
+      navigate(currentAt, false, null, true); // force: bypass the focus guard, see navigate()'s own comment
+      return;
+    }
+    lastLang = data.view.lang;
     data.view.body.forEach(patchItem);
   }
 
