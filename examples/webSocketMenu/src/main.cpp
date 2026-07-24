@@ -320,14 +320,22 @@ NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;
 // Local JSON variant of webSocketOut.h's own WebSocketDisplay (which uses
 // XmlFmt) — kept example-scoped rather than editing that shared header, so
 // the plain-HTTP path (WebDisplay/XmlFmt/menu.xslt) stays untouched.
+//
+// DataParser<>/Cursor<1,1>/StaticPos/StaticArea genuinely aren't needed —
+// dropping them once surfaced a real bug (WebSocketOut had no put(int) at
+// all, so a numeric out.put() silently resolved via an implicit int->char
+// conversion instead of DataParser<>'s own snprintf/itoa-based one — a
+// garbage byte, not a digit; confirmed live via MultiLangText::current's
+// own "lang" attribute coming out empty, breaking JSON.parse() client-
+// side), but the real, targeted fix is webSocketOut.h's own new put(int)
+// overload — WebSocketOut can stringify a number itself now, the same way
+// ArduinoSerialOut's own put(T) already forwards to Serial.print(). No
+// need to pay for DataParser<>/Cursor/StaticPos/StaticArea just to reach
+// a conversion this device can now do on its own.
 using WsJsonDisplay = OutDef<
   FullPrinter,
   JsonFmt,
-  // DataParser<>,
-  // Cursor<1, 1>,
   WebSocketOut
-  // StaticPos<0, 0>,
-  // StaticArea<80, 25>
 >;
 
 WsJsonDisplay wsDisplay;
@@ -335,17 +343,15 @@ WebDisplay webDisplay;
 
 // Plain-text Serial checkup route: TextFmt (one line per item, '>'/'-'/' '
 // cursor markers, no color/ANSI) + FullPrinter, no Gate/ColorTrack/CtrlChars.
-// Cursor<1,1> is still required — ItemPrinter's own static_assert demands
-// IsCursor be present in the chain — even though SerialOut's own setPos()
-// is a no-op for this streaming device.
+// No Cursor/DataParser/StaticPos/StaticArea needed: SerialOut's own setPos()
+// is a no-op for this streaming device, and ArduinoSerialOut's put(T) is
+// already a generic template forwarding to Serial.print() — it stringifies
+// any numeric type on its own, unlike WebSocketOut (see that OutDef's own
+// comment above for the bug this distinction was found from).
 using SerialDisplay = OutDef<
   FullPrinter,
   TextFmt,
-  // DataParser<>,
-  // Cursor<1, 1>,
   SerialOut
-  // StaticPos<0, 0>,
-  // StaticArea<80, 25>
 >;
 
 SerialDisplay serialDisplay;

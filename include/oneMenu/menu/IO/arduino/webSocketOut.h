@@ -28,6 +28,20 @@ namespace oneMenu {
       static void put(char c) { _buf += c; }
       static void put(const char* s) { _buf += s; }
       static void put(const char* s, Sz n) { for(Sz i = 0; i < n && s[i]; i++) put(s[i]); }
+      // Without this, any numeric put() (e.g. xmlFmt.h/jsonFmt.h's own
+      // out.put((int)someIndex)) has no exact-match overload here and
+      // silently resolves via an implicit int->char conversion instead —
+      // a garbage/control byte, not a decimal string — confirmed live via
+      // MultiLangText::current's own "lang" attribute coming out empty,
+      // breaking JSON.parse() client-side. Arduino's own String(int)
+      // constructor does the conversion; integral PROMOTIONS (e.g. this
+      // uint8_t) rank ahead of the integral CONVERSION to char above, so
+      // this correctly wins overload resolution for any smaller integer
+      // type too, not just a literal int. ArduinoSerialOut (serialOut.h)
+      // doesn't need the equivalent — its own put(T) is already a generic
+      // template forwarding to Serial.print(), which handles any numeric
+      // type on its own.
+      static void put(int n) { _buf += String(n); }
       static void nl()                     { put('\n'); O::nl(); }
       static constexpr void setPos(const Pos&) {}
       static void clear()                  { _buf = ""; O::clear(); }
