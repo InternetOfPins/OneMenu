@@ -117,30 +117,41 @@ namespace text {
   // cover). The same lang/*.txt files are ALSO served, wrapped as XML, at
   // /lang/<code>.xml purely for menu.xslt's own document()-based
   // translation lookup (see that route in setup() below) — one file on
-  // SPIFFS, two served representations, no duplicated data. Read-per-
-  // lookup (no RAM cache) — this is only used by the Serial-checkup
-  // route's local rendering, never a hot path.
+  // SPIFFS, two served representations, no duplicated data.
   enum Id {
     txtPower, txtOp1, txtOp2, txtOp3, txtSettings,
     txtToggleDemo, txtSelectDemo, txtChooseDemo, txtLang,
-    txtName, txtRise, txtFall, txtBoth, txtDate
+    txtName, txtRise, txtFall, txtBoth, txtDate,
+    txtCount
   };
 
   static const char* const langCodes[] = {"en","pt"};
 
+  // Loaded whole once per real language switch, not per lookup: every
+  // IdText::print()/printItem() call reaches text() below unconditionally
+  // (no dirty-check of its own), and one full render pass visits every
+  // visible IdText — nav.h's own changed(out) probe pass plus pushRender()'s
+  // printTo()+sync()'s own second pass mean a single nav click or field
+  // edit was re-opening/re-reading the SPIFFS file 2-3 times per VISIBLE
+  // LABEL, every time, not just on language change. load() is instead
+  // driven from the same OnChange hook LangSel already wires for
+  // pushRender() (action::onLangChange, below) — text() itself becomes a
+  // plain in-RAM lookup.
   struct Src {
-    static const char* text(int id, uint8_t lang) {
-      static char buf[32];
+    inline static char cache[txtCount][32];
+    static void load(uint8_t lang) {
       char path[16];
       snprintf(path,sizeof(path),"/lang/%s.txt",langCodes[lang<2?lang:0]);
       File f = SPIFFS.open(path,"r");
-      if(!f) return "?";
-      for(int i=0;i<id && f.available();i++) f.readStringUntil('\n');
-      String line = f.available() ? f.readStringUntil('\n') : String("?");
-      f.close();
-      strncpy(buf,line.c_str(),sizeof(buf)-1);
-      buf[sizeof(buf)-1]='\0';
-      return buf;
+      for(int i=0;i<txtCount;i++) {
+        String line = (f && f.available()) ? f.readStringUntil('\n') : String("?");
+        strncpy(cache[i],line.c_str(),sizeof(cache[i])-1);
+        cache[i][sizeof(cache[i])-1]='\0';
+      }
+      if(f) f.close();
+    }
+    static const char* text(int id, uint8_t) {
+      return (id>=0 && id<txtCount) ? cache[id] : "?";
     }
   };
 }
@@ -402,7 +413,8 @@ void action::onPowerChange(int) {
 // pushRender() only refreshes whatever level webNav is currently showing,
 // same known scope limit as onPowerChange (a client on a different level
 // picks up the new language next time it navigates/refreshes there).
-void action::onLangChange(int) {
+void action::onLangChange(int v) {
+  text::Src::load((uint8_t)v);
   pushRender();
 }
 
@@ -559,6 +571,10 @@ void setup() {
 #else
   SPIFFS.begin(true);
 #endif
+  // onLangChange only fires on a real user-driven switch — load the
+  // default language's cache once up front so the very first render
+  // (before anyone touches LangSel) has real text to show.
+  text::Src::load(oneData::MultiLangText::current);
   WiFi.begin(wifi_ssid, wifi_pass);
   Serial.print("Connecting to ");
   Serial.println(wifi_ssid);
