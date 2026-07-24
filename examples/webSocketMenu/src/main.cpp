@@ -576,7 +576,14 @@ void setup() {
   // e.g. lftp/FileZilla) without a full firmware reflash.
   ftpSrv.begin(ftp_user, ftp_pass);
 
+  // "/" redirects straight to /menu (the real XSLT-rendered view) — the
+  // raw WS-JSON debug page (indexHtml) is still reachable at /debug, kept
+  // around as the tool used to verify WebSocketOut's own raw push output.
   server.on("/", [](){
+    server.sendHeader("Location", "/menu");
+    server.send(302, "text/plain", "");
+  });
+  server.on("/debug", [](){
     server.send_P(200, "text/html", indexHtml);
   });
 
