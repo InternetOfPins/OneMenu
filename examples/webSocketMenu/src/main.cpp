@@ -122,11 +122,24 @@ namespace action {
   bool op2(Sz);  // toggles op3's enabled state, defined after mainMenu (needs find<>)
   bool op3(Sz) { return true; }
   bool subIdx(Sz) { return false; }
+  void onPowerChange(int v);  // defined after pushRender() (needs it)
 }
 
-using Power = NumFieldDef<
+// OnChange<action::onPowerChange> composed inside NumField's own chain, so
+// EVERY value mutation — a physical/serial-checkup nav step, an HTTP /set,
+// or a WS "S|path|val" tick — broadcasts to all connected WS clients live,
+// regardless of which input path produced it. Hand-composed as a full
+// ItemDef rather than through NumFieldDef (fields.h), which has no slot for
+// this between the range component and storage.
+using Power = ItemDef<
+  AsEditMode<>,
   AsLabel<StaticText<&text::power>>,
-  NumField<StaticNumRange<StaticRange<0,100,false>>, AsField<Watch<Default<Int,55>>>>,
+  EditField,
+  NumField<
+    StaticNumRange<StaticRange<0,100,false>>,
+    OnChange<action::onPowerChange>,
+    AsField<Watch<Default<Int,55>>>
+  >,
   AsUnit<StaticText<&text::percent>>
 >;
 
@@ -278,6 +291,20 @@ void pushRender() {
   wsDisplay.lockMode(LockMode::None);
   webNav.printTo(wsDisplay);
   webNav.sync(wsDisplay);
+}
+
+// Broadcasts from wherever webNav's own cursor already sits — correct for
+// the WS "S|path|val" path (the handler navigates there first, same as
+// /menu's own HTTP handler, before setAt() reaches this via set()) and for
+// HTTP /set. A Serial-checkup-driven edit changes the SAME underlying value
+// from serialNav's own INDEPENDENT cursor, not webNav's — repositioning
+// webNav's shared, cross-request state as a side effect of a value change
+// (to make that case broadcast too) risks clobbering whatever an unrelated
+// concurrent request left it at, so this deliberately doesn't attempt it:
+// a serialNav-driven Power edit won't show up live on connected browsers
+// until they next navigate there themselves. Known scope limit, not a bug.
+void action::onPowerChange(int) {
+  pushRender();
 }
 
 // Strip the trailing "<idx>/" segment from an absolute path, e.g.

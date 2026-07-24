@@ -8,7 +8,10 @@
 //
 // Covers, over WS instead of a full HTTP round-trip:
 //   - Plain single-value fields: TextField/NumField/Power's slider,
-//     Choose's own current-value display (<input data-src>).
+//     Choose's own current-value display (<input data-src>). Range/number
+//     inputs send on every 'input' tick (drag/up-down-step), not just on
+//     the trailing 'change' (release/blur) — lets a server-side OnChange
+//     hook (item.h) react in real time, not only to the final value.
 //   - Select's dropdown rendering (<select data-src>) — same setAt() call
 //     as any other field, this.value is just the option's own index string.
 //   - Toggle/Select's own pill-list rendering (.opts a.opt href) — each
@@ -147,10 +150,28 @@
     navigate(at, false);
   });
 
-  function wsSend() {
-    var msg = 'S|' + this.getAttribute('data-src') + '|' + this.value;
+  // Flow control for high-frequency senders (a slider drag fires many more
+  // 'input' events/sec than key-repeat does): at most one message is ever
+  // in flight. A tick that arrives while one is still pending doesn't get
+  // sent — it just overwrites wsQueued, so only the LATEST value survives —
+  // and gets flushed the moment a response arrives (ws.onmessage below).
+  // Without this, blasting ws.send() for every drag tick either overflows
+  // the browser's own WS send buffer or outpaces the device's single-
+  // threaded loop(), and nothing visibly gets through at all. Same idea as
+  // MicroTC360's own send-on-every-change-but-gated-on-response approach.
+  var wsPending = false;
+  var wsQueued = null;
+
+  function wsSendMsg(msg) {
     console.log('[menu.js] WS send:', msg);
     ws.send(msg);
+    wsPending = true;
+  }
+
+  function wsSend() {
+    var msg = 'S|' + this.getAttribute('data-src') + '|' + this.value;
+    if (wsPending) { wsQueued = msg; return; }
+    wsSendMsg(msg);
   }
 
   function wire() {
@@ -160,6 +181,12 @@
       el._wsOnchange = el.onchange; // keep the original HTTP fallback
       el.onchange = null; // suppressed while WS is live
       el.addEventListener('change', wsSend);
+      // Range sliders and number spinners ALSO send live, on every drag
+      // tick / up-down step (the 'input' event) — not just once on
+      // release/blur ('change') — so a server-side OnChange hook (e.g.
+      // driving a motor PWM in real time) sees every intermediate value,
+      // matching the slider's own already-live local readout above it.
+      if (el.type === 'range' || el.type === 'number') el.addEventListener('input', wsSend);
       wiredInputs.push(el);
     });
     // Pills carry path+val in their own href, not a data-src — parsed at
@@ -208,14 +235,15 @@
     ev.preventDefault();
     var url = new URL(this.getAttribute('href'), location.href);
     var msg = 'S|' + url.searchParams.get('path') + '|' + url.searchParams.get('val');
-    console.log('[menu.js] WS send (pill):', msg);
-    ws.send(msg);
+    if (wsPending) { wsQueued = msg; return; }
+    wsSendMsg(msg);
   }
 
   function unwire() {
     wiredInputs.forEach(function (el) {
       el.onchange = el._wsOnchange;
       el.removeEventListener('change', wsSend);
+      el.removeEventListener('input', wsSend); // no-op if never added (non range/number)
       el._wsWired = false;
     });
     wiredInputs = [];
@@ -275,15 +303,27 @@
   function connect() {
     ws = new WebSocket('ws://' + location.hostname + ':81/');
     ws.onopen = wire;
-    ws.onclose = function () { unwire(); setTimeout(connect, 2000); };
+    ws.onclose = function () {
+      unwire();
+      wsPending = false; wsQueued = null; // don't carry a stale in-flight gate across reconnects
+      setTimeout(connect, 2000);
+    };
     ws.onmessage = function (e) {
-      console.log('[menu.js] WS received:', e.data);
       try {
         var data = JSON.parse(e.data);
         console.log('[menu.js] parsed:', data);
         applyRender(data);
       } catch (err) {
         console.log('[menu.js] not JSON we understand:', err);
+      }
+      // Any incoming push (ours or another client's — the device processes
+      // one WS message at a time, so this always means "caught up, ready
+      // for more") clears the in-flight gate and flushes whatever tick
+      // arrived meanwhile — see wsSend()'s own comment above.
+      wsPending = false;
+      if (wsQueued !== null) {
+        var next = wsQueued; wsQueued = null;
+        wsSendMsg(next);
       }
     };
   }
