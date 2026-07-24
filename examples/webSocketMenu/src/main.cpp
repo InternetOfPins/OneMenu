@@ -5,16 +5,13 @@
 //     per request, works with no JS at all.
 //   - a WebSocket channel (WebSocketOut/WsJsonDisplay, JsonFmt) that
 //     data/menu.js overlays on top: field edits and live updates push to
-//     every connected browser instantly, while navigation itself re-runs
-//     menu.xslt's own transform client-side (fetch + XSLTProcessor) instead
-//     of a full page reload — see menu.js's own header comment.
+//     every connected browser instantly, while navigation re-runs
+//     menu.xslt's own transform client-side instead of a full page reload.
 // Also: a plain-text Serial "checkup" route (SerialDisplay/serialNav,
 // TextFmt) with PC-keyboard-over-serial input (SerialIn/PCKbd), on its own
-// independent Nav instance — a way to verify the underlying menu tree
-// directly, unaffected by anything in the web layer above it. And an FTP
-// server (xreef/SimpleFTPServer) onto the same SPIFFS data/ folder, so
-// menu.xslt/style.css/menu.js can be edited over the LAN without a full
-// firmware reflash.
+// independent Nav instance, and an FTP server (xreef/SimpleFTPServer) onto
+// the same SPIFFS data/ folder so the front-end files can be edited over
+// the LAN without a full firmware reflash.
 // Upload data/ via "pio run -e <env> -t uploadfs" before flashing/running.
 // Fill in your own WiFi (and FTP) credentials below.
 #include <Arduino.h>
@@ -22,12 +19,10 @@
   #include <ESP8266WiFi.h>
   #include <ESP8266WebServer.h>
   #include <FS.h>
-  // ESP8266's own SDK (lwip2/gluedebug.h, pulled in transitively by
-  // ESP8266WiFi.h) #defines a global `nl()` macro — collides with OneMenu's
-  // own nl() method used throughout its output chain. Same bug class as the
-  // known ansiCodes.h global-namespace collision (see feedback_ansi_codes_
-  // global_namespace memory); undefine it before any OneMenu header is
-  // included, same disclosed-per-port workaround, not a library fix.
+  // ESP8266's own SDK headers (pulled in transitively by ESP8266WiFi.h)
+  // #define a global nl() macro that collides with OneMenu's own nl()
+  // method used throughout its output chain; undef before any OneMenu
+  // header is included.
   #undef nl
   using WebServerT = ESP8266WebServer;
 #else
@@ -39,37 +34,30 @@
 #include <WebSocketsServer.h>
 // FTP access to the same SPIFFS data/ folder WebOut serves (menu.xslt,
 // style.css) — lets those be edited/uploaded directly over the LAN without
-// re-flashing the whole firmware for every front-end tweak (same dev-
-// workflow role Rui's own MicroTC360 project used an FTP server for, though
-// that one — nailbuster/esp8266FTPServer — had a licensing conflict in its
-// own repo, LGPL-2.1 LICENSE file vs GPL-3 source headers, and only ever
-// targeted ESP8266; xreef/SimpleFTPServer is MIT-licensed and supports both
-// ESP32 and ESP8266 under one API). Storage backend forced to SPIFFS via
-// platformio.ini's own build_flags (its own FtpServerKey.h otherwise
-// defaults to LittleFS on ESP8266, SD on ESP32 — neither matches what this
-// project already mounts).
+// re-flashing the whole firmware for every front-end tweak. xreef/
+// SimpleFTPServer is MIT-licensed and supports both ESP32 and ESP8266
+// under one API. Storage backend forced to SPIFFS via platformio.ini's own
+// build_flags (its own FtpServerKey.h otherwise defaults to LittleFS on
+// ESP8266, SD on ESP32 — neither matches what this project already mounts).
 #include <SimpleFTPServer.h>
 #include <oneMenu/oneMenu.h>
 #include <oneMenu/menu/IO/arduino/webSocketOut.h>
 // webOut.h (WebOut/WebDisplay, the HTTP+xml-stylesheet-PI route menu.xslt is
 // designed for) platform-switches its own WebServer type internally
-// (ESP8266WebServer vs WebServer) — real ESP32+ESP8266 hardware verified.
+// (ESP8266WebServer vs WebServer).
 #include <oneMenu/menu/IO/arduino/webOut.h>
-// JsonFmt: shipped but unused anywhere else in the codebase until now — the
-// WS push path's own wire format (native JSON.parse() client-side, no XSLT/
-// DOMParser needed to read a pushed update; see WsJsonDisplay below).
+// JsonFmt: the WS push path's own wire format (native JSON.parse()
+// client-side, no XSLT/DOMParser needed to read a pushed update; see
+// WsJsonDisplay below).
 #include <oneMenu/menu/fmt/jsonFmt.h>
 // Plain-text Serial checkup route (SerialDisplay/serialNav below) — a
 // bare-bones, non-web output on the SAME mainMenu tree, independent nav, no
-// XML/JSON/XSLT/WS anywhere in its path. Verifies the CORE library's own
-// state (Watch<>/m_sel/etc.) directly, unaffected by any bug in the web
-// overlay built on top of it.
+// XML/JSON/XSLT/WS anywhere in its path.
 #include <oneMenu/menu/fmt/textFmt.h>
 #include <oneMenu/menu/IO/arduino/serialOut.h>
 // PC-keyboard-over-serial input for the checkup route: SerialIn supplies
 // raw bytes off Serial, PCKbd parses VT100 arrow keys (Up/Down/Left/Right)
-// + Enter, and passes anything else through as Cmd::Key for field editing —
-// standard compose order per its own header comment.
+// + Enter, and passes anything else through as Cmd::Key for field editing.
 #include <oneMenu/menu/IO/arduino/serialIn.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
 #include <oneMenu/menu/cmdTable.h>
@@ -93,9 +81,8 @@ WebServerT server(80);
 WebSocketsServer webSocket(81);
 FtpServer ftpSrv;
 
-// ── Text — grabbed from examples/fields/src/main.cpp (Rui's own menu tree,
-// covers plain items, a disabled-by-default item, a numeric field, and a
-// submenu with TextField/NumField/Toggle/Select/Choose/date-pad) ───────────
+// Menu tree: plain items, a disabled-by-default item, a numeric field, and
+// a submenu with TextField/NumField/Toggle/Select/Choose/date-pad.
 namespace text {
   static constexpr CText op1         {"Option 1"};
   static constexpr CText op2         {"Option 2"};
@@ -121,9 +108,7 @@ enum ids { op3_id };
 
 // Output capture: action fns write result text here; if non-empty when
 // /menu renders, it's wrapped as <output><![CDATA[...]]></output> ahead of
-// <view> inside a new <result> root (see /menu handler below) — same idiom
-// Rui's own AquaGrow/MicroTC360 web.cpp used (serverOut's own <output
-// state="..."><![CDATA[...]]></output> wrap around handleMenu()), adapted to
+// <view> inside a new <result> root (see /menu handler below), adapted to
 // WebOut's buffer-then-flush model instead of a live per-character stream.
 // Single global buffer is safe: WebServerT handles one request at a time.
 namespace webResult {
@@ -237,9 +222,8 @@ bool action::op2(Sz) {
 NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;
 
 // Local JSON variant of webSocketOut.h's own WebSocketDisplay (which uses
-// XmlFmt) — defined here rather than editing that shared header, so the
-// plain-HTTP path (WebDisplay/XmlFmt/menu.xslt) stays untouched and this
-// stays example-scoped.
+// XmlFmt) — kept example-scoped rather than editing that shared header, so
+// the plain-HTTP path (WebDisplay/XmlFmt/menu.xslt) stays untouched.
 using WsJsonDisplay = OutDef<
   FullPrinter,
   JsonFmt,
@@ -254,12 +238,10 @@ WsJsonDisplay wsDisplay;
 WebDisplay webDisplay;
 
 // Plain-text Serial checkup route: TextFmt (one line per item, '>'/'-'/' '
-// cursor markers, no color/ANSI) + FullPrinter, no Gate/ColorTrack/CtrlChars
-// — "no extras" beyond what's structurally required. Cursor<1,1> is that
-// one required extra: ItemPrinter's own static_assert demands IsCursor be
-// present below it in the chain (same reason WebOut/WebSocketOut both carry
-// it) even though SerialOut's own setPos() is a no-op for this streaming
-// device — position tracking is harmless, just unused.
+// cursor markers, no color/ANSI) + FullPrinter, no Gate/ColorTrack/CtrlChars.
+// Cursor<1,1> is still required — ItemPrinter's own static_assert demands
+// IsCursor be present in the chain — even though SerialOut's own setPos()
+// is a no-op for this streaming device.
 using SerialDisplay = OutDef<
   FullPrinter,
   TextFmt,
@@ -273,11 +255,10 @@ using SerialDisplay = OutDef<
 SerialDisplay serialDisplay;
 // Independent nav — its own cursor/level state, NOT shared with webNav —
 // so this checkup route reflects the tree exactly as a plain, non-web
-// OneMenu consumer would see it, unaffected by whatever level/selection
-// webNav's own web-driven state happens to currently sit at. Same
-// mainMenu tree (shared field VALUES — Watch<>/m_sel/etc. live on the
-// items themselves, not per-nav), so edits made over the web ARE visible
-// here too; only the Nav's OWN cursor/level is independent.
+// OneMenu consumer would see it. Same mainMenu tree (shared field VALUES —
+// Watch<>/m_sel/etc. live on the items themselves, not per-nav), so edits
+// made over the web ARE visible here too; only the Nav's OWN cursor/level
+// is independent.
 NavDef<TreeNav, Root<decltype(mainMenu), mainMenu>> serialNav;
 
 // PC keyboard over Serial: send arrow keys via a VT100-capable terminal
@@ -288,7 +269,7 @@ NavDef<TreeNav, Root<decltype(mainMenu), mainMenu>> serialNav;
 // Cmd::Key (digits/letters for text/number editing).
 InDef<SerialIn, PCKbd> serialIn;
 
-// shorthand command table, same convention as AquaGrow's own web.cpp cmds[][2]
+// shorthand command table for client-issued jump commands
 static const CmdEntry cmds[] = {
   {"#SETTINGS", "/3/"},  // jump straight to the Data fields submenu
 };
@@ -340,9 +321,7 @@ int fieldSelIndex(const char* path, const char* at) {
 }
 
 // Wire format for client->server commands: plain path/shorthand strings
-// (same convention translateCmd/async() already used, unchanged — matches
-// Rui's own AquaGrow/MicroTC360 r-site.js client, which also sends plain
-// path strings rather than a JSON envelope on this leg) plus one new,
+// (same convention translateCmd/async() already use, unchanged) plus one
 // minimal "S|<path>|<val>" prefix for field edits (menu.js's own
 // replacement for the HTTP fallback's /set request) — deliberately NOT
 // JSON: parsing arbitrary JSON on-device for a two-field command would
@@ -381,8 +360,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
       // entirely — RecallNavPos (Toggle/Select's own m_sel, item.h) has no
       // changed()/sync() override at all, so a pure selection edit is
       // invisible to that deep probe (NumField's own Watch<> DOES
-      // register, which is why Power always worked without this). The
-      // gate was only ever an optimization against redundant broadcasts —
+      // register, which is why Power alone would work without this). The
+      // gate is only an optimization against redundant broadcasts anyway —
       // one extra push per user edit costs nothing a human will notice.
       pushRender();
       return;
@@ -449,10 +428,9 @@ void setup() {
   });
 
   // Real HTTP+xml-stylesheet-PI route: the browser fetches this XML
-  // directly and applies data/menu.xslt client-side (same architecture as
-  // AquaGrow's own web.cpp pageStart(), and WebOut's own existing design)
-  // — this is the route the adapted menu.xslt is built for, distinct from
-  // the WebSocket push demo above.
+  // directly and applies data/menu.xslt client-side — this is the route
+  // the adapted menu.xslt is built for, distinct from the WebSocket push
+  // demo above.
   //
   // STATELESS by design: every request supplies its own ?at=<absolute path>
   // (default "/", the root menu) and the response is derived FRESH from
@@ -560,10 +538,10 @@ void setup() {
     server.send(302, "text/plain", "");
   });
 
-  // menu.xslt itself, served straight from flash (SPIFFS) — real static
-  // front-end asset, same pattern as AquaGrow's own onWeb().
+  // menu.xslt itself, served straight from flash (SPIFFS) — a real static
+  // front-end asset.
   server.serveStatic("/menu.xslt", SPIFFS, "/menu.xslt");
-  // Styling now lives in its own real static asset too (not embedded in
+  // Styling lives in its own real static asset too (not embedded in
   // menu.xslt's own <head>) — same serveStatic pattern, lets the browser
   // cache CSS independently of the XML payload. Split into a shared
   // common file plus two theme complements (menu.xslt links all three,
