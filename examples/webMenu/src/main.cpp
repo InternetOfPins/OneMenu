@@ -525,6 +525,23 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
     char* bar = strchr(buf, '|');
     if(bar) {
       *bar = '\0';
+      char* val = bar + 1;
+      // Third field (added alongside Footer<>/language work): the client's
+      // own currentAt — its ALREADY-correct print-level "at" (menu.js's own
+      // renderInto(), reading the response's real outer <menu at="...">),
+      // the exact same value /menu's own HTTP handler's client-side redirect
+      // always targets (menu.xslt's /view/menu/@at). Using it here, instead
+      // of re-deriving a "parent" server-side by truncating buf's own last
+      // path segment, matters for a pad-nested field (dateField's own year/
+      // month/day): buf="/4/5/1/"'s naive parent is "/4/5/" — ONE LEVEL PAST
+      // the pad's own boundary (confirmed live: async()+enter() on that
+      // landed a phantom level, pushed view's own "at" read "/4/5/" while
+      // its body was still structurally "/4/"'s six items, Date's own outer
+      // row never marked focused) — a plain string can't tell a pad
+      // boundary apart from a real submenu one, but the client already
+      // knows, since it's the same value the server itself last reported.
+      char* at = strchr(val, '|');
+      if(at) *at++ = '\0'; else at = (char*)"/";
       // webNav.changed(wsDisplay) below only probes whatever level webNav's
       // OWN shared cursor currently sits at — setAt() itself is path-driven
       // and works from anywhere, but a field edited OUTSIDE that level
@@ -532,16 +549,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
       // same async()+enter() pair /menu's own HTTP handler uses, so the
       // change lands somewhere the very next changed(out) probe (and
       // pushRender()'s own printTo()) actually looks.
-      char parent[32];
-      parentPath(buf, parent, sizeof(parent));
-      webNav.async(parent);
+      webNav.async(at);
       // enter() resets the submenu's own selection to its first child —
       // reposition to the field ACTUALLY being edited before rendering, or
       // every WS-driven set shows item 0 focused regardless of which field
       // the user touched.
-      if(strcmp(parent, "/") != 0) webNav.enter();
-      webNav.go(fieldSelIndex(buf, parent));
-      webNav.setAt(buf, bar + 1);
+      if(strcmp(at, "/") != 0) webNav.enter();
+      webNav.go(fieldSelIndex(buf, at));
+      webNav.setAt(buf, val);
       // Always push after a SET, skipping the changed(wsDisplay) gate below
       // entirely — RecallNavPos (Toggle/Select's own m_sel, item.h) has no
       // changed()/sync() override at all, so a pure selection edit is

@@ -140,6 +140,15 @@
     wire(); // freshly-swapped DOM has none of the old listeners
     var viewEl = xmlDoc.querySelector('view');
     if (viewEl) translateFallback(viewEl.getAttribute('lang'));
+    // Where webNav actually landed — an action item's own link (Option 1/2/
+    // 3) fires its action (main.cpp's own /menu handler, async()+enter())
+    // and stays at its PARENT level, so this can legitimately differ from
+    // whatever ?at= the caller originally requested. Callers use this (not
+    // the request's own `at`) for currentAt/history, so a later reload of
+    // currentAt (e.g. applyRender()'s own language-change reload) re-renders
+    // that level instead of re-firing the action every time.
+    var menuEl = xmlDoc.querySelector('menu');
+    return (menuEl && menuEl.getAttribute('at')) || '/';
   }
 
   // push=false is used for both popstate (URL already changed, no new entry
@@ -166,9 +175,8 @@
           if (panel && document.activeElement && panel.contains(document.activeElement)) return;
         }
         lastXml = xml;
-        currentAt = at;
-        renderInto(xml);
-        if (push !== false) history.pushState({ at: at }, '', '/menu?at=' + encodeURIComponent(at));
+        currentAt = renderInto(xml);
+        if (push !== false) history.pushState({ at: currentAt }, '', '/menu?at=' + encodeURIComponent(currentAt));
       }).catch(function (err) {
         console.log('[menu.js] navigate failed, falling back to real navigation:', err);
         if (fallbackHref) location.href = fallbackHref;
@@ -234,8 +242,21 @@
     wsPending = true;
   }
 
+  // currentAt suffix: tells the server which print-level to navigate to
+  // before applying the edit (main.cpp's own webSocketEvent, 'S|' branch)
+  // — the same "at" /menu's own HTTP handler already gets right for free
+  // (the client there always redirects to /view/menu/@at, the real OUTER
+  // print level, computed via renderInto()'s own menu/@at read — see that
+  // function's comment). A pad-nested field's own naive parent (just
+  // strip the last path segment server-side) goes ONE LEVEL PAST the pad's
+  // own boundary — e.g. dateField's own month field's parent would be
+  // "/4/5/", not "/4/" — landing focus on a phantom level and never
+  // marking the pad's own outer row (Date) as focused. currentAt is
+  // already exactly right; passing it sidesteps re-deriving it server-side
+  // from a bare path string, which can't tell a pad boundary apart from a
+  // real submenu one.
   function wsSend() {
-    var msg = 'S|' + this.getAttribute('data-src') + '|' + this.value;
+    var msg = 'S|' + this.getAttribute('data-src') + '|' + this.value + '|' + currentAt;
     if (wsPending) { wsQueued = msg; return; }
     wsSendMsg(msg);
   }
@@ -300,7 +321,7 @@
     if (!ws || ws.readyState !== WebSocket.OPEN) return; // fall back to href navigation
     ev.preventDefault();
     var url = new URL(this.getAttribute('href'), location.href);
-    var msg = 'S|' + url.searchParams.get('path') + '|' + url.searchParams.get('val');
+    var msg = 'S|' + url.searchParams.get('path') + '|' + url.searchParams.get('val') + '|' + currentAt;
     if (wsPending) { wsQueued = msg; return; }
     wsSendMsg(msg);
   }
