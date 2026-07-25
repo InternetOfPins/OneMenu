@@ -776,10 +776,15 @@ void setup() {
   // FTP-editable via the FTP server above, no reflash needed to iterate on it.
   server.serveStatic("/menu.js", SPIFFS, "/menu.js");
   // Translation files for menu.xslt's own document() lookup — see
-  // sendLangXml's own comment. Only 2 languages in this demo, so two
-  // explicit routes rather than a generic wildcard handler.
-  server.on("/lang/en.xml", [](){ sendLangXml("en"); });
-  server.on("/lang/pt.xml", [](){ sendLangXml("pt"); });
+  // sendLangXml's own comment. Registered from text::langCodes itself
+  // (adding a language used to also mean hand-adding its own explicit
+  // route here — missed once already when zh.txt was added, a 404 the
+  // client-side XSLT lookup silently fell back from).
+  for(int i=0;i<text::langCount;i++) {
+    String uri = String("/lang/")+text::langCodes[i]+".xml";
+    String code = text::langCodes[i];
+    server.on(uri, [code](){ sendLangXml(code.c_str()); });
+  }
 
   server.begin();
 }
