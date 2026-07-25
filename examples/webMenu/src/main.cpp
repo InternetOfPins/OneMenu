@@ -218,7 +218,7 @@ namespace webResult {
 namespace action {
   bool op1(Sz) { webResult::print("Option 1 executed."); return true; }
   bool op2(Sz);  // toggles op3's enabled state, defined after mainMenu (needs find<>)
-  bool op3(Sz) { return true; }
+  bool op3(Sz) { webResult::print("Option 3 executed."); return true; }
   bool subIdx(Sz) { return false; }
   void onPowerChange(int v);  // defined after pushRender() (needs it)
   void onLangChange(int v);  // defined after pushRender() (needs it)
