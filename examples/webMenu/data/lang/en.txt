@@ -13,3 +13,9 @@ Rise
 Fall
 Both
 Date
+0-100% demo value
+Simple action
+Another simple action
+Toggles Option 1
+Text, toggle, select, choose, date
+Switch UI language

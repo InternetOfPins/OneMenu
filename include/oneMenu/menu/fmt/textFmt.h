@@ -26,7 +26,7 @@ namespace oneMenu {
   };
 
   /// @brief plain text format: one line per item, no color.
-  struct TextFmt : aFormat {
+  struct TextFmt : aFormat, aTextFmt {
     using Chars = MenuChars;
     template<typename Before, typename After>
     static constexpr bool rules() {

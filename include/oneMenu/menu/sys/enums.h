@@ -97,8 +97,15 @@ namespace oneMenu {
     // the pre-existing Index tag, no IsXmlFmt gating needed (no raw put()
     // call outside fmtStart/fmtStop the way Low/High's own value-printing
     // needed one).
-    Enabled=1<<20/*,
-    Footer=1<<21*/
+    Enabled=1<<20,
+    // Footer: an item's own mouseover/description text (item.h's Footer<id,
+    // Src>) — a real child tag for XML/JSON, same shape as Low/High above
+    // ("printed together" with the item in one pass, not a separate
+    // OnFocus-redirected render like TextFmt/Serial's own split-line
+    // behavior for the same data); every format's own base fmtStart/fmtStop
+    // default is already a universal no-op for tags it doesn't handle, so
+    // this is safe to add without touching ANSI/graphics rendering at all.
+    Footer=1<<21
   };
 
   /// @brief lock/unlock print output

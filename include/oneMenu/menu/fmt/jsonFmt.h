@@ -160,7 +160,7 @@ namespace oneMenu {
           return;
         }
 
-        if(tag==Fmt::Field||tag==Fmt::Unit||tag==Fmt::Low||tag==Fmt::High||tag==Fmt::Selected) closeAutoLbl();
+        if(tag==Fmt::Field||tag==Fmt::Unit||tag==Fmt::Low||tag==Fmt::High||tag==Fmt::Selected||tag==Fmt::Footer) closeAutoLbl();
 
         // Toggle/Select's own repeated <opt> siblings (xmlFmt.h) — see the
         // inOptArray/inOpt/optFirstProp members' own comment above. Handled
@@ -263,6 +263,12 @@ namespace oneMenu {
             Base::put(",\"hi\":\"");
             inProp=true;
             break;
+          // Footer (item.h's Footer<id,Src>) — same plain-item-level-sibling
+          // shape as Low/High above, just a string instead of a number.
+          case Fmt::Footer:
+            Base::put(",\"footer\":\"");
+            inProp=true;
+            break;
           default: break;
         }
         Base::template fmtStart<tag>(ctx);
@@ -316,6 +322,7 @@ namespace oneMenu {
           case Fmt::Selected: Base::put('"'); inProp=false; break;
           case Fmt::Low:      Base::put('"'); inProp=false; break;
           case Fmt::High:     Base::put('"'); inProp=false; break;
+          case Fmt::Footer:   Base::put('"'); inProp=false; break;
           default: break;
         }
       }

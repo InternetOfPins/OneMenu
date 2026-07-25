@@ -332,6 +332,11 @@
     // needs this to move the highlight itself.
     var li = document.querySelector('li[data-path="' + item.path + '"]');
     if (li) li.classList.toggle('cur', item.ncur === '@');
+    // Mouseover tooltip (item.h's Footer<id,Src>, jsonFmt.h's "footer" key)
+    // — menu.xslt already bakes this into <li title="..."> on a full page
+    // load/transform; a WS-pushed partial patch needs the same here, same
+    // reasoning as item.ncur above.
+    if (li && 'footer' in item) li.title = item.footer;
     if ('fld' in item) {
       var el = document.querySelector('input[data-src="' + item.path + '"]');
       // Never clobber a TEXT-style field the user is actively typing into

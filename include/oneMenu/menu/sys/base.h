@@ -216,6 +216,12 @@ namespace oneMenu {
   // format-agnostic, dispatching through whichever Fmt is actually active;
   // only the gate deciding which formats reach them needed widening.
   struct aJsonFmt   {};
+  // Same marker convention as aXmlFmt/aJsonFmt above — lets a component
+  // (item.h's Footer<id,Src>) ask "is this a plain text/serial render"
+  // without hardcoding "not Xml and not Json" (a graphics/ANSI format
+  // added later would otherwise wrongly fall into that "else" branch too).
+  // TextFmt itself just inherits aTextFmt alongside the generic aFormat.
+  struct aTextFmt   {};
 
   // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
   using IsCursor     = hapi::TagIs<aCursor>;
@@ -223,6 +229,7 @@ namespace oneMenu {
   using IsFormat     = hapi::TagIs<aFormat>;
   using IsXmlFmt     = hapi::TagIs<aXmlFmt>;
   using IsJsonFmt    = hapi::TagIs<aJsonFmt>;
+  using IsTextFmt    = hapi::TagIs<aTextFmt>;
   using IsPrinter    = hapi::TagIs<aPrinter>;
   using IsParser     = hapi::TagIs<aParser>;
   using IsArea       = hapi::TagIs<anArea>;

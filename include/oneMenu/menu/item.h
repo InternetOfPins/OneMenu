@@ -498,6 +498,54 @@ namespace oneMenu {
     };
   };
 
+  /// @brief per-item mouseover/description text (id-indexed, multilingual —
+  /// same Src::text(id,lang) contract as oneData::IdText, but this doesn't
+  /// derive from it: IdText's own print()/printItem() unconditionally
+  /// emit(get()) as the item's OWN displayed text, which is wrong here —
+  /// Footer's text is a SIDE-CHANNEL, never the item's main label.
+  ///
+  /// Renders differently per format, deliberately NOT unconditionally:
+  ///  - XmlFmt/JsonFmt: a real child tag (Fmt::Footer — same shape as
+  ///    NumField's own Low/High, see that component's own comment on why
+  ///    the IsXmlFmt/IsJsonFmt gate is required, not optional), emitted for
+  ///    EVERY item that has one, printed together with the rest of that
+  ///    item in the SAME pass — a mouse can hover any visible item, not
+  ///    just whichever one nav-focus happens to be on, so this is
+  ///    unconditional on ctx.
+  ///  - TextFmt (IsTextFmt): the neurMenu-style split-line behavior this
+  ///    component's design is based on (see item.h git history/.RnD/
+  ///    neurMenu) — an indented follow-up line, gated on ctx (only the
+  ///    currently focused item), since a scrolling terminal has no spare
+  ///    room to show every item's description at once the way a full XML/
+  ///    JSON tree naturally can.
+  ///  - Any other format (ANSI/graphics/...): no-op — same "safe default,
+  ///    no cost unless composed AND actively rendered in a format that
+  ///    understands it" shape as every other conditional tag in this file.
+  template<int id, typename Src>
+  struct Footer {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      static const char* get() noexcept { return Src::text(id,oneData::MultiLangText::current); }
+      template<typename Out>
+      void printItem(Out& out, Ctx& ctx) {
+        if constexpr(hapi::query<IsXmlFmt,typename Out::Types>
+                  || hapi::query<IsJsonFmt,typename Out::Types>) {
+          out.template fmtStart<Fmt::Footer>(ctx);
+          out.put(get());
+          out.template fmtStop<Fmt::Footer>(ctx);
+          Base::printItem(out,ctx);
+        } else if constexpr(hapi::query<IsTextFmt,typename Out::Types>) {
+          Base::printItem(out,ctx);
+          if(ctx) { out.nl(); out.put("  "); out.put(get()); }
+        } else {
+          Base::printItem(out,ctx);
+        }
+      }
+    };
+  };
+
   template<typename... II>
   struct Decor {
     template<typename I>

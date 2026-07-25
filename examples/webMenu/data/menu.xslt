@@ -155,7 +155,7 @@
   <!-- pad-mode composite field (e.g. dateField): render its nested menu/body inline -->
   <xsl:template match="item[menu]" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <div class="field">
         <label>
           <xsl:choose>
@@ -173,7 +173,7 @@
   <!-- numeric field nested inside a pad-menu: plain number input, not a slider -->
   <xsl:template match="item[count(fld)=1 and lo and hi and ancestor::item[menu]]" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <div class="field">
         <label>
           <xsl:choose>
@@ -191,7 +191,7 @@
   <xsl:template match="item[count(fld)=1 and lo and hi]" priority="1">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
     <xsl:variable name="rowId">row<xsl:value-of select="translate(@path,'/','_')"/></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <div class="field">
         <label>
           <xsl:choose>
@@ -213,7 +213,7 @@
   <!-- Toggle/Select: full option list as clickable pills, radio-group style -->
   <xsl:template match="item[opt]" priority="1">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <div class="field">
         <label>
           <xsl:choose>
@@ -246,7 +246,7 @@
         <xsl:with-param name="path" select="ancestor::menu[1]/@at"/>
       </xsl:call-template>
     </xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <a class="opt" href="/set?path={ancestor::menu[1]/@at}&amp;val={@idx}&amp;at={$parentAt}">
         <xsl:value-of select="fld"/>
         <xsl:if test="un"><xsl:text> </xsl:text><xsl:value-of select="un"/></xsl:if>
@@ -257,7 +257,7 @@
   <!-- Choose's own row in the parent list: clickable link into its own submenu -->
   <xsl:template match="item[fld and @choice='1']" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <a class="choose-link" href="/menu?at={@path}">
         <span>
           <xsl:choose>
@@ -276,7 +276,7 @@
   <!-- Select: a real <select><option> dropdown -->
   <xsl:template match="item[opt and @dropdown='1']" priority="2">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <div class="field">
         <label>
           <xsl:choose>
@@ -300,7 +300,7 @@
   <!-- field item: has a fld child, render label + a plain text input -->
   <xsl:template match="item[fld]">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <div class="field">
         <label>
           <xsl:choose>
@@ -320,7 +320,7 @@
   <!-- plain item: no fld child; @en='0' renders disabled items as non-clickable text -->
   <xsl:template match="item[not(fld)]">
     <xsl:variable name="curClass"><xsl:if test="@ncur='@'">cur</xsl:if></xsl:variable>
-    <li class="{$curClass}" data-path="{@path}">
+    <li class="{$curClass}" data-path="{@path}"><xsl:if test="footer"><xsl:attribute name="title"><xsl:value-of select="footer"/></xsl:attribute></xsl:if>
       <xsl:choose>
         <xsl:when test="@en='0'">
           <span class="disabled">

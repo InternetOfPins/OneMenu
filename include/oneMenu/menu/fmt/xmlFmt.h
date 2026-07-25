@@ -73,6 +73,7 @@ namespace oneMenu  {
           case Fmt::Choice:     return "choice";
           case Fmt::Dropdown:   return "dropdown";
           case Fmt::Enabled:    return "en";
+          case Fmt::Footer:     return "footer";
           default:              return "fmt";
         }
       }

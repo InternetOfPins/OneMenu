@@ -120,6 +120,9 @@ namespace text {
     txtLangName, txtPower, txtOp1, txtOp2, txtOp3, txtSettings,
     txtToggleDemo, txtSelectDemo, txtChooseDemo, txtLang,
     txtName, txtRise, txtFall, txtBoth, txtDate,
+    // Mouseover/description text for oneMenu::Footer<id,Src> (item.h) —
+    // composed onto a representative set of root-menu items below.
+    txtPowerDesc, txtOp1Desc, txtOp2Desc, txtOp3Desc, txtSettingsDesc, txtLangDesc,
     txtCount
   };
 
@@ -151,7 +154,9 @@ namespace text {
   // pushRender() (action::onLangChange, below) — text() itself becomes a
   // plain in-RAM lookup.
   struct Src {
-    inline static char cache[txtCount][32];
+    // 48, not 32: Footer<id,Src>'s own description/tooltip text (below)
+    // runs noticeably longer than a plain menu label.
+    inline static char cache[txtCount][48];
     static void load(uint8_t lang) {
       char path[16];
       snprintf(path,sizeof(path),"/lang/%s.txt",langCodes[lang<langCount?lang:0]);
@@ -236,6 +241,7 @@ namespace action {
 using Power = ItemDef<
   AsEditMode<>,
   AsLabel<oneMenu::IdText<text::txtPower, text::Src>>,
+  oneMenu::Footer<text::txtPowerDesc, text::Src>,
   EditField,
   NumField<
     StaticNumRange<StaticRange<0,100,false>>,
@@ -263,7 +269,7 @@ using LangSel = ItemDef<
   SyncValue<Chain<OnChange<action::onLangChange>, DataRef<&oneData::MultiLangText::current>>>,
   SelectBehave,
   Menu<
-    ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtLang, text::Src>>, BodyAction<action::subIdx>>,
+    ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtLang, text::Src>>, oneMenu::Footer<text::txtLangDesc, text::Src>, BodyAction<action::subIdx>>,
     StaticBody<
       ItemDef<EnumValue<0>, AsField<oneData::IdText<0, text::LangNameSrc>>>,
       ItemDef<EnumValue<1>, AsField<oneData::IdText<1, text::LangNameSrc>>>,
@@ -339,12 +345,12 @@ auto dateField() {
 auto mainMenu = menuDef<WrapNav>(
   ItemDef<Text>{"OneMenu demo"},
   staticBody(
-    ItemDef<Action<action::op1>, oneMenu::IdText<text::txtOp1, text::Src>>{},
-    ItemDef<Action<action::op2>, oneMenu::IdText<text::txtOp2, text::Src>>{},
-    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, oneMenu::IdText<text::txtOp3, text::Src>>{},
+    ItemDef<Action<action::op1>, oneMenu::IdText<text::txtOp1, text::Src>, oneMenu::Footer<text::txtOp1Desc, text::Src>>{},
+    ItemDef<Action<action::op2>, oneMenu::IdText<text::txtOp2, text::Src>, oneMenu::Footer<text::txtOp2Desc, text::Src>>{},
+    ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, oneMenu::IdText<text::txtOp3, text::Src>, oneMenu::Footer<text::txtOp3Desc, text::Src>>{},
     LangSel{},
     menuDef<WrapNav>(
-      ItemDef<oneMenu::IdText<text::txtSettings, text::Src>>{},
+      ItemDef<oneMenu::IdText<text::txtSettings, text::Src>, oneMenu::Footer<text::txtSettingsDesc, text::Src>>{},
       staticBody(
         ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtName, text::Src>>, EditField, ParentDraw, AsField<TextField<15>>>{},
         Power{55},

@@ -13,3 +13,9 @@ Subir
 Descer
 Ambos
 Data
+Valor demo 0-100%
+Ação simples
+Outra ação simples
+Alterna Opção 1
+Texto, alternar, selecionar, data
+Muda o idioma da interface
