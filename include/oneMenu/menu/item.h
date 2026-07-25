@@ -655,6 +655,35 @@ namespace oneMenu {
     };
   };
 
+  /// @brief reverts to the value held at edit-mode entry when Esc is used to
+  /// leave editing, instead of keeping whatever was live-edited — the revert
+  /// EditField itself deliberately doesn't do (see OnUpdate's doc comment
+  /// above). Saves get() the instant Nav->Edit is about to happen (path.len==0,
+  /// navMode()!=Edit, Cmd::Enter — same transition EditField's own nav() acts
+  /// on) and restores it with set() the instant Edit->Nav happens via Cmd::Esc
+  /// specifically (an Enter-commit leaves the live value untouched). Compose
+  /// OUTSIDE (wrapping) EditField, same slot as OnUpdate, e.g.
+  /// ItemDef<..., CancelOnEsc, EditField, NumField<...>>.
+  struct CancelOnEsc {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      using Base::get;
+      using Base::set;
+      using Type=typename Base::Type;
+      Type saved{};
+      template<bool isKbd,typename Nav>
+      bool nav(Nav& n,const CKE& cke,const Path& path) {
+        bool wasEdit=n.navMode()==NavMode::Edit;
+        if(!wasEdit&&!path.len&&cke.cmd==Cmd::Enter) saved=get();
+        bool r=I::template nav<isKbd>(n,cke,path);
+        if(wasEdit&&n.navMode()!=NavMode::Edit&&cke.cmd==Cmd::Esc) set(saved);
+        return r;
+      }
+    };
+  };
+
   //use range and data field to change value
   template<typename...II>
   struct NumField {
