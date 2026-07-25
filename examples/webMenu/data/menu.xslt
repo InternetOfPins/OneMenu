@@ -326,7 +326,7 @@
           <span class="disabled">
             <xsl:choose>
               <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
-              <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="."/></xsl:call-template></xsl:otherwise>
+              <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
             </xsl:choose>
           </span>
         </xsl:when>
@@ -334,7 +334,7 @@
           <a href="/menu?at={@path}">
             <xsl:choose>
               <xsl:when test="lbl"><xsl:call-template name="renderLbl"/></xsl:when>
-              <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="."/></xsl:call-template></xsl:otherwise>
+              <xsl:otherwise><xsl:call-template name="renderLbl"><xsl:with-param name="raw" select="text()"/></xsl:call-template></xsl:otherwise>
             </xsl:choose>
           </a>
         </xsl:otherwise>
