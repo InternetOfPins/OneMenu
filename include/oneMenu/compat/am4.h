@@ -19,15 +19,14 @@
  * one nested expression, not a sequence of declare-then-collect statements.
  *
  * ── What this v1 covers ──────────────────────────────────────────────────
- *   MENU, PADMENU, OP, EXIT, FIELD, SUBMENU  — the item/menu-tree macros only.
+ *   MENU, PADMENU, OP, EXIT, FIELD, SUBMENU — the item/menu-tree macros.
+ *   MENU_INPUTS, MENU_OUTPUTS, NAVROOT, NAVROOT_IDLE — device wiring, byte-
+ *   for-byte AM4 syntax, built on InGroup/OutGroup (compile-time device packs
+ *   via recursive inheritance, in.h/out.h) rather than any runtime-dispatch
+ *   escape hatch — no vtables anywhere in this path (see MENU_INPUTS' own doc
+ *   comment for why InList<N>/OutList<N> specifically can't work here).
  *
  * ── What this v1 deliberately does NOT cover ───────────────────────────────
- *  - MENU_INPUTS/MENU_OUTPUTS/NAVROOT device wiring. AM4 builds a genuinely
- *    dynamic runtime menuOut*[]/menuIn*[] list; OneMenu's InDef/OutDef are
- *    compile-time chains. Bridging that needs IOutDef/IOut's runtime-dispatch
- *    escape hatch — a *compat-only* vtable cost, opt-in, never the default
- *    OneMenu path. Not built yet. Declare `in`/`out` the native OneMenu way
- *    (InDef<...>/OutDef<...>) and bind them to `nav` yourself for now.
  *  - AM4's eventMask now has a real counterpart (EventMask, item.h/enums.h/nav.h —
  *    Enter/Exit/Focus/Blur, dispatched by EventDispatch). OP()'s `fn`/`mask` auto-dispatch on fn's own
  *    signature (am4compat::opItem) — bool(EventMask,IItem&) gets real event
