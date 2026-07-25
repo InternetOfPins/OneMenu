@@ -14,8 +14,8 @@ Descer
 Ambos
 Data
 Valor demo 0-100%
-Ação simples
-Outra ação simples
-Alterna Opção 1
-Texto, alternar, selecionar, data
+Ação simples com resultado
+Alterna estado da 3ª opção
+Pode ser ativada/desativada programaticamente
+Texto, percentagem, alternar, selecionar, data
 Muda o idioma da interface

@@ -14,8 +14,8 @@ Fall
 Both
 Date
 0-100% demo value
-Simple action
-Another simple action
-Toggles Option 1
-Text, toggle, select, choose, date
+Simple action with result
+Toggles 3rd option's state
+Can be enabled/disabled programmatically
+Text, percentage, toggle, select, date
 Switch UI language
