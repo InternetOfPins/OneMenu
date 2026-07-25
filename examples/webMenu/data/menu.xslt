@@ -88,6 +88,7 @@
     <xsl:variable name="langCode">
       <xsl:choose>
         <xsl:when test="/result/view/@lang='1'">pt</xsl:when>
+        <xsl:when test="/result/view/@lang='2'">zh</xsl:when>
         <xsl:otherwise>en</xsl:otherwise>
       </xsl:choose>
     </xsl:variable>

@@ -69,7 +69,7 @@
   // xmlFmt.h actually emit — see their own comments) to a readable
   // filename code — menu.xslt keeps its own matching table (three
   // separate runtimes: C++/XSLT/JS, no single shared source for this).
-  var LANG_CODES = ['en', 'pt'];
+  var LANG_CODES = ['en', 'pt', 'zh'];
 
   // Cache of the current language's {id: text} translation dictionary —
   // see translateFallback() below for why this exists at all.

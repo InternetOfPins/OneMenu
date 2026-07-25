@@ -102,30 +102,43 @@ namespace text {
   static constexpr CText s80         {"80"};
   static constexpr CText s100        {"100"};
   static constexpr CText dateSep     {"."};
-  static constexpr CText langEn      {"English"};
-  static constexpr CText langPt      {"Português"};
 
   // Multilingual demo: id-indexed via SPIFFS-backed per-language files
-  // (/lang/en.txt, /lang/pt.txt on SPIFFS — plain text, line N = the text
-  // for id N, FTP-editable without reflashing). Filenames use language
-  // CODES, not MultiLangText::current's own raw numeric index — codes are
-  // this example's own presentation concern (readable file/URL names),
-  // the index stays what the core library and the field's own
-  // StaticNumRange<0,1> actually operate on. langCodes[lang] bridges the
-  // two, here and in menu.xslt/menu.js (each needs its own copy — they're
-  // three separate runtimes, not something a single shared table could
-  // cover). The same lang/*.txt files are ALSO served, wrapped as XML, at
-  // /lang/<code>.xml purely for menu.xslt's own document()-based
-  // translation lookup (see that route in setup() below) — one file on
-  // SPIFFS, two served representations, no duplicated data.
+  // (/lang/en.txt, /lang/pt.txt, /lang/zh.txt on SPIFFS — plain text, line
+  // N = the text for id N, FTP-editable without reflashing; line 0 is the
+  // language's own self-name — see LangNameSrc below). Filenames use
+  // language CODES, not MultiLangText::current's own raw numeric index —
+  // codes are this example's own presentation concern (readable file/URL
+  // names), the index stays what the core library actually operates on.
+  // langCodes[lang] bridges the two, here and in menu.xslt/menu.js (each
+  // needs its own copy — they're three separate runtimes, not something a
+  // single shared table could cover). The same lang/*.txt files are ALSO
+  // served, wrapped as XML, at /lang/<code>.xml purely for menu.xslt's own
+  // document()-based translation lookup (see that route in setup() below)
+  // — one file on SPIFFS, two served representations, no duplicated data.
   enum Id {
-    txtPower, txtOp1, txtOp2, txtOp3, txtSettings,
+    txtLangName, txtPower, txtOp1, txtOp2, txtOp3, txtSettings,
     txtToggleDemo, txtSelectDemo, txtChooseDemo, txtLang,
     txtName, txtRise, txtFall, txtBoth, txtDate,
     txtCount
   };
 
-  static const char* const langCodes[] = {"en","pt"};
+  static const char* const langCodes[] = {"en","pt","zh"};
+  static const int langCount = sizeof(langCodes)/sizeof(langCodes[0]);
+
+  // Copies at most dstSize-1 bytes of line into dst, then backs off over
+  // any trailing UTF-8 continuation bytes (10xxxxxx) so a truncation can
+  // never split a multi-byte character (Mandarin text runs ~3 bytes/char,
+  // easy to land mid-sequence at a fixed byte cutoff otherwise) — a plain
+  // strncpy would silently emit a mangled tail byte instead.
+  static void copyClipped(char* dst, size_t dstSize, const String& line) {
+    size_t n = line.length();
+    if(n > dstSize-1) n = dstSize-1;
+    const char* s = line.c_str();
+    while(n>0 && ((unsigned char)s[n] & 0xC0) == 0x80) n--;
+    memcpy(dst,s,n);
+    dst[n]='\0';
+  }
 
   // Loaded whole once per real language switch, not per lookup: every
   // IdText::print()/printItem() call reaches text() below unconditionally
@@ -141,17 +154,45 @@ namespace text {
     inline static char cache[txtCount][32];
     static void load(uint8_t lang) {
       char path[16];
-      snprintf(path,sizeof(path),"/lang/%s.txt",langCodes[lang<2?lang:0]);
+      snprintf(path,sizeof(path),"/lang/%s.txt",langCodes[lang<langCount?lang:0]);
       File f = SPIFFS.open(path,"r");
       for(int i=0;i<txtCount;i++) {
         String line = (f && f.available()) ? f.readStringUntil('\n') : String("?");
-        strncpy(cache[i],line.c_str(),sizeof(cache[i])-1);
-        cache[i][sizeof(cache[i])-1]='\0';
+        copyClipped(cache[i],sizeof(cache[i]),line);
       }
       if(f) f.close();
     }
     static const char* text(int id, uint8_t) {
       return (id>=0 && id<txtCount) ? cache[id] : "?";
+    }
+  };
+
+  // Loaded once at startup, never reloaded: LangSel's own option list must
+  // show every language's own self-name SIMULTANEOUSLY (all of them, not
+  // just the currently active one) — unlike Src::cache above, which only
+  // ever holds whichever ONE language is currently selected.
+  inline static char langNames[langCount][24];
+  static void loadLangNames() {
+    for(int i=0;i<langCount;i++) {
+      char path[16];
+      snprintf(path,sizeof(path),"/lang/%s.txt",langCodes[i]);
+      File f = SPIFFS.open(path,"r");
+      String line = (f && f.available()) ? f.readStringUntil('\n') : String("?");
+      if(f) f.close();
+      copyClipped(langNames[i],sizeof(langNames[i]),line);
+    }
+  }
+
+  // LangSel's own option labels: each must ALWAYS show that language's own
+  // name (e.g. "English" stays "English" even while viewing the pt UI),
+  // never resolved against MultiLangText::current — so this is composed
+  // via oneData::IdText directly (format-agnostic: no '#' marker, no
+  // client-side involvement, real text in every output) rather than
+  // oneMenu::IdText's web-marker-gated version. The id here IS the
+  // language index, not a Src::cache slot.
+  struct LangNameSrc {
+    static const char* text(int langIdx, uint8_t) {
+      return (langIdx>=0 && langIdx<langCount) ? langNames[langIdx] : "?";
     }
   };
 }
@@ -224,8 +265,9 @@ using LangSel = ItemDef<
   Menu<
     ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtLang, text::Src>>, BodyAction<action::subIdx>>,
     StaticBody<
-      ItemDef<EnumValue<0>, AsField<StaticText<&text::langEn>>>,
-      ItemDef<EnumValue<1>, AsField<StaticText<&text::langPt>>>
+      ItemDef<EnumValue<0>, AsField<oneData::IdText<0, text::LangNameSrc>>>,
+      ItemDef<EnumValue<1>, AsField<oneData::IdText<1, text::LangNameSrc>>>,
+      ItemDef<EnumValue<2>, AsField<oneData::IdText<2, text::LangNameSrc>>>
     >,
     EditField, ParentDraw, WrapNav
   >
@@ -575,6 +617,9 @@ void setup() {
   // default language's cache once up front so the very first render
   // (before anyone touches LangSel) has real text to show.
   text::Src::load(oneData::MultiLangText::current);
+  // Language names are cross-language-invariant (LangSel's own option
+  // list needs all of them at once), so this loads once, not per switch.
+  text::loadLangNames();
   WiFi.begin(wifi_ssid, wifi_pass);
   Serial.print("Connecting to ");
   Serial.println(wifi_ssid);
