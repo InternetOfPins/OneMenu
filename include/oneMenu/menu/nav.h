@@ -181,6 +181,20 @@ namespace oneMenu {
     };
   };
 
+  /// @brief attaches a compile-time-constant id to a nav chain, letting a runtime
+  ///        key (e.g. an HTTP/WS request field) select among several otherwise-
+  ///        independent NavDef<...> instances (a main tree plus a dialog tree,
+  ///        say) without any server-tracked per-client state — composes like
+  ///        Root<>/StaticRoot<> above: no data members, rootId() stays entirely
+  ///        compile-time-resolved (zero-cost, confirmed via sizeof comparison).
+  template<int Id>
+  struct RootId {
+    template<typename N>
+    struct Part:N {
+      static constexpr int rootId() {return Id;}
+    };
+  };
+
   /// @brief fuses input+output for one nav: the small "poll everything, redraw if
   ///        changed" cycle every sketch otherwise hand-writes itself in loop()/run().
   ///        Composes like any other nav component instead of needing its own

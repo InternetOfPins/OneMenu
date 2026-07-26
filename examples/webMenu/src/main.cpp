@@ -215,11 +215,21 @@ namespace webResult {
   static void clear() { buf = ""; }
 }
 
+// Which root tree (mainMenu, id 0, vs dialogMenu, id 1 — see webNav/dialogNav
+// below) is CURRENTLY the one every client should be looking at. This is
+// global device state, not per-client session state: every request/push
+// recomputes against this SAME flag fresh, the same way any physical
+// device's own RunLoop::alternative (nav.h) has exactly one dialog active at
+// a time regardless of who's looking. Flipped only by dialog-opening/closing
+// actions (action::reset below, dialog::confirm near dialogMenu).
+static int activeRoot = 0;
+
 namespace action {
   bool op1(Sz) { webResult::print("Option 1 executed."); return true; }
   bool op2(Sz);  // toggles op3's enabled state, defined after mainMenu (needs find<>)
   bool op3(Sz) { webResult::print("Option 3 executed."); return true; }
   bool subIdx(Sz) { return false; }
+  bool reset(Sz) { activeRoot = 1; return true; } // opens dialogMenu (root 1)
   void onPowerChange(int v);  // defined after pushRender() (needs it)
   void onLangChange(int v);  // defined after pushRender() (needs it)
 }
@@ -348,6 +358,10 @@ auto mainMenu = menuDef<WrapNav>(
     ItemDef<Action<action::op1>, oneMenu::IdText<text::txtOp1, text::Src>, oneMenu::Footer<text::txtOp1Desc, text::Src>>{},
     ItemDef<Action<action::op2>, oneMenu::IdText<text::txtOp2, text::Src>, oneMenu::Footer<text::txtOp2Desc, text::Src>>{},
     ItemDef<Id<ids::op3_id>, Action<action::op3>, Watch<EnDis<false>>, oneMenu::IdText<text::txtOp3, text::Src>, oneMenu::Footer<text::txtOp3Desc, text::Src>>{},
+    // Plain, non-translated Text label (like percent/dateSep above) rather
+    // than an IdText slot — demo-scoped item, not worth the lang-file churn.
+    // Opens dialogMenu (root 1, see activeRoot/webNav/dialogNav below).
+    ItemDef<Action<action::reset>, Text>{"Reset..."},
     LangSel{},
     menuDef<WrapNav>(
       ItemDef<oneMenu::IdText<text::txtSettings, text::Src>, oneMenu::Footer<text::txtSettingsDesc, text::Src>>{},
@@ -374,7 +388,30 @@ bool action::op2(Sz) {
 }
 
 // Web nav — AsyncNav for stateless path jumps driven by translated commands.
-NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;
+// RootId<0> costs 0 bytes (nav.h RootId<> doc comment) — lets the /menu
+// handler's own "root" request param and webSocketEvent's activeRoot check
+// (below) pick this NavDef over dialogNav by a runtime id, at no runtime
+// cost over the id-less version.
+NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>, RootId<0>> webNav;
+
+// Confirm-style dialog tree — reachable as root 1, opened by action::reset
+// above, closed by dialog::confirm below. Deliberately reuses the SAME
+// webDisplay/wsDisplay Out objects mainMenu renders through (declared further
+// below) rather than a separate Out pair — unlike a physical device's own
+// dialog pattern (examples/fields/src/main.cpp's promptOut), where Out IS
+// real hardware with its own cursor, here Out is just a formatter over
+// whatever nav.printTo(out) is handed, so one pair of Out objects already
+// serves either tree.
+namespace dialog {
+  bool confirm(Sz) { webResult::print("Reset confirmed."); activeRoot = 0; return true; }
+}
+auto dialogMenu = menuDef<WrapNav>(
+  ItemDef<Text>{"Reset settings?"},
+  staticBody(
+    ItemDef<Action<dialog::confirm>, Text>{"OK"}
+  )
+);
+NavDef<AsyncNav, TreeNav, Root<decltype(dialogMenu), dialogMenu>, RootId<1>> dialogNav;
 
 // Local JSON variant of webSocketOut.h's own WebSocketDisplay (which uses
 // XmlFmt) — kept example-scoped rather than editing that shared header, so
@@ -436,9 +473,18 @@ static const CmdEntry cmds[] = {
 };
 
 void pushRender() {
+  // Tiny control frame ahead of the real render, so menu.js can tell "the
+  // globally active root changed" apart from "here's a patch for the root
+  // I'm already looking at" — a plain view push has no id-of-which-tree
+  // field of its own (JsonFmt/XmlFmt weren't touched for this), so this is
+  // a second, separate WS text frame rather than a new key inside the
+  // existing one. Broadcasts to every connected client, like the render
+  // that follows — not a reply to whichever request/edit triggered this.
+  String activeMsg = String("{\"active\":")+activeRoot+"}";
+  webSocket.broadcastTXT(activeMsg);
   wsDisplay.lockMode(LockMode::None);
-  webNav.printTo(wsDisplay);
-  webNav.sync(wsDisplay);
+  if(activeRoot==1) { dialogNav.printTo(wsDisplay); dialogNav.sync(wsDisplay); }
+  else { webNav.printTo(wsDisplay); webNav.sync(wsDisplay); }
 }
 
 // Broadcasts from wherever webNav's own cursor already sits — correct for
@@ -514,10 +560,15 @@ int fieldSelIndex(const char* path, const char* at) {
 // need a real JSON library for no real benefit here, unlike the JSON
 // server->client render payload (JsonFmt), which is pure serialization,
 // no parsing.
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
-  if(type == WStype_CONNECTED) { pushRender(); return; }
-  if(type != WStype_TEXT) return;
-  const char* msg = (const char*)payload;
+// Body unchanged from the original webNav-only version, just parameterized
+// over which nav (webNav or dialogNav) — dispatched below by activeRoot, the
+// SAME flag that decides which one pushRender() broadcasts. Whichever root
+// is globally active is also the ONLY one WS commands can reach right now
+// (mirrors a physical device's own RunLoop: while its one alternative slot
+// holds a dialog, the main poll doesn't run at all either) — a genuinely
+// modal dialog, not two concurrently-navigable trees.
+template<typename Nav>
+void handleWsCommand(Nav& nav, const char* msg) {
   if(msg[0] == 'S' && msg[1] == '|') {
     char buf[64];
     strncpy(buf, msg + 2, sizeof(buf) - 1);
@@ -542,21 +593,21 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
       // knows, since it's the same value the server itself last reported.
       char* at = strchr(val, '|');
       if(at) *at++ = '\0'; else at = (char*)"/";
-      // webNav.changed(wsDisplay) below only probes whatever level webNav's
-      // OWN shared cursor currently sits at — setAt() itself is path-driven
+      // nav.changed(wsDisplay) below only probes whatever level nav's OWN
+      // shared cursor currently sits at — setAt() itself is path-driven
       // and works from anywhere, but a field edited OUTSIDE that level
       // would apply silently with no push at all. Navigate there first,
       // same async()+enter() pair /menu's own HTTP handler uses, so the
       // change lands somewhere the very next changed(out) probe (and
       // pushRender()'s own printTo()) actually looks.
-      webNav.async(at);
+      nav.async(at);
       // enter() resets the submenu's own selection to its first child —
       // reposition to the field ACTUALLY being edited before rendering, or
       // every WS-driven set shows item 0 focused regardless of which field
       // the user touched.
-      if(strcmp(at, "/") != 0) webNav.enter();
-      webNav.go(fieldSelIndex(buf, at));
-      webNav.setAt(buf, val);
+      if(strcmp(at, "/") != 0) nav.enter();
+      nav.go(fieldSelIndex(buf, at));
+      nav.setAt(buf, val);
       // Always push after a SET, skipping the changed(wsDisplay) gate below
       // entirely — RecallNavPos (Toggle/Select's own m_sel, item.h) has no
       // changed()/sync() override at all, so a pure selection edit is
@@ -570,19 +621,33 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
   } else {
     char path[32];
     const char* target = translateCmd(msg, cmds, path, sizeof(path)) ? path : msg;
-    webNav.async(target);
+    nav.async(target);
     // Same as /menu's own HTTP handler: async() alone only selects the
     // leaf (its own documented contract — "caller issues Enter"), it
     // doesn't expand/descend into it. Without this, a plain item click
     // over WS would move the cursor but never render the target submenu's
-    // body.
-    if(strcmp(target, "/") != 0) webNav.enter();
+    // body — this is also how dialog::confirm's own "OK" item actually
+    // fires (async() itself runs doCmd(Cmd::Enter) per path segment).
+    if(strcmp(target, "/") != 0) nav.enter();
   }
   // changed(wsDisplay) gates whether to push at all (e.g. a SET with the
   // same value, or a no-op nav) — sync() (inside pushRender()) only needs
   // to run right after an actual push, so skipping both together here is
   // consistent: changed()==false already means nothing was dirty to clear.
-  if(webNav.changed(wsDisplay)) pushRender();
+  // Note: if this command just flipped activeRoot (dialog::confirm), this
+  // check and the resulting pushRender() both still refer to THIS nav — the
+  // now-stale root — but pushRender() itself re-reads the (now-updated)
+  // global activeRoot to decide what to actually broadcast, so the right
+  // tree still goes out.
+  if(nav.changed(wsDisplay)) pushRender();
+}
+
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+  if(type == WStype_CONNECTED) { pushRender(); return; }
+  if(type != WStype_TEXT) return;
+  const char* msg = (const char*)payload;
+  if(activeRoot==1) handleWsCommand(dialogNav, msg);
+  else handleWsCommand(webNav, msg);
 }
 
 static const char indexHtml[] PROGMEM = R"HTML(<!doctype html><html><head><meta charset="utf-8">
@@ -683,6 +748,16 @@ void setup() {
   // a client simply reloads the page. Every link menu.xslt generates embeds
   // its own target ?at=, so a client can always get back to any level
   // directly — there is no implicit "current page".
+  //
+  // ?root=<0|1> (dialogMenu, added alongside activeRoot above) keeps this
+  // same guarantee: it's a second explicit, request-supplied coordinate
+  // exactly like ?at=, not a server-remembered "which tree is this client
+  // on". The one piece of state this handler DOES read without it being in
+  // the request — activeRoot itself, surfaced as <active root="..."/> — is
+  // global device state (which root everyone should currently be looking
+  // at), not per-client session state: every request recomputes it fresh
+  // from the same shared flag, so it can never diverge per-caller the way a
+  // server-tracked cursor would.
   server.on("/menu", [](){
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/xml", "");
@@ -691,20 +766,32 @@ void setup() {
       "<?xml-stylesheet type=\"text/xsl\" href=\"/menu.xslt\"?>\n"
     );
     String at = server.hasArg("at") ? server.arg("at") : String("/");
+    // root=1 addresses dialogMenu; anything else (including absent) is the
+    // main tree. Independent of activeRoot below — a client can always ask
+    // for either tree explicitly; activeRoot only supplies the <active>
+    // hint (and decides what pushRender() broadcasts) so OTHER clients can
+    // follow along without polling every root themselves.
+    int reqRoot = server.hasArg("root") ? server.arg("root").toInt() : 0;
     webResult::clear();
-    webNav.async(at.c_str());
     // async() only selects the leaf (its own documented contract — "caller
     // issues Enter"); "/" alone means "just show the root", nothing to
     // descend into, so skip enter() there specifically — anything deeper
-    // names a real target level to render.
-    if(at != "/") webNav.enter();
-    // Optional ?sel= (set by /set's own redirect, see fieldSelIndex() above):
-    // overrides whatever selection index webNav's shared, cross-request
-    // state happened to still hold at this depth, so the field just edited
-    // shows as the current/highlighted row instead of an unrelated leftover
-    // one. go() is a pure index write (TreeNav::Part::go) — no Enter/
-    // padOpen side effects, safe to call unconditionally here.
-    if(server.hasArg("sel")) webNav.go(server.arg("sel").toInt());
+    // names a real target level to render. Optional ?sel= (set by /set's
+    // own redirect, see fieldSelIndex() above): overrides whatever selection
+    // index the nav's shared, cross-request state happened to still hold at
+    // this depth, so the field just edited shows as the current/highlighted
+    // row instead of an unrelated leftover one. go() is a pure index write
+    // (TreeNav::Part::go) — no Enter/padOpen side effects, safe to call
+    // unconditionally here.
+    if(reqRoot==1) {
+      dialogNav.async(at.c_str());
+      if(at != "/") dialogNav.enter();
+      if(server.hasArg("sel")) dialogNav.go(server.arg("sel").toInt());
+    } else {
+      webNav.async(at.c_str());
+      if(at != "/") webNav.enter();
+      if(server.hasArg("sel")) webNav.go(server.arg("sel").toInt());
+    }
     // <view> (below) is one atomic render — Fmt::View fully brackets
     // Fmt::Menu inside XmlFmt's own walk, so there's no seam to inject an
     // <output> sibling between them from out here. Simplest fix: wrap the
@@ -712,13 +799,20 @@ void setup() {
     // text (if any) ahead of the unchanged <view> — menu.xslt's own
     // result/output template renders it as a box below the menu panel.
     server.sendContent("<result>\n");
+    // Globally-active root (see activeRoot's own comment) — recomputed
+    // fresh every request from that one shared flag, NOT stored per client,
+    // so any caller (menu.js, curl, another tab) can compare it to whatever
+    // root IT last rendered and follow along if they differ. menu.xslt
+    // itself doesn't look at this (no-JS clients can't act on it anyway —
+    // a documented scope limit, not an oversight); menu.js is what reads it.
+    server.sendContent(String("<active root=\"")+activeRoot+"\"/>\n");
     if(webResult::buf.length()) {
       server.sendContent("<output><![CDATA[");
       server.sendContent(webResult::buf);
       server.sendContent("]]></output>\n");
     }
     webDisplay.lockMode(LockMode::None);
-    webNav.printTo(webDisplay);
+    if(reqRoot==1) dialogNav.printTo(webDisplay); else webNav.printTo(webDisplay);
     // This HTTP route is ALSO how an action item's side effect reaches the
     // server (e.g. op2 toggling op3's own enabled state) — menu.js's own
     // nav links deliberately don't go over WS at all (shared-cursor risk,

@@ -53,6 +53,14 @@
   var currentAt = new URLSearchParams(location.search).get('at') || '/';
   var lastXml = null; // last-applied /menu?at=... response, skips a no-op swap
 
+  // Which root tree (0 mainMenu, 1 dialogMenu — main.cpp's own RootId<>/
+  // activeRoot) this client is currently looking at. NOT inferred/guessed:
+  // always follows whatever main.cpp's /menu handler reports back in
+  // <active root="..."/>, the one shared, server-wide fact every request
+  // recomputes fresh (see that handler's own comment) — this variable is
+  // just this tab's own last-known copy of it, same idea as currentAt.
+  var currentRoot = parseInt(new URLSearchParams(location.search).get('root')) || 0;
+
   function eligible(el) {
     return !el.closest('.opts'); // pills wired separately, see wirePills()
   }
@@ -165,7 +173,25 @@
   // user's own selection just asked for.
   function navigate(at, push, fallbackHref, force) {
     loadXslt(function () {
-      fetch('/menu?at=' + encodeURIComponent(at)).then(function (r) { return r.text(); }).then(function (xml) {
+      fetch('/menu?at=' + encodeURIComponent(at) + '&root=' + currentRoot).then(function (r) { return r.text(); }).then(function (xml) {
+        // <active root="N"/> (main.cpp's /menu handler) is the one globally-
+        // shared fact of which root the DEVICE currently wants everyone on
+        // — not something this response asked to see (that was ?root=
+        // above, honored independently). If it no longer matches what we
+        // last knew, a dialog opened/closed (or similar) while we weren't
+        // looking: follow it, starting fresh at that root's own top level —
+        // paths from one root tree aren't meaningful in another. This is
+        // itself just a normal, self-contained stateless request/response
+        // pair, same as any other — nothing here is server-remembered.
+        var reportedActive = 0;
+        var activeMatch = /<active\s+root="(\d+)"/.exec(xml);
+        if (activeMatch) reportedActive = parseInt(activeMatch[1]);
+        if (reportedActive !== currentRoot) {
+          currentRoot = reportedActive;
+          lastXml = null;
+          navigate('/', false, null, true);
+          return;
+        }
         if (xml === lastXml) return; // nothing changed, skip the swap entirely
         // A background poll must never yank focus out from under an
         // in-progress edit — a real click-driven navigate() (push!==false)
@@ -423,7 +449,29 @@
       try {
         var data = JSON.parse(e.data);
         console.log('[menu.js] parsed:', data);
-        applyRender(data);
+        // Control frame (main.cpp's pushRender(), sent as its own separate
+        // WS message ahead of the real view push — see that function's own
+        // comment for why it's split out rather than a key on the view
+        // payload itself): {"active":N}, no "view" key at all. Same
+        // reasoning as navigate()'s own <active root="..."/> check — if it
+        // doesn't match what we last knew, fetch+swap the new root fresh
+        // rather than trying to patchItem() a render meant for a totally
+        // different tree onto this one's DOM (paths aren't comparable
+        // across roots). The render frame that follows right behind this
+        // one belongs to the NEW root — applyRender() below may still see
+        // it before navigate()'s own fetch finishes and patch it against
+        // the stale DOM; harmless no-op (patchItem's own existing
+        // per-element behavior for an unmatched path), superseded moments
+        // later by navigate()'s real swap.
+        if ('active' in data && !('view' in data)) {
+          if (data.active !== currentRoot) {
+            currentRoot = data.active;
+            lastXml = null;
+            navigate('/', false, null, true);
+          }
+        } else {
+          applyRender(data);
+        }
       } catch (err) {
         console.log('[menu.js] not JSON we understand:', err);
       }
