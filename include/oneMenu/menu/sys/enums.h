@@ -40,27 +40,38 @@ namespace oneMenu {
   // operator templates above (same pattern as Fmt).
   enum class EventMask {None=0,Enter=1<<0,Exit=1<<1,Focus=1<<2,Blur=1<<3,Any=~0};
 
-  template<typename T> inline constexpr int operator|(T   a,T   b){return (int)a|(int)b;}
-  template<typename T> inline constexpr int operator|(int a,T   b){return (int)a|(int)b;}
-  template<typename T> inline constexpr int operator|(T   a,int b){return (int)a|(int)b;}
-  template<typename T> inline constexpr int operator&(T   a,T   b){return (int)a&(int)b;}
-  template<typename T> inline constexpr int operator&(int a,T   b){return (int)a&(int)b;}
-  template<typename T> inline constexpr int operator&(T   a,int b){return (int)a&(int)b;}
-  template<typename T> inline constexpr int operator^(T   a,T   b){return (int)a^(int)b;}
-  template<typename T> inline constexpr int operator^(int a,T   b){return (int)a^(int)b;}
-  template<typename T> inline constexpr int operator^(T   a,int b){return (int)a^(int)b;}
+  // long, not int: Fmt (below) needs 22 independent bits (up to Footer=1<<21).
+  // int is only guaranteed 16 bits — genuinely just 16 on AVR (avr-gcc), where
+  // 1<<16 and up silently wrap/collide (confirmed live: building XmlFmt for
+  // Uno hit "duplicate case value" — Option/Selected/Choice/Dropdown/Enabled
+  // had all collapsed onto earlier tags' values). long is guaranteed >=32
+  // bits on every target this project builds for, AVR included. Widening
+  // return type AND the raw-int overloads together matters: a 3+-way chain
+  // like `Fmt::A|Fmt::B|Fmt::C` associates left-to-right, so the first `|`'s
+  // result feeds into the second as the left operand — if that intermediate
+  // step narrowed back to int (as it did before), any high bit already
+  // dropped there before this point.
+  template<typename T> inline constexpr long operator|(T    a,T    b){return (long)a|(long)b;}
+  template<typename T> inline constexpr long operator|(long a,T    b){return (long)a|(long)b;}
+  template<typename T> inline constexpr long operator|(T    a,long b){return (long)a|(long)b;}
+  template<typename T> inline constexpr long operator&(T    a,T    b){return (long)a&(long)b;}
+  template<typename T> inline constexpr long operator&(long a,T    b){return (long)a&(long)b;}
+  template<typename T> inline constexpr long operator&(T    a,long b){return (long)a&(long)b;}
+  template<typename T> inline constexpr long operator^(T    a,T    b){return (long)a^(long)b;}
+  template<typename T> inline constexpr long operator^(long a,T    b){return (long)a^(long)b;}
+  template<typename T> inline constexpr long operator^(T    a,long b){return (long)a^(long)b;}
 
-  enum class Fmt:int {
-    None=0<<0,View=1<<0,Title=1<<1,Menu=1<<2,Body=1<<3,Item=1<<4,
-    Index=1<<5,Accel=1<<6,NavCursor=1<<7,
-    Field=1<<8,Label=1<<9,EditMode=1<<10,EditCursor=1<<11,Data=1<<12,Unit=1<<13,
+  enum class Fmt:long {
+    None=0<<0,View=1L<<0,Title=1L<<1,Menu=1L<<2,Body=1L<<3,Item=1L<<4,
+    Index=1L<<5,Accel=1L<<6,NavCursor=1L<<7,
+    Field=1L<<8,Label=1L<<9,EditMode=1L<<10,EditCursor=1L<<11,Data=1L<<12,Unit=1L<<13,
     // Low/High: a numeric field's own range (StaticRange's low<T>()/high<T>()) —
     // real child tags (not attribute-only), consumed today only by XmlFmt (a
     // <fld>'s own min/max, e.g. for a web client's slider widget); every
     // other format's own base fmtStart/fmtStop default (out.h) is already a
     // universal no-op for any tag it doesn't specifically handle, so this is
     // safe to add without touching ANSI/text/gfx rendering at all.
-    Low=1<<14,High=1<<15,
+    Low=1L<<14,High=1L<<15,
     // Option/Selected: a Toggle/Select field's own full option list — each
     // sibling in the field's body, wrapped individually, plus which one is
     // currently selected (a plain 0/1 child, not ctx-derived like NavCursor —
@@ -69,7 +80,7 @@ namespace oneMenu {
     // rendering); every other format's own base fmtStart/fmtStop default is
     // already a universal no-op for tags it doesn't handle, so this is safe
     // to add without touching ANSI/text/gfx rendering at all.
-    Option=1<<16,Selected=1<<17,
+    Option=1L<<16,Selected=1L<<17,
     // Choice: marks a <menu> as a Choose field's own inner body (as opposed
     // to an ordinary nested submenu) — a constant attribute, no ctx-derived
     // value, emitted once right after <menu>'s own tag opens (MenuPrinter,
@@ -78,14 +89,14 @@ namespace oneMenu {
     // items are selectable options, click one to choose it" apart from "this
     // is a normal submenu with independently-editable fields" — same shape
     // as Option/Selected above, consumed today only by XmlFmt.
-    Choice=1<<18,
+    Choice=1L<<18,
     // Dropdown: marks a Select field's own <item> (a constant attribute,
     // same shape as Choice above) so a web client can tell it apart from
     // Toggle — both compose RecallNavPos<false> and emit an identical <opt>
     // list otherwise, but Select wants an <select><option> dropdown while
     // Toggle wants a row of clickable pills (SelectBehave::Part::printItem,
     // fields.h — Toggle doesn't emit this tag at all).
-    Dropdown=1<<19,
+    Dropdown=1L<<19,
     // Enabled: an item's own real enabled() state, ALWAYS emitted regardless
     // of nav focus (unlike NavCursor's '@'/'-'/' ', which only distinguishes
     // enabled-vs-disabled when the item is ALSO the focused one — an
@@ -97,7 +108,7 @@ namespace oneMenu {
     // the pre-existing Index tag, no IsXmlFmt gating needed (no raw put()
     // call outside fmtStart/fmtStop the way Low/High's own value-printing
     // needed one).
-    Enabled=1<<20,
+    Enabled=1L<<20,
     // Footer: an item's own mouseover/description text (item.h's Footer<id,
     // Src>) — a real child tag for XML/JSON, same shape as Low/High above
     // ("printed together" with the item in one pass, not a separate
@@ -105,7 +116,7 @@ namespace oneMenu {
     // behavior for the same data); every format's own base fmtStart/fmtStop
     // default is already a universal no-op for tags it doesn't handle, so
     // this is safe to add without touching ANSI/graphics rendering at all.
-    Footer=1<<21
+    Footer=1L<<21
   };
 
   /// @brief lock/unlock print output

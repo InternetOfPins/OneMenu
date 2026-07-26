@@ -83,9 +83,13 @@ namespace oneMenu  {
       // the others) — still fit attr_tags cleanly since they only ever need
       // "is there an open tag to attach to" (always true: Choice fires right
       // after <menu>/<item> opens, Dropdown right after <item> opens).
-      static constexpr const int attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditMode|Fmt::Accel|Fmt::Choice|Fmt::Dropdown|Fmt::Enabled;
-      static constexpr const int indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
-      static constexpr const int block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
+      // long, not int: Choice/Dropdown/Enabled live above bit 15 (enums.h) —
+      // int is only 16 bits on AVR, so storing this OR'd mask into an int
+      // silently dropped those bits there (found alongside the enums.h fix
+      // this comment references, same root cause).
+      static constexpr const long attr_tags   = Fmt::NavCursor|Fmt::Index|Fmt::EditMode|Fmt::Accel|Fmt::Choice|Fmt::Dropdown|Fmt::Enabled;
+      static constexpr const long indent_tags = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
+      static constexpr const long block_tags  = Fmt::View|Fmt::Menu|Fmt::Body|Fmt::Title|Fmt::Item;
 
       void putPath(const Path& p, Depth s, Depth l) {
         Depth end = (s+l < p.len) ? s+l : p.len-1;

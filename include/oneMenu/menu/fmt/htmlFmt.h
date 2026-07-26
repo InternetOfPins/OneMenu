@@ -19,6 +19,17 @@ namespace oneMenu {
     template<typename O>
     struct Part : Formats::template Part<O> {
       using Base = typename Formats::template Part<O>;
+      // Without these, this class's own fmtStart/fmtStop overloads below
+      // (View/Title/Item/Footer/Menu|Body/NavCursor) shadow Base's default
+      // no-op for every OTHER tag entirely (Index, Data, Label, EditMode,
+      // etc.) — not just override the ones actually handled here. Found via
+      // a real compile error (IndexPrinter unconditionally calls
+      // fmtStart/fmtStop<Fmt::Index>, "no matching function"): this class
+      // had zero other call sites anywhere, so nothing had ever exercised
+      // it end-to-end before. textFmt.h/gfxFmt.h (the other per-tag-overload
+      // formats) both already declare these two lines; this one just didn't.
+      using Base::fmtStart;
+      using Base::fmtStop;
 
       bool m_sel {false};
 
