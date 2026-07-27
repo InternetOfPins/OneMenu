@@ -158,7 +158,7 @@ namespace oneMenu {
   };
 
   /// @brief binds a nav chain to an external menu instance as the navigation root
-  template<typename T,T& menu>
+  template<auto& menu>
   struct Root {
     template<typename N>
     struct Part:N {

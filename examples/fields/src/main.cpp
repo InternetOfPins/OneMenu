@@ -299,7 +299,7 @@ auto mainMenu = menuDef<WrapNav>(
 INavDef<
   IndexGo,
   TreeNav,
-  Root<decltype(mainMenu), mainMenu>
+  Root<mainMenu>
 > nav;
 
 bool action::op2(Sz) {
@@ -318,7 +318,7 @@ auto promptMenu = menuDef<>(
 
 INavDef<
   TreeNav,
-  Root<decltype(promptMenu), promptMenu>
+  Root<promptMenu>
 > promptNav;
 
 // ── Handler machinery ─────────────────────────────────────────────────────────

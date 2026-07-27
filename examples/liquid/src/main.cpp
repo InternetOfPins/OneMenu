@@ -137,7 +137,7 @@ auto mainMenu = menuDef<WrapNav>(
 INavDef<
   IndexGo,
   TreeNav,
-  Root<decltype(mainMenu), mainMenu>
+  Root<mainMenu>
 > nav;
 
 bool action::toggle(Sz) {

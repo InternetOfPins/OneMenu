@@ -44,7 +44,7 @@ namespace oneMenu {
   using LabelPrinter=FmtPrinter<Fmt::Label>;
   using FieldPrinter=FmtPrinter<Fmt::Field>;
   using UnitPrinter=FmtPrinter<Fmt::Unit>;
-  using EditModePrinter=FmtPrinter<Fmt::EditMode>;
+  // using EditModePrinter=FmtPrinter<Fmt::EditMode>;
   using TextEditCursorPrinter=FmtPrinter<Fmt::EditCursor>;
 
   /// @brief groups some printer parts to form menu
