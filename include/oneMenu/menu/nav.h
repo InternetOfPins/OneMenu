@@ -332,11 +332,18 @@ namespace oneMenu {
         // the *logical* position (m_at) already is — useless when m_at itself is wrong.
         if constexpr(hapi::query<IsCursor,typename Out::Types>) out.setPos({out.orgX(),out.orgY()});
         ///track scroll top for each level, this is output device specific
-        static Sz tops[root().depth()]{0};
-        Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
-        bool r=root().printMenu(out,ctx);
-        out.flush();
-        return r;
+        if constexpr(hapi::TagIs<ScrollBodyPrinter>::Check<Out>::value) {
+          static Sz tops[root().depth()]{0};
+          Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
+          bool r=root().printMenu(out,ctx);
+          out.flush();
+          return r;
+        } else {
+          Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,nullptr,0,m_prevSel};
+          bool r=root().printMenu(out,ctx);
+          out.flush();
+          return r;
+        }
       }
 
       template<bool isKbd>
