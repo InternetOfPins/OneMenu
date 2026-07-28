@@ -948,7 +948,7 @@ namespace am4compat {
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::oneMenu::INavDef< \
       ::oneMenu::Pool<decltype(in), decltype(out)>, \
-      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu> \
+      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<menu> \
     > id(in, out)
 
 /*
@@ -1012,7 +1012,7 @@ namespace am4compat {
 #define NAVROOT_IDLE(id, menu, maxDepth, in, out, Run) \
   ::am4compat::NavRootDef<Run, \
       ::oneMenu::Pool<decltype(in), decltype(out)>, \
-      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<decltype(menu), menu> \
+      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<menu> \
     > id(in, out)
 
 /// @brief AM4 NONE — placeholder satisfying MENU_OUTPUTS'/MENU_INPUTS' AM4-side

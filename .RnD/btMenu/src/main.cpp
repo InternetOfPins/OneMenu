@@ -13,7 +13,7 @@
 #include <oneMenu/oneMenu.h>
 #include <oneMenu/menu/fmt/textFmt.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
-#include <oneMenu/menu/IO/idParser.h>
+#include <oneMenu/menu/IO/idxParser.h>
 #include <oneMenu/menu/IO/arduino/serialOut.h>
 #include <oneMenu/menu/IO/arduino/serialIn.h>
 
@@ -89,7 +89,7 @@ using Ble = hw::esp32::esp32::Ble<
 >;
 
 // ── I/O ───────────────────────────────────────────────────────────────────────
-InDef<SerialIn, IdParser, PCKbd> in;
+InDef<SerialIn, IdxParser, PCKbd> in;
 
 // FullPrinter, not ScrollPrinter: ScrollPrinter needs real position feedback from
 // the device to compute its scroll window (that's why the earlier ANSIFmt+ANSIOut
@@ -150,7 +150,7 @@ auto mainMenu = menuDef<WrapNav>(
 INavDef<
   IndexGo,
   TreeNav,
-  Root<decltype(mainMenu), mainMenu>
+  Root<mainMenu>
 > nav;
 
 void setup() {

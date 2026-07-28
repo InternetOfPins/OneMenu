@@ -51,7 +51,7 @@ int main() {
 
   TextOut textOut;
   textOut.lockMode(LockMode::None);
-  NavDef<TreeNav, Root<decltype(testMenu),testMenu>> nav1;
+  NavDef<TreeNav, Root<testMenu>> nav1;
   nav1.printTo(textOut);
   std::string t = textStream.str();
   bool textOk = t.find("One") != std::string::npos && t.find("\"1\"") == std::string::npos;
@@ -61,7 +61,7 @@ int main() {
 
   JsonOut jsonOut;
   jsonOut.lockMode(LockMode::None);
-  NavDef<TreeNav, Root<decltype(testMenu),testMenu>> nav2;
+  NavDef<TreeNav, Root<testMenu>> nav2;
   nav2.printTo(jsonOut);
   std::string j = jsonStream.str();
   bool jsonOk = j.find("\"lbl\":\"#1\"") != std::string::npos && j.find("Um") == std::string::npos;

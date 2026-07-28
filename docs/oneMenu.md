@@ -23,7 +23,7 @@ auto menu = menuDef<WrapNav>(
   )
 );
 
-INavDef<TreeNav, Root<decltype(menu), menu>> nav;
+INavDef<TreeNav, Root<menu>> nav;
 
 void setup() {
   out.lockMode(LockMode::None);
@@ -440,10 +440,10 @@ big/normal font selection, title big by default).
 ### `INavDef` — the navigator
 
 ```cpp
-INavDef<TreeNav, Root<decltype(myMenu), myMenu>> nav;
+INavDef<TreeNav, Root<myMenu>> nav;
 ```
 
-`Root<T, ref>` binds the nav to an existing menu variable. `StaticRoot<MenuType>` owns the menu inside the nav instead.
+`Root<ref>` binds the nav to an existing menu variable. `StaticRoot<MenuType>` owns the menu inside the nav instead.
 
 ### Nav options (pass to `menuDef<>` or `INavDef<>`)
 
@@ -479,8 +479,8 @@ start, no prior nav state needed — built for HTTP, where each request arrives 
 of the last and the nav can't just remember "where it was".
 
 ```cpp
-NavDef<AsyncNav, TreeNav, Root<decltype(mainMenu), mainMenu>> webNav;  // separate instance
-NavDef<TreeNav,  Root<decltype(mainMenu), mainMenu>>          nav;     // hardware nav, unaffected
+NavDef<AsyncNav, TreeNav, Root<mainMenu>> webNav;  // separate instance
+NavDef<TreeNav,  Root<mainMenu>>          nav;     // hardware nav, unaffected
 
 webNav.async("/1/3/");             // reset to root, descend into submenu 1, select item 3
 webNav.enter();                    // then click — triggers the action or opens edit mode
