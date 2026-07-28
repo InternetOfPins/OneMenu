@@ -9,7 +9,7 @@
  * calls onto them" rationale as menuOutBridge.h (own file header, same
  * date) — this is the input-side counterpart. Not for serial/keyboard
  * input specifically (OneMenu already has real, native support for that —
- * `oneMenu::ArduinoSerialIn`/`IdParser`/`PCKbd`, `menu/IO/arduino/
+ * `oneMenu::ArduinoSerialIn`/`IdxParser`/`PCKbd`, `menu/IO/arduino/
  * serialIn.h` — reuse those directly, no AM4 bridging needed or wanted
  * there); this is for AM4's own *physical* input drivers OneMenu doesn't
  * have a native equivalent for — `keyIn<N>`, `encoderIn`, `clickEncoderIn`,
@@ -32,8 +32,8 @@
  * `upCmd`/`downCmd`/`leftCmd`/`rightCmd`) get translated to a real `Cmd`.
  * `idxCmd` (AM4's index-entry marker) and anything unmatched (a bare
  * digit, a letter, ...) falls through to the *rest of the chain*'s own
- * `parseKey()` unchanged — meaning `oneMenu::IdParser` (already-shipped,
- * `menu/IO/idParser.h`: digit '1'-'9' → `Cmd::Go`) keeps doing that job
+ * `parseKey()` unchanged — meaning `oneMenu::IdxParser` (already-shipped,
+ * `menu/IO/idxParser.h`: digit '1'-'9' → `Cmd::Go`) keeps doing that job
  * normally when composed above this bridge, no special-casing needed here.
  * `selCmd`/`scrlUpCmd`/`scrlDownCmd` have no direct `oneMenu::Cmd`
  * equivalent yet — deliberately left unmapped (falls through to
@@ -47,7 +47,7 @@
  * serialIn.h`) — this bridge reads one byte from the wrapped AM4 driver and
  * feeds it either straight to a real `Cmd` or down into the rest of the
  * chain's own `parseKey()`, same shape, same InDef composition slot:
- *   `InDef<Am4InBridge<>, IdParser> in;`
+ *   `InDef<Am4InBridge<>, IdxParser> in;`
  *
  * Real AM4 dependency, not this repo's own am4.h shim — see
  * menuOutBridge.h's own file header for what that distinction means and

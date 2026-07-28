@@ -739,7 +739,7 @@ namespace oneMenu {
       }
 
       // Digit-literal accumulator: numeric fields need to deliver Cmd::Key
-      // when nav is on edit mode (see nav.h's IndexGo, idParser.h). AM4's
+      // when nav is on edit mode (see nav.h's IndexGo, idxParser.h). AM4's
       // own menuField::parseInput reads a whole numeric
       // token in one stream call (in.parseFloat()); OneMenu's nav()
       // processes one keypress per call, so the literal is built up across

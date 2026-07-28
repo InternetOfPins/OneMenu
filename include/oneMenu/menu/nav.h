@@ -423,7 +423,7 @@ namespace oneMenu {
     };
   };
 
-  // Handles Cmd::Go from IdParser: jumps to item N at current level then enters it.
+  // Handles Cmd::Go from IdxParser: jumps to item N at current level then enters it.
   // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav, Root<...>>
   // NOTE: must override in(), not doCmd() — TreeNav::Part::in() uses static dispatch
   // for doCmd and cannot reach a more-derived doCmd override without CRTP. Its own
@@ -431,7 +431,7 @@ namespace oneMenu {
   // so a more-derived doCmd() override (e.g. EventDispatch, composed above IndexGo) is
   // still reached even though it dispatches from here, not from TreeNav::Part::in().
   // While a field is being edited (NavMode::Edit), digit keys are redelivered as a
-  // literal Cmd::Key instead of jumping to item N — see idParser.h/item.h's NumField
+  // literal Cmd::Key instead of jumping to item N — see idxParser.h/item.h's NumField
   // for the other two pieces of this.
   /// @brief nav component that handles Cmd::Go: jumps to item N at the current level by index
   struct IndexGo {
@@ -444,15 +444,15 @@ namespace oneMenu {
         if (cke.cmd == Cmd::None) return false;
         if (cke.cmd == Cmd::Go) {
           // Typing a digit while editing a field must deliver it as a
-          // literal Cmd::Key, not jump to item N — IdParser has no nav
-          // context to gate this itself (see idParser.h), so the redirect
+          // literal Cmd::Key, not jump to item N — IdxParser has no nav
+          // context to gate this itself (see idxParser.h), so the redirect
           // lives here, the first point in the chain with navMode() available.
           if (Base::navMode() == NavMode::Edit)
             return Base::obj().template doCmd<true>(Cmd::Key, Key('0' + cke.key), false);
-          Base::go(Sz(cke.key) - 1);  // IdParser emits 1-based; go() is 0-based
+          Base::go(Sz(cke.key) - 1);  // IdxParser emits 1-based; go() is 0-based
           return Base::obj().template doCmd<false>(Cmd::Enter);
         }
-        // '0' is tagged (not encoded as Cmd::Go — see idParser.h); only
+        // '0' is tagged (not encoded as Cmd::Go — see idxParser.h); only
         // reinterpret it here, and only while editing, so every other
         // Cmd::Esc (a real Escape key, or '0' outside edit mode) falls
         // through unchanged below, identical to today's behavior.

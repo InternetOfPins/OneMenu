@@ -9,7 +9,7 @@ namespace oneMenu {
   // the mature vendor library directly instead of reimplementing it"
   // choice as oneIO::display::U8g2Vendor/AdaGfxVendor, and the exact same
   // chain slot/shape as UartIn (above): a raw char source sitting below
-  // whatever key-code parser chain is composed above it (PCKbd/IdParser),
+  // whatever key-code parser chain is composed above it (PCKbd/IdxParser),
   // not a new parsing mechanism of its own.
   //
   // AM4's real `keypadIn` (menuIO/keypadIn.h) does no matrix-to-command
@@ -20,7 +20,7 @@ namespace oneMenu {
   // session) — arbitrary chars (digits, letters, symbols), not just nav
   // command codes. This wrapper reproduces that same "just produce chars"
   // role; any special-cased command chars (Enter/Esc/etc.) are handled the
-  // same way as any other char-producing source: PCKbd/IdParser above it
+  // same way as any other char-producing source: PCKbd/IdxParser above it
   // in the chain, not here.
   //
   // Keypad::getKey() is a real, consuming call (returns NO_KEY='\0' if

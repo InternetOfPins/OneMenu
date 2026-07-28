@@ -10,7 +10,7 @@
 #include <oneMenu/menu/fmt/textFmt.h>  // must precede ansiFmt.h (defines MenuChars)
 #include <oneMenu/menu/fmt/ansiFmt.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
-#include <oneMenu/menu/IO/idParser.h>
+#include <oneMenu/menu/IO/idxParser.h>
 
 #ifdef __AVR__
   #include <onePin/onePin.h>
@@ -85,7 +85,7 @@ InDef<
   #else
     LinuxKeyIn,
   #endif
-  IdParser,
+  IdxParser,
   PCKbd
 > in;
 

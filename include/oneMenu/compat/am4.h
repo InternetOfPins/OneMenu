@@ -115,7 +115,7 @@
 #include <oneMenu/menu/IO/ansiOut.h>
 #include <oneMenu/menu/fmt/textFmt.h>
 #include <oneMenu/menu/fmt/ansiFmt.h>
-#include <oneMenu/menu/IO/idParser.h>
+#include <oneMenu/menu/IO/idxParser.h>
 #include <oneMenu/menu/IO/pcKbdIn.h>
 #ifdef ARDUINO
   #include <oneMenu/menu/IO/arduino/serialIn.h>
@@ -1130,7 +1130,7 @@ namespace Menu {
   /// @brief AM4 serialIn(Stream&) — input device wrapper, real AM4 call shape
   ///        (`serialIn serial(Serial); MENU_INPUTS(in,&serial);`). Wraps the
   ///        native compile-time Serial+key-parser chain
-  ///        (InDef<SerialIn,IdParser,PCKbd>) — MENU_INPUTS's InGroup keeps
+  ///        (InDef<SerialIn,IdxParser,PCKbd>) — MENU_INPUTS's InGroup keeps
   ///        each device's concrete type itself, no virtual dispatch needed
   ///        here (plain InDef<...>, not IInDef<...>). The Stream&
   ///        constructor arg is accepted for AM4 syntax fidelity but ignored —
@@ -1138,7 +1138,7 @@ namespace Menu {
   ///        component bound to the global Serial object; a runtime Stream&
   ///        has nothing to bind to. Real AM4 sketches pass literal Serial
   ///        here anyway.
-  struct serialIn : ::oneMenu::InDef<::oneMenu::SerialIn, ::oneMenu::IdParser, ::oneMenu::PCKbd> {
+  struct serialIn : ::oneMenu::InDef<::oneMenu::SerialIn, ::oneMenu::IdxParser, ::oneMenu::PCKbd> {
     serialIn(Stream&) {}
   };
 }
