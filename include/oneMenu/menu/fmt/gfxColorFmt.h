@@ -7,6 +7,64 @@
 
 namespace oneMenu {
 
+  // GfxCtrlChars: like CtrlChars (out.h), but for pixel-addressed GFX
+  // devices — converts a literal '\n' into a real nl() AND repaints the new
+  // row's background using whatever color is CURRENTLY active on the device
+  // (already set by GfxColorFmt's own fmtStart<Item>/Label/Field/etc before
+  // any text of this item printed). Plain CtrlChars only calls nl(): fine
+  // for a scrolling terminal (ANSI already colors each new line as it goes),
+  // but on a GFX device a multiline item's 2nd+ lines otherwise show
+  // whatever was already in that screen area — found on real ST7789
+  // hardware: an item's own selection/body color never extended past its
+  // first line.
+  //
+  // Deliberately its own component, not folded into CtrlChars or
+  // GfxColorFmt's default per-item behavior: only menus that actually
+  // compose multiline GFX items pay for the extra fillRect-per-line, and
+  // where/whether to use it is the menu author's own compositional choice
+  // (swap in for plain CtrlChars), not a cost every item pays automatically.
+  struct GfxCtrlChars {
+    template<typename O>
+    struct Part:O {
+      using Base=O;
+      void put(const char o) {
+        if(o=='\n') {
+          Base::nl();
+          Pos p = Base::obj().getPos();
+          Base::fillRect(Base::obj().orgX(), p.y, Base::obj().width(), Base::obj().lineHeight());
+        } else Base::put(o);
+      }
+    };
+  };
+
+  // GfxTextWrap: like TextWrap (out.h), but for pixel-addressed GFX devices
+  // — same fix idea as GfxCtrlChars above, same reason: plain TextWrap's
+  // wrap-triggered nl() has no repaint, so a long line that wraps mid-item
+  // shows the same stale-background symptom on its wrapped continuation
+  // rows as an unpatched embedded '\n' did. Same "opt-in, pay only if
+  // composed" reasoning as GfxCtrlChars — swap in for plain TextWrap.
+  struct GfxTextWrap : aParser {
+    template<typename Before, typename After>
+    static constexpr bool rules() {
+      static_assert(Excludes<IsDataParser,       After>, "GfxTextWrap: DataParser<sz> must be placed above GfxTextWrap");
+      static_assert(Excludes<hapi::SameAs<UTF8>, After>, "GfxTextWrap: UTF8 must be placed above GfxTextWrap — wrapping must count characters after surrogate filtering");
+      return true;
+    }
+    template<typename O>
+    struct Part:O {
+      using IsParser=std::true_type;
+      using Base=O;
+      inline void put(const char o) {
+        if(Base::obj().free().x<=0) {
+          Base::nl();
+          Pos p = Base::obj().getPos();
+          Base::fillRect(Base::obj().orgX(), p.y, Base::obj().width(), Base::obj().lineHeight());
+        }
+        Base::put(o);
+      }
+    };
+  };
+
   // GfxColorFmt<Radius, Spacing, BigTitle>
   // Real-color sibling of GfxFmt, for pixel-addressed vendor GFX devices whose
   // driver has a genuine setColors(fg,bg) (AdaGfxVendor/AdaGfxBufferedVendor —
@@ -193,18 +251,65 @@ namespace oneMenu {
       std::enable_if_t<tag&Fmt::NavCursor>
       fmtStop(const Ctx&)  {}
 
+      // HasItemSpacing<T>: detects an optional LineSpacing<gut,spc> composed
+      // somewhere in the chain (out.h) — same gated-optional idiom as
+      // HasSetColors/HasSetFont (oledOut.h), falls back to 0 if absent. Checked
+      // against the fully-assembled object's type (Base::obj()), not O, since
+      // LineSpacing<> is typically composed dead-last (innermost), below where
+      // a plain O::-qualified lookup from here would reach.
+      //
+      // Checks itemSpacing(), NOT lineSpacing() — VendorGfxOut/OledOut
+      // already define their OWN, unrelated lineSpacing() (forwards
+      // Oled::lineSpacing(), the device's CharH), and since those sit
+      // earlier (more derived) in a real chain than LineSpacing<> (composed
+      // dead-last), name-hiding would silently resolve to THAT one instead
+      // — found on real ST7789 hardware: the selected item's highlight box
+      // was padded by 16px, not the intended 1px.
+      //
+      // itemSpacing() is applied as an explicit top margin (fmtStart, once,
+      // before any content prints) and bottom margin (fmtStop, once, after
+      // ALL content — including any internal '\n'/wrapped lines — has
+      // finished printing) — deliberately NOT baked into the cached
+      // lineHeight() itself, which an earlier version of this code did:
+      // lineHeight() is what EVERY nl() call reads, including the internal
+      // line breaks GfxCtrlChars/GfxTextWrap trigger mid-item for multiline
+      // content, so baking the margin in there multiplied it by however many
+      // internal lines an item happened to have — found on real hardware, a
+      // 3-line item showed 3x the intended margin. Applying it once at each
+      // boundary instead keeps the total margin constant regardless of an
+      // item's internal line count.
+      template<typename T, typename = void>
+      struct HasItemSpacing : std::false_type {};
+      template<typename T>
+      struct HasItemSpacing<T, std::void_t<decltype(std::declval<T&>().itemSpacing())>>
+        : std::true_type {};
+      Sz lineSpc() {
+        using ObjType = std::remove_reference_t<decltype(Base::obj())>;
+        if constexpr(HasItemSpacing<ObjType>::value) return Base::obj().itemSpacing();
+        else return (Sz)0;
+      }
+
+      // Bottom margin: fixed, once, regardless of internal line count — call
+      // AFTER whatever nl() advances already happened for this tag's content.
+      void bottomMargin() {
+        Sz spc = lineSpc();
+        if(spc>0) {
+          Pos p = Base::obj().getPos();
+          Base::fillRect(Base::orgX(), p.y, Base::width(), spc);
+          Base::obj().setPos({p.x, p.y+spc});
+        }
+      }
+
       template<Fmt tag>
       std::enable_if_t<tag&Fmt::Title>
       fmtStart(const Ctx& ctx) {
         { auto c=unwrap(typename P::Title{}); Base::setColors(c.fg,c.bg); }
         m_itemPos = Base::obj().getPos();
-        if constexpr(big(typename PF::Title{})) {
-          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), Base::lineHeight()*2);
-        } else {
-          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), Base::lineHeight());
-        }
+        Sz spc = lineSpc();
+        Sz h = big(typename PF::Title{}) ? Base::lineHeight()*2 : Base::lineHeight();
+        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), spc+h);
         Base::setBigFont(big(typename PF::Title{}));
-        Base::setPos({Base::orgX(), m_itemPos.y});
+        Base::setPos({Base::orgX(), m_itemPos.y+spc});
         Base::template fmtStart<tag>(ctx);
       }
 
@@ -222,9 +327,11 @@ namespace oneMenu {
         // tuned only for OledOut's page semantics) silently fills just 1-2 raw pixels
         // on a pixel-addressed device instead of the whole row — found on real ST7789
         // hardware, the selection highlight was a single barely-visible pixel line.
-        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), bigItem?Base::lineHeight()*2:Base::lineHeight());
+        Sz h = bigItem?Base::lineHeight()*2:Base::lineHeight();
+        Sz spc = lineSpc();
+        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), spc+h);
         Base::setBigFont(bigItem);
-        Base::setPos({Base::orgX(), m_itemPos.y});
+        Base::setPos({Base::orgX(), m_itemPos.y+spc});
         Base::template fmtStart<tag>(ctx);
       }
 
@@ -235,6 +342,7 @@ namespace oneMenu {
         if(!ctx.pad) {
           Base::obj().nl();
           if constexpr(big(typename PF::Title{})) Base::obj().nl();
+          bottomMargin();
         }
       }
 
@@ -274,6 +382,7 @@ namespace oneMenu {
               Base::obj().nl();
             }
           }
+          bottomMargin();
         }
       }
 

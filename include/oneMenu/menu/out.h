@@ -416,6 +416,33 @@ namespace oneMenu {
     };
   };
 
+  /// @brief compile-time output settings: gutter (horizontal) and itemSpacing
+  /// (vertical, per-row cosmetic padding) — ported from AM22's out.h
+  /// (LineSpacing<gut,spc>, real usage e.g. AM22/examples/.../lolin32/
+  /// src/main.cpp: composed dead-last in the OutDef chain, right after the
+  /// raw device — a pure settings leaf like StaticPos/StaticArea, nothing
+  /// above it needs to see through it). Opt-in: a Fmt component that wants
+  /// itemSpacing() detects whether this is composed (e.g. via a HasX-style
+  /// SFINAE trait) and falls back to 0 if it isn't — this is NOT wired into
+  /// any Fmt by default.
+  ///
+  /// Member named itemSpacing(), NOT AM22's own lineSpacing(): found on real
+  /// ST7789 hardware that VendorGfxOut/OledOut (oledOut.h) already define
+  /// their OWN, unrelated lineSpacing() (forwards Oled::lineSpacing(), the
+  /// device's CharH, used for Cursor's LineH template arg) — same name,
+  /// completely different meaning. VendorGfxOut sits earlier (more derived)
+  /// in a real chain than this component (composed dead-last), so ordinary
+  /// C++ name-hiding silently picked VendorGfxOut's version — no compile
+  /// error (identical signature), just a padding value of 16 instead of 1.
+  template<Sz gut=1, Sz spc=1>
+  struct LineSpacing {
+    template<typename O>
+    struct Part:O {
+      static constexpr Sz gutter() {return gut;}
+      static constexpr Sz itemSpacing() {return spc;}
+    };
+  };
+
   /// @brief provides raw access to the output device
   struct Raw : aRawDevice, aParser {
     template<typename Before, typename After>
