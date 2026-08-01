@@ -3,6 +3,7 @@
 #include "oneMenu/menu/sys/formats.h"
 #include "oneMenu/menu/sys/colors.h"
 #include "oneMenu/menu/sys/fonts.h"
+#include "oneMenu/menu/fmt/textFmt.h"
 
 namespace oneMenu {
 
@@ -137,8 +138,10 @@ namespace oneMenu {
       // (same ordering rule GfxFmt documents for setInverted). Otherwise identical
       // to GfxFmt's own fmtStart<Label|Field|EditMode> — see its comments for the
       // "clear from current position, restore to p not orgX" rationale.
+      // EditMode is NOT part of this mask (see its own fmtStart below) — it needs a
+      // narrow one-glyph fill, not "cover the rest of the row".
       template<Fmt tag>
-      std::enable_if_t<tag&(Fmt::Label|Fmt::Field|Fmt::EditMode)>
+      std::enable_if_t<tag&(Fmt::Label|Fmt::Field)>
       fmtStart(const Ctx& ctx) {
         auto c = roleColors<tag>(ctx);
         Base::setColors(c.fg, c.bg);
@@ -151,6 +154,34 @@ namespace oneMenu {
         Base::fillRect(p.x, p.y, Base::width()-p.x, wantBig?Base::lineHeight()*2:Base::lineHeight());
         Base::setBigFont(wantBig);
         Base::setPos(p);
+        Base::template fmtStart<tag>(ctx);
+      }
+
+      // Real edit-mode separator glyph — same MenuChars ANSIFmt already uses
+      // (':'/'='/'.'/' ' for Nav/Edit/Tune/blur), fired wherever the item composes
+      // AsEditMode<> (previously color-only here, no visible marker at all on GFX).
+      // Narrow one-glyph fillRect, not the full-row-width fill Label/Field use:
+      // this device's print() is always transparent-background (AdaGfxVendor never
+      // calls the opaque 2-arg setTextColor), so the glyph needs ITS OWN small
+      // background patch first or it blends invisibly into whatever Label/Field
+      // already painted behind it — but painting the WHOLE remaining row width
+      // here would just get immediately overpainted by Field's own fillRect right
+      // after anyway.
+      template<Fmt tag>
+      std::enable_if_t<tag==Fmt::EditMode>
+      fmtStart(const Ctx& ctx) {
+        auto c = roleColors<tag>(ctx);
+        Base::setColors(c.fg, c.bg);
+        Pos p = Base::obj().getPos();
+        Base::fillRect(p.x, p.y, Base::obj().charWidth(), Base::lineHeight());
+        if(ctx && (!ctx.pad||(ctx.sel(ctx.pAt)==ctx.pIdx))) {
+          switch(ctx.mode) {
+            case NavMode::Nav:  Base::put(MenuChars::sepNav);  break;
+            case NavMode::Edit: Base::put(MenuChars::sepEdit); break;
+            case NavMode::Tune: Base::put(MenuChars::sepTune); break;
+            default: break;
+          }
+        } else if(!ctx.pad) Base::put(MenuChars::blur);
         Base::template fmtStart<tag>(ctx);
       }
 
@@ -214,7 +245,24 @@ namespace oneMenu {
         // evaluate differently in stop vs start, so re-derive rather than hardcode
         auto c = ctx.enabled ? unwrap(typename NavEn::Item::Body{}) : unwrap(typename NavDis::Item::Body{});
         Base::setColors(c.fg, c.bg);
-        bool bigItem = Base::obj().lineHeight()>1;
+        // itemBig(ctx), NOT Base::obj().lineHeight()>1 (GfxFmt's own check, copied
+        // verbatim here): that check assumes lineHeight() is a small page count
+        // (1 or 2, page-addressed OledOut), where ">1" means "this row's real
+        // driver state is big". On a pixel-addressed device lineHeight() is a
+        // real pixel height (16, 20+) — ALWAYS >1 — so this fired on every single
+        // item, double-nl()'ing every row: fillRect painted 1×lineHeight() but
+        // the cursor advanced 2×lineHeight(), leaving an unpainted gap of exactly
+        // one row's height before the next item — found on real hardware as a
+        // band of raw/leftover GRAM content (striping) between every item, that
+        // only a full clear() (level change) happens to paint over rather than
+        // actually fix. itemBig(ctx) is the same ctx-only decision fmtStart<Item>
+        // already used to size the fillRect in the first place, so it's
+        // guaranteed consistent with what was actually painted — narrower than
+        // GfxFmt's original live-state check (which also caught a sub-role
+        // Field/Unit going big independent of itemBig's Body-only guess), but
+        // AdaGfxVendor's setBigFont() is a no-op today so no sub-role can
+        // actually diverge from itemBig() here regardless.
+        bool bigItem = itemBig(ctx);
         if(bigItem) Base::setBigFont(false);
         if(!ctx.pad) {
           Base::obj().nl();

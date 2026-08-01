@@ -274,18 +274,26 @@ namespace oneMenu {
     Menu<T,B,IsChoiceBody,OO...>
   >;
 
-  // AsEditMode<> comes BEFORE T (the label component): AsEditMode/AsIndex/etc
-  // are attribute-only Fmt tags (XmlFmt's attr_tags) that must fire while the
-  // enclosing <item> tag is still open — T (AsLabel<...>) opens+closes its
-  // own <lbl> child first, which force-closes <item>'s own tag in the
-  // process (XmlFmt::fmtStart closes any pending open tag before printing
-  // inline content) — putting AsEditMode<> after T meant its mode="..."
-  // attribute fired too late, landing as malformed loose text after </lbl>
-  // instead of as a real <item> attribute (found 2026-07-22 rendering a real
-  // NumField over XmlFmt on real ESP32 hardware).
+  // Removed (2026-07-29) the forced-front AsEditMode<> this used to carry
+  // (ItemDef<AsEditMode<>,T,EditField,O,OO...>). That placement existed
+  // solely for XmlFmt: AsEditMode/AsIndex/etc are attribute-only Fmt tags
+  // (XmlFmt's attr_tags) that must fire while the enclosing <item> tag is
+  // still open — T (AsLabel<...>) opens+closes its own <lbl> child first,
+  // force-closing <item>'s tag in the process, so AsEditMode<> after T
+  // rendered its mode="..." attribute as malformed loose text after </lbl>
+  // instead of a real <item> attribute (found 2026-07-22 on real ESP32
+  // hardware). Deliberately reverted: ANSIFmt (and now GfxColorFmt) both
+  // render a REAL visible glyph for every Fmt::EditMode firing, and the
+  // forced-front instance was indistinguishable from a real, deliberately-
+  // composed one placed by the item itself (e.g. nested inside AsLabel<> to
+  // land at the label/field boundary) — every NumField unconditionally
+  // showed a redundant marker at item start once a second, real one existed.
+  // Known, accepted regression: NumField over XmlFmt now needs its own
+  // explicit AsEditMode<> placed correctly (before T) if that attribute is
+  // wanted there — not automatic anymore.
   template<typename T,typename O,typename... OO>
   using NumFieldDef
-    =ItemDef<AsEditMode<>,T,EditField,O,OO...>;
+    =ItemDef<T,EditField,O,OO...>;
 
   // TextField<N, Mask> is self-contained (storage inside the field),
   // so TextFieldDef needs no DataRef/Watch layer — just title + size + mask.
