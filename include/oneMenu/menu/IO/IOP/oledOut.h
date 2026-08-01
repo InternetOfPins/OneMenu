@@ -71,6 +71,17 @@ namespace oneMenu {
     StaticArea<84, 6>
   >;
 
+  // HasSetColors<T>: detects a real setColors(uint16_t,uint16_t) on the Oled
+  // driver (AdaGfxVendor/AdaGfxBufferedVendor have one; U8g2Vendor doesn't) —
+  // same local-trait idiom as HasBody (nav.h)/HasNavOnEvent (item.h). Gates
+  // VendorGfxOut::setColors's forward below so a driver with no real color
+  // support keeps no-op'ing safely instead of failing to compile.
+  template<typename T, typename = void>
+  struct HasSetColors : std::false_type {};
+  template<typename T>
+  struct HasSetColors<T, std::void_t<decltype(std::declval<T&>().setColors(uint16_t{}, uint16_t{}))>>
+    : std::true_type {};
+
   // VendorGfxOut<Oled>/VendorGfxDisplay<Oled,...>: for pixel-addressed GFX
   // vendor libraries (U8g2Vendor/AdaGfxVendor — OneIO/include/oneIO/
   // display/), NOT Ssd1306/PCD8544-style page-addressed native drivers.
@@ -104,7 +115,7 @@ namespace oneMenu {
       static void clear()                   { Oled::clear(); Oled::setCursor(0,0); O::clear(); }
       static void setInverted(bool v)       { Oled::setInverted(v); }
       template<typename Cor>
-      static void setColors(Cor, Cor)       {}
+      static void setColors(Cor f, Cor b)   { if constexpr(HasSetColors<Oled>::value) Oled::setColors(f, b); }
       static void flush()                   { Oled::flush(); }
       // native-unit GFX primitives — x/y/w/h all in raw pixels
       static void fillRect(Sz x, Sz y, Sz w, Sz h, uint8_t byte=0x00) { Oled::fillRect(x, y, w, h, byte); }
