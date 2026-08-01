@@ -115,10 +115,16 @@ namespace oneMenu {
       }
 
       // per-role color choice — same Body/Field/EditMode granularity as roleBig above,
-      // deliberately bypassing the Selected branch for the same reason roleBig does
-      // ("is this item focused" is orthogonal to "which role within it is this text").
+      // but NOT bypassing Selected the way roleBig does: roleBig's bypass is correct
+      // for FONT SIZE (focus is orthogonal to which role you're in), but wrong for
+      // COLOR — selection has to visually highlight the whole row, sub-roles included,
+      // same as fb() already does for plain single-Body items. Found on real hardware:
+      // without this, a composite item's (NumFieldDef: Label+Field+Unit) Selected
+      // highlight never showed at all, since every sub-role kept rendering its own
+      // normal Body/Field/EditMode color regardless of focus.
       template<Fmt tag>
       static Colors<uint16_t> roleColors(const Ctx& ctx) {
+        if(ctx) return ctx.enabled ? unwrap(typename NavEn::Selected{}) : unwrap(typename NavDis::Selected{});
         if constexpr(tag&Fmt::Label)
           return ctx.enabled ? unwrap(typename NavEn::Item::Body{}) : unwrap(typename NavDis::Item::Body{});
         else if constexpr(tag&Fmt::EditMode)
@@ -138,7 +144,11 @@ namespace oneMenu {
         Base::setColors(c.fg, c.bg);
         bool wantBig = roleBig<tag>(ctx);
         Pos p = Base::obj().getPos();
-        Base::fillRect(p.x, p.y, Base::width()-p.x, wantBig?2:1);
+        // height in device coordinates (lineHeight(), not a literal page count) — a
+        // pixel-addressed device (VendorGfxOut) needs the real per-row pixel span, not
+        // the "1 page = 8px" unit GfxFmt's own literal 1/2 assumes for page-addressed
+        // OledOut. See fmtStart<Item> below for the full rationale.
+        Base::fillRect(p.x, p.y, Base::width()-p.x, wantBig?Base::lineHeight()*2:Base::lineHeight());
         Base::setBigFont(wantBig);
         Base::setPos(p);
         Base::template fmtStart<tag>(ctx);
@@ -158,9 +168,9 @@ namespace oneMenu {
         { auto c=unwrap(typename P::Title{}); Base::setColors(c.fg,c.bg); }
         m_itemPos = Base::obj().getPos();
         if constexpr(big(typename PF::Title{})) {
-          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 2);
+          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), Base::lineHeight()*2);
         } else {
-          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), 1);
+          Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), Base::lineHeight());
         }
         Base::setBigFont(big(typename PF::Title{}));
         Base::setPos({Base::orgX(), m_itemPos.y});
@@ -174,7 +184,14 @@ namespace oneMenu {
         auto c = fb(ctx);
         Base::setColors(c.fg, c.bg);   // set before fillRect — driver reads state at fill time
         bool bigItem = itemBig(ctx);
-        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), bigItem?2:1);
+        // height in device coordinates: lineHeight() is whatever Cursor<CharW,LineH>
+        // says a row actually spans in THIS device's own y-units — 1 page (8px) for
+        // page-addressed OledOut, or the real pixel row height for pixel-addressed
+        // VendorGfxOut (e.g. 20px here). A literal "1"/"2" (GfxFmt's own convention,
+        // tuned only for OledOut's page semantics) silently fills just 1-2 raw pixels
+        // on a pixel-addressed device instead of the whole row — found on real ST7789
+        // hardware, the selection highlight was a single barely-visible pixel line.
+        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), bigItem?Base::lineHeight()*2:Base::lineHeight());
         Base::setBigFont(bigItem);
         Base::setPos({Base::orgX(), m_itemPos.y});
         Base::template fmtStart<tag>(ctx);
@@ -205,7 +222,7 @@ namespace oneMenu {
           if constexpr(Spacing > 0) {
             if(Base::obj().free().y > 0) {  // guard: skip separator if no room (prevents page wrap)
               auto sep = Base::obj().getPos();
-              Base::fillRect(Base::orgX(), sep.y, Base::width(), 1, 0x00);
+              Base::fillRect(Base::orgX(), sep.y, Base::width(), Base::lineHeight(), 0x00);
               Base::obj().nl();
             }
           }

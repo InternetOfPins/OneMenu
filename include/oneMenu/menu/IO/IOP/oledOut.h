@@ -26,6 +26,8 @@ namespace oneMenu {
       static void setInverted(bool v)       { Oled::setInverted(v); }
       template<typename Cor>
       static void setColors(Cor, Cor)       {}
+      template<typename F>
+      static void setFont(F)                {}
       static constexpr void flush()         {}
       // native-unit GFX primitives — col/w in pixels, row/h in pages
       static void fillRect(Sz col, Sz row, Sz w, Sz h, uint8_t byte=0x00) { Oled::fillRect(col, row, w, h, byte); }
@@ -82,6 +84,16 @@ namespace oneMenu {
   struct HasSetColors<T, std::void_t<decltype(std::declval<T&>().setColors(uint16_t{}, uint16_t{}))>>
     : std::true_type {};
 
+  // HasSetFont<T,F>: detects a real setFont(F) on the Oled driver (AdaGfxVendor/
+  // AdaGfxBufferedVendor have one, taking a vendor font-pointer type; native
+  // Ssd1306/PCD8544/U8g2Vendor don't) — same gated-forward idiom as HasSetColors,
+  // generic over F so this header never has to name Adafruit_GFX's GFXfont type.
+  template<typename T, typename F, typename = void>
+  struct HasSetFont : std::false_type {};
+  template<typename T, typename F>
+  struct HasSetFont<T, F, std::void_t<decltype(std::declval<T&>().setFont(std::declval<F>()))>>
+    : std::true_type {};
+
   // VendorGfxOut<Oled>/VendorGfxDisplay<Oled,...>: for pixel-addressed GFX
   // vendor libraries (U8g2Vendor/AdaGfxVendor — OneIO/include/oneIO/
   // display/), NOT Ssd1306/PCD8544-style page-addressed native drivers.
@@ -116,6 +128,8 @@ namespace oneMenu {
       static void setInverted(bool v)       { Oled::setInverted(v); }
       template<typename Cor>
       static void setColors(Cor f, Cor b)   { if constexpr(HasSetColors<Oled>::value) Oled::setColors(f, b); }
+      template<typename F>
+      static void setFont(F f)              { if constexpr(HasSetFont<Oled,F>::value) Oled::setFont(f); }
       static void flush()                   { Oled::flush(); }
       // native-unit GFX primitives — x/y/w/h all in raw pixels
       static void fillRect(Sz x, Sz y, Sz w, Sz h, uint8_t byte=0x00) { Oled::fillRect(x, y, w, h, byte); }

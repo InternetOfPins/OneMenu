@@ -329,13 +329,25 @@ namespace oneMenu {
       template<typename... Args>
       void drawRoundRect(Args... args) {if(unlocked()) Base::drawRoundRect(args...);}
       void setInverted(bool v) {if(unlocked()) Base::setInverted(v);}
+      // Base::pos()/posX()/posY() (previous body) don't exist anywhere in this
+      // codebase — Base here is whatever sits BELOW Gate toward the raw device,
+      // not the outer Cursor<> that actually tracks position; posX()/posY() were
+      // never defined at all. Zero call sites anywhere (checked 2026-07-29), so
+      // this was dead code that never got compiled/exercised. Base::obj().getPos()
+      // is the real, working accessor (same idiom Rows::Part::measureLines,
+      // item.h, and every Fmt component already use).
       Pos measure() {
         lockMode(LockMode::Measure);
-        return Base::pos();
+        return Base::obj().getPos();
       }
+      // Local restore: rewinds the logical cursor back to o after a measure
+      // pass, so the caller's real (unlocked) redraw starts from the same
+      // origin instead of wherever the locked dry-run print left it.
       Area measure(Pos o) {
+        Pos end = Base::obj().getPos();
         lockMode(LockMode::Update);
-        return {Base::posX()-o.x,Base::posY()-o.y};
+        Base::obj().setPos(o);
+        return {end.x-o.x, end.y-o.y};
       }
       void resume() {m_lock_mode=LockMode::None;Base::resume();}
       bool unlocked() const {return lockMode()==LockMode::None;}
