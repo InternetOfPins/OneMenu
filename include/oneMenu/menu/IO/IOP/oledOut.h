@@ -94,6 +94,16 @@ namespace oneMenu {
   struct HasSetFont<T, F, std::void_t<decltype(std::declval<T&>().setFont(std::declval<F>()))>>
     : std::true_type {};
 
+  // HasArea<T>: detects a real width() on T — used below to tell whether
+  // something further down the chain (conventionally StaticArea, an
+  // "settings leaf" composed last/innermost by every existing chain in this
+  // codebase) already supplies IsArea, so VendorGfxOut's own default below
+  // only kicks in when nothing else already did.
+  template<typename T, typename = void>
+  struct HasArea : std::false_type {};
+  template<typename T>
+  struct HasArea<T, std::void_t<decltype(T::width())>> : std::true_type {};
+
   // VendorGfxOut<Oled>/VendorGfxDisplay<Oled,...>: for pixel-addressed GFX
   // vendor libraries (U8g2Vendor/AdaGfxVendor — OneIO/include/oneIO/
   // display/), NOT Ssd1306/PCD8544-style page-addressed native drivers.
@@ -111,9 +121,18 @@ namespace oneMenu {
   //    Ssd1306, where every write already reaches the display immediately).
   //    nav.h calls out.flush() exactly once per doOutput()/printTo() pass —
   //    the correct, and only, hook for a real "push the frame" call.
+  
   /// @brief like OledOut<Oled>, but pixel-addressed (not page-addressed) and forwards flush() — for buffered vendor GFX libraries
   template<typename Oled>
-  struct VendorGfxOut : aRawDevice, aFillRect {
+  struct VendorGfxOut : aRawDevice, aFillRect, anArea {
+    // VendorGfxOut now doubles as the default area source (width()/height()
+    // below default to Oled::kWidth/kHeight) — validate those same two
+    // values here, matching StaticArea's own w>0/h>0 validation (out.h),
+    // since a degenerate Oled<0,...> or Oled<...,0> would otherwise surface
+    // as a much more confusing failure downstream (e.g. Cursor::free()
+    // always reading negative).
+    static_assert(Oled::kWidth  > 0, "VendorGfxOut<Oled>: Oled::kWidth must be positive");
+    static_assert(Oled::kHeight > 0, "VendorGfxOut<Oled>: Oled::kHeight must be positive");
     template<typename O>
     struct _Part : O {
       using Base             = O;
@@ -136,13 +155,35 @@ namespace oneMenu {
       static void drawRoundRect(Sz x, Sz y, Sz w, Sz r)  { Oled::drawRoundRect(x, y, w, r); }
       static constexpr Sz charWidth()   { return Oled::charWidth(); }
       static constexpr Sz lineSpacing() { return Oled::lineSpacing(); }
+      // Default area, straight from the real device — Oled::kWidth/kHeight
+      // are the actual panel size, not a stand-in a caller has to remember
+      // to retype correctly. Forwards to O::width()/height() first when
+      // something further down the chain already provides them (an explicit
+      // StaticArea<w,h>, the deliberate-smaller-sub-region case) — found on
+      // real ST7789 hardware: content genuinely isn't clipped to the
+      // declared area, so a StaticArea smaller than the real device left a
+      // dead zone no redraw could ever reach to clear. Matching this to the
+      // real device by default closes that class of bug at its root; an
+      // explicit StaticArea composed anywhere in the chain still overrides
+      // it exactly as before.
+      using IsArea = std::true_type;
+      static constexpr Sz width()  { if constexpr(HasArea<O>::value) return O::width();  else return Oled::kWidth;  }
+      static constexpr Sz height() { if constexpr(HasArea<O>::value) return O::height(); else return Oled::kHeight; }
+      static constexpr Area area() { return {width(), height()}; }
     };
     template<typename O> using Part = Raw::Part<DeviceCursor::template Part<_Part<O>>>;
   };
 
   // Ready-made OutDef for buffered, pixel-addressed vendor GFX devices.
-  // Same shape as OledDisplay, using VendorGfxOut instead of OledOut and a
-  // full-pixel-height StaticArea (not kHeight/8).
+  // Same shape as OledDisplay, using VendorGfxOut instead of OledOut. No
+  // trailing StaticArea here (unlike OledDisplay) — VendorGfxOut itself now
+  // defaults width()/height() to Oled::kWidth/kHeight (see its own comment
+  // above), so this alias no longer needs to repeat it. This also closes a
+  // latent footgun the old unconditional trailing StaticArea had: if a
+  // caller's Extra... already composed its own StaticArea, both it and this
+  // alias's own copy used to coexist in the chain with no guard; now there's
+  // only ever one real source — an Extra...-supplied StaticArea still wins
+  // exactly as before (VendorGfxOut checks HasArea<O> and forwards to it).
   template<typename Oled, typename GfxFmtT=GfxFmt<>, typename... Extra>
   using VendorGfxDisplay = OutDef<
     FullPrinter,
@@ -151,8 +192,7 @@ namespace oneMenu {
     Cursor<Oled::charWidth(), Oled::lineSpacing()>,
     VendorGfxOut<Oled>,
     Extra...,
-    StaticPos<0, 0>,
-    StaticArea<Oled::kWidth, Oled::kHeight>
+    StaticPos<0, 0>
   >;
 
 } // namespace oneMenu
