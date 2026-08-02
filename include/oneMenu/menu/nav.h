@@ -13,6 +13,21 @@
 
 namespace oneMenu {
 
+  // PartialDraw::Part<O> (out.h) marks partial-draw capability via a member typedef
+  // (HasPartialUpdate), inherited transitively once ANY component in the chain composes
+  // it as a base (Cursor, ANSIOut do) — NOT via the bare PartialDraw struct itself
+  // appearing anywhere in the real inheritance chain (nothing derives from it directly,
+  // only from PartialDraw::Part<O>, a distinct type per O). hapi::TagIs<PartialDraw>
+  // (is_base_of-based) can therefore never find it, on Out or Out::Types either —
+  // same root cause as ScrollBodyPrinter's tops[] bug, different failure shape (a
+  // marker only reachable via a nested Part<O>, not a directly-Types-listed component).
+  // Plain member lookup on the fully-assembled Out type sees inherited members
+  // regardless of nesting depth, so a simple SFINAE presence check works correctly here.
+  template<typename T, typename = void>
+  struct HasPartialUpdate : std::false_type {};
+  template<typename T>
+  struct HasPartialUpdate<T, std::void_t<typename T::HasPartialUpdate>> : std::true_type {};
+
   template<typename N> struct NavAPI:N {};
 
   template <typename API,typename... NN>
@@ -64,7 +79,7 @@ namespace oneMenu {
       // so "selective" redraw there just means silently dropping everything except the one
       // changed item instead of showing the whole menu. Gate to PartialDraw capability instead
       // of assuming every device supports it.
-      out.lockMode(hapi::TagIs<PartialDraw>::Check<Out>::value ? LockMode::Update : LockMode::None);
+      out.lockMode(HasPartialUpdate<Out>::value ? LockMode::Update : LockMode::None);
       return true;
     }
   };

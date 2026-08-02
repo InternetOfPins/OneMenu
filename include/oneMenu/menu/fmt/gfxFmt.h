@@ -169,7 +169,13 @@ namespace oneMenu {
       fmtStart(const Ctx& ctx) {
         bool wantBig = roleBig<tag>(ctx);
         Pos p = Base::obj().getPos();
-        Base::fillRect(Base::orgX(), p.y, Base::width(), wantBig?2:1);
+        // Clear from the current position forward, not from orgX: a row where
+        // more than one Label/Field/EditMode tag fires (e.g. ToggleFieldDef's
+        // label then its inline selected-value item) would otherwise have its
+        // later fillRect wipe out text the earlier one already printed on the
+        // same row (found on real ST7789 hardware — the toggle's own label
+        // was being erased by its own value's fillRect).
+        Base::fillRect(p.x, p.y, Base::width()-p.x, wantBig?2:1);
         Base::setBigFont(wantBig);
         Base::setPos(p);
         Base::template fmtStart<tag>(ctx);
@@ -249,6 +255,22 @@ namespace oneMenu {
             }
           }
         }
+      }
+
+      // Upfront full clear — same shape as ANSIFmt::fmtStart<Fmt::View> (no explicit
+      // lockMode check): both setInverted() and clear() are already Gate-gated (out.h,
+      // if(unlocked())), so this is a no-op unless lockMode()==None (a genuine full
+      // redraw) — no need to duplicate that check here. Ported from GfxColorFmt's
+      // identical fix (using setInverted instead of setColors — GfxFmt has no real
+      // color state) for parity between the two Fmt siblings.
+      template<Fmt tag>
+      std::enable_if_t<tag==Fmt::View>
+      fmtStart(const Ctx& ctx) {
+        if(!ctx.pad) {
+          Base::setInverted(inverted(typename P::View{}));
+          Base::clear();
+        }
+        Base::template fmtStart<tag>(ctx);
       }
 
       template<Fmt tag>

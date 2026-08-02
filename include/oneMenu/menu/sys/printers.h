@@ -217,6 +217,22 @@ namespace oneMenu {
         };
         lockMode(om);
         setPos({x,y});
+        // No explicit "did a scroll happen" bookkeeping needed — same shape as
+        // ANSIFmt::fmtStart<Fmt::View>'s unconditional clear() call: fillRect is already
+        // Gate-gated (out.h, if(unlocked())), so this is a no-op unless om ended up None,
+        // which is exactly "a scroll happened" here (Changed/Sync already returned above,
+        // and entering-as-None is handled by Fmt::View's own clear — this one only needs
+        // to additionally cover the body region for the scroll case Fmt::View can't see,
+        // see below). Full-screen Base::clear() is NOT safe here, though: TitlePrinter
+        // already ran, further out in the chain, before ScrollBodyPrinter ever got
+        // control — if this pass entered as Update (locked) and title's own content
+        // didn't change, its real pixels were never touched this frame, and nothing
+        // downstream re-prints it once we're here. Body-region only instead: (x,y) is
+        // exactly the top-left of the body (captured above, right after Title finished)
+        // — fillRect from there down to the bottom of the declared area, using whatever
+        // color is currently set (the last item measured above — setColors() isn't
+        // Gate-guarded, so it took real effect even during the Measure-mode walk).
+        Base::fillRect(x, y, Base::width()-x, Base::height()-y);
         bool r=Base::printMenu(i,ctx);
         return r;
       }

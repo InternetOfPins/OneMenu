@@ -386,18 +386,17 @@ namespace oneMenu {
         }
       }
 
-      // Upfront full clear — same role as ANSIFmt::fmtStart<View>'s clear(),
-      // gated on lockMode()==None: a plain full redraw wipes the WHOLE real
-      // device (VendorGfxOut::clear() -> Oled::clear() -> fillScreen(m_bg),
-      // not just the logical StaticArea) before anything draws, same as
-      // ANSI's terminal wipe. Skipped on Update/Measure/Sync/Changed passes
-      // — those are selective/read-only traversals (ItemPrinter's own
-      // partial-redraw logic, ScrollBodyPrinter's scroll-search dry run)
-      // that must NOT blow away content nothing else is about to repaint.
+      // Upfront full clear — same shape as ANSIFmt::fmtStart<View> (setColors
+      // then an unconditional clear() call, no explicit lockMode check): Gate
+      // already gates clear() itself (out.h, if(unlocked())), so this is a
+      // no-op unless lockMode()==None (a genuine full redraw) — no need to
+      // duplicate that check here. Wipes the WHOLE real device
+      // (VendorGfxOut::clear() -> Oled::clear() -> fillScreen(m_bg), not just
+      // the logical StaticArea) before anything draws.
       template<Fmt tag>
       std::enable_if_t<tag==Fmt::View>
       fmtStart(const Ctx& ctx) {
-        if(!ctx.pad && Base::lockMode()==LockMode::None) {
+        if(!ctx.pad) {
           auto c = unwrap(typename P::View{});
           Base::setColors(c.fg, c.bg);
           Base::clear();
