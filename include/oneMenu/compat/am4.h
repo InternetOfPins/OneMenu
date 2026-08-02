@@ -723,7 +723,7 @@ namespace Menu {
       ::oneMenu::AsLabel<::oneData::Text>, \
       ::oneMenu::NumField< \
           ::oneData::StaticNumRange<::oneData::StaticRange<(lo), (hi)>>, \
-          ::oneMenu::AsField<::oneData::Watch<::oneData::DataRef<&(var)>>> \
+          ::oneMenu::AsField<::oneData::Dirty<::oneData::DataRef<&(var)>>> \
       >, \
       ::oneMenu::AsUnit<::oneData::Text>, \
       ::oneMenu::EventCall<(::oneMenu::EventMask)(mask), fn> \

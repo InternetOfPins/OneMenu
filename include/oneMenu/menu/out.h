@@ -257,19 +257,42 @@ namespace oneMenu {
   // evaluates every member unconditionally (not short-circuited by ||) —
   // "poll everything" semantics, matching how a compile-time OutDef<KK...>
   // chain already fuses multiple physical sources, and OutList's own.
+  // Two-phase: draw every device first (drawAll), THEN sync every device (syncAll) — not
+  // draw+sync device 1 to completion before device 2 even starts, which is what a single
+  // per-device nav.doOutput(*p) call, repeated down the pack, used to do here. sync() mutates
+  // SHARED nav-wide state (TreeNav::Part's own m_level/m_navMode/m_prevSel, and any item's own
+  // Watch<>/Dirty<>-tracked field value) — not per-device — so the old interleaved order let
+  // device 1's sync() collapse the "did anything change" signal before device 2 ever got to
+  // check it, silently dropping device 2's redraw of the very same change (whichever device
+  // wasn't first in the pack would quietly fall behind). Mirrors upstream AM4's own
+  // outputsList::printMenu/clearChanged split exactly (two separate loops there too — draw
+  // every device against the still-dirty shared flag, only clear once everyone's had a look).
+  // drawAll/syncAll recurse into drawAll/syncAll at each pack level (NOT doOutput into
+  // doOutput) — that's what actually keeps every device's draw phase ahead of every device's
+  // sync phase. For N=1 this reduces to draw-then-sync for that one device, identical to
+  // nav.doOutput()'s own single-device behavior — nothing observable changes for that case.
   template<typename... Outs> struct OutGroup {
-    template<typename Nav> bool doOutput(Nav&) { return false; }
+    template<typename Nav> bool drawAll(Nav&) { return false; }
+    template<typename Nav> void syncAll(Nav&) {}
+    template<typename Nav> bool doOutput(Nav& nav) { bool r=drawAll(nav); syncAll(nav); return r; }
   };
   template<typename O, typename... Outs>
   struct OutGroup<O, Outs...> : OutGroup<Outs...> {
     O* p;
     OutGroup(O* p_, Outs*... rest) : OutGroup<Outs...>(rest...), p(p_) {}
     template<typename Nav>
-    bool doOutput(Nav& nav) {
-      bool a = nav.doOutput(*p);
-      bool b = OutGroup<Outs...>::doOutput(nav);
+    bool drawAll(Nav& nav) {
+      bool a = nav.drawOutput(*p);
+      bool b = OutGroup<Outs...>::drawAll(nav);
       return a || b;
     }
+    template<typename Nav>
+    void syncAll(Nav& nav) {
+      nav.syncOutput(*p);
+      OutGroup<Outs...>::syncAll(nav);
+    }
+    template<typename Nav>
+    bool doOutput(Nav& nav) { bool r=drawAll(nav); syncAll(nav); return r; }
   };
   template<typename... Outs> OutGroup(Outs*...) -> OutGroup<Outs...>;
 

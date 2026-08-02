@@ -49,8 +49,22 @@ namespace oneMenu {
     // *why* it redrew (e.g. gating a secondary output device on position vs. value changes)
     // should check Base::changed() themselves before calling this, since sync() below clears
     // the flags changed() reads.
+    //
+    // Split into drawOutput()/syncOutput() (doOutput() below is just the two called back to
+    // back) so a MULTI-device driver (OutGroup, out.h) can draw every device first, then sync
+    // every device — not draw+sync device 1 to completion before device 2 even starts. sync()
+    // mutates SHARED, nav-wide state (m_level/m_navMode/m_prevSel below, and any item's own
+    // Watch<>/Dirty<>-tracked field value) — not per-device — so interleaving draw+sync per
+    // device lets device 1's sync() collapse the "did anything change" signal before device 2
+    // ever gets to see it, silently dropping device 2's redraw of the very same change. Mirrors
+    // upstream AM4's own outputsList::printMenu/clearChanged split (real AM4 source, confirmed
+    // unchanged from its first release through its last: printMenu draws every device against
+    // the still-dirty shared flag in one loop, clearChanged only runs — in a separate, later
+    // loop — once every device has had its own chance to see it dirty). For a single device
+    // (doOutput() below, or an OutGroup of one) this split is exactly today's behavior, just
+    // spelled as two calls instead of one — nothing observable changes for the common case.
     template<typename Out>
-    bool doOutput(Out& out) {
+    bool drawOutput(Out& out) {
       if(!Base::changed(out)) return false;
       // A level change (open/close a submenu — Select/Choose entering their choice list,
       // or Esc/close backing out) swaps in a whole different, unrelated set of items at the
@@ -58,12 +72,19 @@ namespace oneMenu {
       // the old or new *selection index* (see ItemPrinter::printItem) — it has no idea the
       // page's entire content changed, so it keeps skipping/leaving stale rows from the other
       // level. changed() itself must stay a pure query (see its own comment), so the forced
-      // full redraw belongs here, the actual output-driving step.
+      // full redraw belongs here, the actual output-driving step. levelChanged() is a pure
+      // read (m_level.changed()) — untouched by sync() until syncOutput() below, so this
+      // still correctly fires for every device in a multi-device draw phase, not just the
+      // first one to run.
       if(Base::levelChanged()) {
         out.lockMode(LockMode::None);
         out.clear();
       }
       Base::printTo(out);
+      return true;
+    }
+    template<typename Out>
+    void syncOutput(Out& out) {
       Base::sync(out);
       // printTo (via ScrollBodyPrinter) may have forced lockMode to None for a scroll — nothing
       // downstream restores it, and sync(out) itself just puts back whatever lockMode was at its
@@ -80,8 +101,9 @@ namespace oneMenu {
       // changed item instead of showing the whole menu. Gate to PartialDraw capability instead
       // of assuming every device supports it.
       out.lockMode(HasPartialUpdate<Out>::value ? LockMode::Update : LockMode::None);
-      return true;
     }
+    template<typename Out>
+    bool doOutput(Out& out) { bool r=drawOutput(out); syncOutput(out); return r; }
   };
 
   /// @brief compose a navigation chain from nav components (TreeNav, Root, IndexGo, etc.)
