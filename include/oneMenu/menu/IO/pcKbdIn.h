@@ -65,6 +65,17 @@ namespace oneMenu {
         } else if (esc == 2) {
           esc = 0;
           switch (k) {
+            // NOT a straight ANSI-CSI-letter-to-Cmd-name mapping: Cmd::Up/Down
+            // are INDEX direction (Up increments, Down decrements — see the
+            // comment on oneMenu::Cmd, sys/enums.h), not visual arrow direction.
+            // A real down-arrow (ESC[B, moves the cursor to a LATER/higher-
+            // index item) therefore has to fire Cmd::Up (increment) to move
+            // down the list — this mapping is deliberate, already correct.
+            // Confirmed by tracing a real down-arrow press through doNav()
+            // natively: swapping this to the visually-obvious A=Up/B=Down
+            // made a down-arrow press on sel=0 DECREMENT and wrap straight to
+            // the last item instead of advancing to item 1 — a self-inflicted
+            // regression from assuming Cmd names meant visual directions.
             case 'A': return {Cmd::Down};
             case 'B': return {Cmd::Up};
             case 'C': return {Cmd::Left};

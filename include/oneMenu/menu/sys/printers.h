@@ -86,10 +86,18 @@ namespace oneMenu {
 
 }; // namespace oneMenu (reopened below)
 
-// Traverse specialization: MenuPrinter<OO...> is not a hapi::Chain, so its pack is
-// otherwise opaque to hapi::query/Exists — needed so tags nested inside it (e.g.
-// ScrollBodyPrinter's aScrollBody, buried via MenuPrinter<TitlePrinter,ScrollBodyPrinter,...>)
-// are still found by a flat query<Q, SomeOutDef::Types> walk.
+// hapi::Traverse only auto-recurses a real Chain<OO...> — oneMenu::MenuPrinter<OO...>
+// (above) is a distinct wrapping struct, opaque to any hapi::TagIs/query scan unless
+// it gets this same treatment explicitly. Without it, a flat query<Q, SomeOutDef::Types>
+// walk can never see a tag (e.g. ScrollBodyPrinter's aScrollBody) buried inside
+// MenuPrinter<TitlePrinter,ScrollBodyPrinter,ItemsPrinter>'s own template args
+// (ScrollPrinter, below) — confirmed via a real SIGSEGV: nav.h's printTo() gates
+// allocating a real tops[] array on exactly that check. This specialization alone
+// wasn't sufficient on its own, though — nav.h's own check was ALSO passing the bare
+// Out (an opaque OutDef<Chain<...>> wrapper) instead of Out::Types, so Traverse never
+// even got as far as this specialization; see nav.h's printTo() for that half of the
+// fix, plus TagIs<...>::Check<...>::value needing hapi::query<...> instead (Check<> on
+// a multi-element chain yields a Chain-of-results tree, not a plain bool).
 namespace hapi {
   template<typename Op, typename... OO>
   struct Traverse<Op, oneMenu::MenuPrinter<OO...>> {
@@ -156,6 +164,21 @@ namespace oneMenu {
       using Base::free;
       using Base::setPos;
 
+      // Was: "did the LAST item the walk visited (ci-1) overflow" — blamed
+      // whichever item happened to be positioned last for ANY cumulative
+      // overflow, even when an EARLIER item in the window was the real space
+      // hog. Concretely: window [multiline, opt1, opt2] slightly overflows
+      // the area because multiline (3 lines) is tall — while opt1 was
+      // selected this was accepted (opt1 isn't ci-1, so the old check never
+      // fired), but the instant selection moved to opt2 (now == ci-1), the
+      // SAME window got blamed on opt2 and triggered an unnecessary scroll —
+      // found on real ST7789 hardware, selecting the last visible item
+      // scrolled even though that item had visibly ample room below it.
+      // Track whether the SELECTED item specifically (not whatever's last)
+      // stayed within bounds — set from printItem below, right after
+      // whichever item is ctx.sel() actually prints.
+      bool m_selFits{false};
+
       template<typename I>
       bool printMenu(I& i,Ctx& ctx) {
         if(i.size()==0) return false;
@@ -174,22 +197,20 @@ namespace oneMenu {
           om=LockMode::None;//scroll => full redraw
         } else for(;;) {
           lockMode(LockMode::Measure);
+          m_selFits=false;
           // measure body only — fmtStop<Footer> emits nl() which would corrupt free().y
           Base::template fmtStart<Fmt::Body>(ctx);
           i.printBody(Base::obj(),ctx);
           Base::template fmtStop<Fmt::Body>(ctx);
-          Sz f=free().y;
           Sz ci=ctx.idx;
           ctx.idx=0;
           // Bound by the last item: top can never usefully scroll past it. Without this,
-          // a page that always measures as "the selected item didn't fully fit" (f<0 at
-          // ci-1) never breaks on its own — e.g. a FullScreen item deliberately consumes
-          // the *entire* remaining page, so free().y reads negative (fmtStop<Body> adds
-          // its own nl() on top of FullScreen's own padding) for every top, permanently
-          // vetoing the "fits" check below and spinning forever. Once top reaches the
-          // last item there's nowhere further to scroll, so stop regardless — this is
-          // also the exactly-correct landing spot for a FullScreen page (top==sel).
-          if((ctx.sel(ctx.pAt)<ci&&(!(ctx.sel(ctx.pAt)==(ci-1)&&f<0)))||ctx.top()>=i.size()-1) break;
+          // a page that always measures as "the selected item didn't fully fit" never
+          // breaks on its own — e.g. a FullScreen item deliberately consumes the *entire*
+          // remaining page. Once top reaches the last item there's nowhere further to
+          // scroll, so stop regardless — this is also the exactly-correct landing spot
+          // for a FullScreen page (top==sel).
+          if((ctx.sel(ctx.pAt)<ci&&m_selFits)||ctx.top()>=i.size()-1) break;
           setPos(Pos{x,y});
           ctx.top(ctx.top()+1);//--scroll down
           om=LockMode::None;//scroll => full redraw
@@ -209,7 +230,18 @@ namespace oneMenu {
         // so visible items' changed()/sync() is actually reached.
         LockMode m=Base::lockMode();
         if(m==LockMode::Changed||m==LockMode::Sync) return Base::printItem(i,ctx);
-        return Base::free().y>0?Base::printItem(i,ctx):false;
+        bool isSel=ctx.idx==ctx.sel(ctx.pAt);
+        // attempted, not r: Base::printItem()'s return is "did this item's content
+        // change" (ItemBodyPrinter ORs in i.changed()), not "did it fit" — ANDing
+        // m_selFits against r made it false almost unconditionally, found via a
+        // native trace showing r=false on every single item every single pass.
+        bool attempted=Base::free().y>0;
+        bool r=attempted?Base::printItem(i,ctx):false;
+        // Right after THIS item (not whatever prints last) — did it, specifically, stay
+        // in bounds? free() may legitimately be tight/negative afterward if a LATER
+        // item also gets drawn and overflows; that's not this item's fault.
+        if(isSel) m_selFits=attempted&&Base::free().y>=0;
+        return r;
       }
     };
   };

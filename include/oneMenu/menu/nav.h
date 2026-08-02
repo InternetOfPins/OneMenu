@@ -332,7 +332,13 @@ namespace oneMenu {
         // the *logical* position (m_at) already is — useless when m_at itself is wrong.
         if constexpr(hapi::query<IsCursor,typename Out::Types>) out.setPos({out.orgX(),out.orgY()});
         ///track scroll top for each level, this is output device specific
-        if constexpr(hapi::TagIs<ScrollBodyPrinter>::Check<Out>::value) {
+        // hapi::query<...> (Any<>-folded, single bool), not TagIs<...>::Check<...>::value
+        // directly — Check<> on a real multi-element chain yields a nested Chain-of-
+        // is_base_of-results tree (no ::value), not a plain bool; query<> is what
+        // actually reduces it, same as the IsCursor check just above. Also Out::Types,
+        // not bare Out — Out itself is OutDef<Chain<...>>, an opaque wrapper Traverse
+        // can't descend into directly (matches the IsCursor check's own pattern).
+        if constexpr(hapi::query<hapi::TagIs<ScrollBodyPrinter>,typename Out::Types>) {
           static Sz tops[root().depth()]{0};
           Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
           bool r=root().printMenu(out,ctx);
