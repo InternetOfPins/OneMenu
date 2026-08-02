@@ -82,7 +82,8 @@ ItemDef<AsLabel<StaticText<&text::power>>,     // "Power"
 
 | Component | What it does |
 |---|---|
-| `Watch<T>` | Wraps `T`, signals `changed()` when value changes |
+| `Watch<T>` | Wraps `T`, signals `changed()` when value changes (value-diff) |
+| `Dirty<T>` | Wraps `T`, signals `changed()` after any `set()` (write-flag, not value-diff — matches AM4's `prompt::dirty`; used by `compat/am4.h`'s `FIELD()` macro) |
 | `Default<T, V>` | Wraps `T`, sets initial value to `V` |
 | `Int` | `Data<int>` — integer storage |
 | `Bool` | `Data<bool>` — bool storage |

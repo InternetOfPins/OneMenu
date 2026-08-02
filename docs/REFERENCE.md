@@ -135,7 +135,8 @@ if (encoder.available()) {
 | `Data<T>` | Runtime mutable variable |
 | `StaticText<"...">` | Compile-time constant string |
 | `StaticNumRange<Min, Max>` | Numeric range constraint |
-| `Watch<T>` | Observable variable (tracks changes) |
+| `Watch<T>` | Observable variable (tracks changes, value-diff) |
+| `Dirty<T>` | Observable variable (tracks changes, write-flag — matches AM4's `prompt::dirty`) |
 | `Default<Default, Data>` | Data with initial value |
 
 **Usage**:
