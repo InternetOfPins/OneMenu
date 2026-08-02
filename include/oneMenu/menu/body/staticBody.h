@@ -42,9 +42,7 @@ namespace oneMenu {
     constexpr StaticBody(I&& o, II&&... oo) 
       : head{std::forward<I>(o)}, tail{std::forward<II>(oo)...} {}
 
-    template<typename... II>
-    constexpr StaticBody(II&&... oo) 
-      : head{}, tail{std::forward<II>(oo)...} {}
+    constexpr StaticBody() {}
 
   template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
     {return i?((Tail&)tail).printMenu(out,ctx,i-1):head.printMenu(out,ctx);}

@@ -17,6 +17,22 @@
   #include <chips/avr/avrDevice.h>
   #include <oneMenu/menu/IO/arduino/serialOut.h>
   #include <oneMenu/menu/IO/arduino/serialIn.h>
+  #ifdef IOP_GFX
+    // Optional alternative output target (build_flags -D IOP_GFX, [env:unoGfx]):
+    // real Adafruit_ST7789 SPI TFT in place of plain Serial/ANSI — same proven
+    // stack as OneIO/.RnD/adaGfxVendorSt7789 (hardware-verified there). Mutually
+    // exclusive with the default ANSI/serial output, not a second parallel one —
+    // every GFX-only block below is guarded the same way this file already
+    // guards ARDUINO/RP2040/arm/native, just one more axis on top of __AVR__.
+    #include <SPI.h>
+    #include <Adafruit_GFX.h>
+    #include <Adafruit_ST7789.h>
+    #include <Fonts/FreeSansBold12pt7b.h>
+    #include <oneIO/display/adaGfxVendor.h>
+    #include <oneMenu/menu/IO/IOP/oledOut.h>
+    #include <oneMenu/menu/fmt/gfxColorFmt.h>
+    #include <oneMenu/menu/fmt/vendorFont.h>
+  #endif
 #elif defined(ARDUINO_ARCH_RP2040)
   #include <oneChip/clock.h>
   #include <oneMenu/menu/IO/arduino/serialOut.h>
@@ -75,6 +91,51 @@ using oneMenu::Action;
 #endif
 // ─────────────────────────────────────────────────────────────────────────────
 
+#if defined(__AVR__) && defined(IOP_GFX)
+// ── GFX device (optional) ───────────────────────────────────────────────────
+// Pins/panel/font match OneIO/.RnD/adaGfxVendorSt7789 exactly (hardware-
+// verified there) — hardware SPI, board default MISO/MOSI/SCK.
+#define TFT_CS  10
+#define TFT_RST  9
+#define TFT_DC   8
+Adafruit_ST7789 gfx(TFT_CS, TFT_DC, TFT_RST);
+
+// 12x16 pixel cells (6x8 base font at setTextSize(2) = 12x16 glyph, exact).
+using Oled = oneIO::display::AdaGfxVendor</*W*/240, /*H*/320, /*CharW*/12, /*CharH*/16,
+                                            /*Fg*/0xFFFF, /*Bg*/0x0000>;
+Sz gfxLineHeight() { return (Sz)Oled::lineHeight(); }
+
+// ST77XX_* vendor color constants (Adafruit_ST7789.h), not local BLACK/WHITE/...
+// redefinitions: this file already unconditionally includes ansiOut.h (hence
+// ansiCodes.h) above for the default ANSI output, whose own BLACK/WHITE/etc.
+// are unnamespaced ints (see feedback_ansi_codes_global_namespace note) — a
+// same-named local RGB565 constexpr here would collide/redefine.
+using MyColors = typename Color<uint16_t>::template Table<
+  /*Title*/   typename Color<uint16_t>::template Colors<ST77XX_BLUE,ST77XX_WHITE>,
+  /*Default*/ typename Color<uint16_t>::template Colors<ST77XX_WHITE,ST77XX_BLUE>,
+  /*View*/    typename Color<uint16_t>::template Colors<ST77XX_WHITE,ST77XX_BLUE>,
+  /*Nav*/ typename Color<uint16_t>::template Nav<
+    /*Enabled*/ typename Color<uint16_t>::template Enabled<
+      typename Color<uint16_t>::template Item<
+        /*Body*/     typename Color<uint16_t>::template Colors<ST77XX_WHITE,ST77XX_BLUE>,
+        /*Field*/    typename Color<uint16_t>::template Colors<ST77XX_GREEN,ST77XX_WHITE>,
+        /*EditMode*/ typename Color<uint16_t>::template Colors<ST77XX_BLUE,ST77XX_WHITE>
+      >,
+      /*Selected*/ typename Color<uint16_t>::template Colors<ST77XX_WHITE,ST77XX_GREEN>
+    >,
+    /*Disabled*/ typename Color<uint16_t>::template Enabled<
+      typename Color<uint16_t>::template Item<
+        /*Body*/     typename Color<uint16_t>::template Colors<ST77XX_BLACK,ST77XX_BLUE>,
+        /*Field*/    typename Color<uint16_t>::template Colors<ST77XX_BLACK,ST77XX_WHITE>,
+        /*EditMode*/ typename Color<uint16_t>::template Colors<ST77XX_BLUE,ST77XX_WHITE>
+      >,
+      /*Selected*/ typename Color<uint16_t>::template Colors<ST77XX_BLACK,ST77XX_GREEN>
+    >
+  >
+>;
+#endif
+// ─────────────────────────────────────────────────────────────────────────────
+
 bool running = true;
 char promptMsg[48]{};
 
@@ -89,6 +150,47 @@ InDef<
   PCKbd
 > in;
 
+#if defined(__AVR__) && defined(IOP_GFX)
+// Same chain shape as OneIO/.RnD/adaGfxVendorSt7789's TftOut (hardware-
+// verified there): ScrollPrinter + GFX-aware fmt/ctrl/wrap layers + Cursor
+// (real partial-update capability, HasPartialUpdate — see nav.h) + Gate +
+// VendorGfxOut<Oled> + per-role ColorTable, instead of ANSIFmt+ANSIOut+
+// Serial/ConsoleOut. Mutually exclusive with the ANSI branch below, not a
+// second parallel output.
+OutDef<
+  ScrollPrinter,
+  FontSwitch<&FreeSansBold12pt7b>,
+  GfxColorFmt<2,0,/*BigTitle*/false>,
+  DataParser<>,
+  GfxCtrlChars,
+  GfxTextWrap,
+  Cursor<Oled::charWidth(), Oled::lineSpacing(), nullptr, &gfxLineHeight>,
+  Gate,
+  VendorGfxOut<Oled>,
+  ColorTable<MyColors>,
+  StaticPos<0, 0>,
+  StaticArea<Oled::kWidth, Oled::kHeight>,
+  LineSpacing<1,5>
+> out;
+
+// prompt overlay — inset over out, same fmt/color chain, FullPrinter (no
+// scroll needed for a single "OK" item)
+OutDef<
+  FullPrinter,
+  FontSwitch<&FreeSansBold12pt7b>,
+  GfxColorFmt<2,0,false>,
+  DataParser<>,
+  GfxCtrlChars,
+  GfxTextWrap,
+  Cursor<Oled::charWidth(), Oled::lineSpacing(), nullptr, &gfxLineHeight>,
+  Gate,
+  VendorGfxOut<Oled>,
+  ColorTable<MyColors>,
+  StaticPos<decltype(out)::orgX()+8, decltype(out)::orgY()+40>,
+  StaticArea<decltype(out)::width()-16, 60>,
+  LineSpacing<1,5>
+> promptOut;
+#else
 OutDef<
   ScrollPrinter,
   ANSIFmt,
@@ -125,6 +227,7 @@ OutDef<
   StaticPos<decltype(out)::orgX()+4, decltype(out)::orgY()+2>,
   StaticArea<decltype(out)::width()-8, 4>
 > promptOut;
+#endif
 
 // ── Text strings ──────────────────────────────────────────────────────────────
 namespace text {
@@ -277,19 +380,31 @@ auto mainMenu = menuDef<WrapNav>(
     menuDef<WrapNav>(
       ItemDef<StaticText<&text::settings>>{},
       staticBody(
-        ItemDef<
-          AsEditMode<>,
-          AsLabel<Text>,
-          EditField,
-          ParentDraw,
-          AsField<TextField<15>>
-        >{"Name"},
-        Power{55},
-        ToggleDemo{},
-        SelectDemo{},
-        ChooseDemo{},
-        dateField("date"),
-        Back{}
+        // GFX: trimmed field set — Uno/Nano's 32KB flash can't fit the
+        // Adafruit_GFX+Adafruit_ST7789 vendor stack AND every field type at
+        // once (measured: full set overflowed by ~8.4KB). Power+ToggleDemo
+        // still exercise real field editing (NumField live-edit, inline
+        // cycling) through the GFX chain; TextField/SelectDemo/ChooseDemo/
+        // dateField are ANSI/serial-only here, not dropped from the library.
+        #ifdef IOP_GFX
+          Power{55},
+          ToggleDemo{},
+          Back{}
+        #else
+          ItemDef<
+            AsEditMode<>,
+            AsLabel<Text>,
+            EditField,
+            ParentDraw,
+            AsField<TextField<15>>
+          >{"Name"},
+          Power{55},
+          ToggleDemo{},
+          SelectDemo{},
+          ChooseDemo{},
+          dateField("date"),
+          Back{}
+        #endif
       )
     ),
     Quit{}
@@ -337,7 +452,16 @@ void showIdle();  // forward
 bool mainRun() {
   bool input = nav.in(in);
   if (input) idleTimer.reset();
-  if (nav.changed(out)) { nav.printTo(out); nav.sync(out); }
+  #if defined(__AVR__) && defined(IOP_GFX)
+    // doOutput(), not the manual changed()/printTo()/sync() below: it forces a
+    // full clear+redraw on nav.levelChanged() (entering/leaving Settings) and
+    // restores lockMode to Update afterward — without it, a GFX partial-update
+    // chain leaves stale glyphs from the old item set showing through the new
+    // one (see OneIO/.RnD/adaGfxVendorSt7789's own loop(), same fix).
+    nav.doOutput(out);
+  #else
+    if (nav.changed(out)) { nav.printTo(out); nav.sync(out); }
+  #endif
   if (idleTimer) { idleTimer.reset(); showIdle(); }
   return running;
 }
@@ -354,10 +478,14 @@ bool idleRun() {
 
 bool promptRun() {
   promptNav.in(in);
-  if (promptNav.changed(promptOut)) {
-    promptNav.printTo(promptOut);
-    promptNav.sync(promptOut);
-  }
+  #if defined(__AVR__) && defined(IOP_GFX)
+    promptNav.doOutput(promptOut);
+  #else
+    if (promptNav.changed(promptOut)) {
+      promptNav.printTo(promptOut);
+      promptNav.sync(promptOut);
+    }
+  #endif
   return running;
 }
 
@@ -372,7 +500,11 @@ void showPrompt(const char* msg) {
   strncpy(promptMsg, msg, sizeof(promptMsg)-1);
   Run::idleOn(promptRun);
   promptOut.lockMode(LockMode::None);
-  promptOut.setColors(BLACK, WHITE);
+  // GFX: per-role coloring comes from ColorTable<MyColors> (composed into the
+  // chain itself), not a runtime setColors() override — ANSI-only call.
+  #if !(defined(__AVR__) && defined(IOP_GFX))
+    promptOut.setColors(BLACK, WHITE);
+  #endif
   promptOut.clear();
   promptNav.printTo(promptOut);
 }
@@ -402,12 +534,41 @@ void setup() {
     Serial.begin(115200);
     while (!Serial) delay(10);
   #endif
+  #if defined(__AVR__) && defined(IOP_GFX)
+    // Same init sequence as OneIO/.RnD/adaGfxVendorSt7789's setup() —
+    // hardware-verified there (MADCTL fix + invertDisplay(false) needed for
+    // correct colors on this cheap ST7789 clone).
+    gfx.setSPISpeed(40000000);
+    gfx.init(240, 320);
+    gfx.invertDisplay(false);
+    gfx.setRotation(0);
+    { uint8_t madctl = ST77XX_MADCTL_MX | 0x08;
+      gfx.sendCommand(ST77XX_MADCTL, &madctl, 1); }
+    delay(50);
+    gfx.setTextSize(2);
+    Oled::begin(gfx);
+    Oled::primeBaseFontHeight();          // built-in font active by default
+    Oled::setFont(&FreeSansBold12pt7b);
+    Oled::primeCustomFontHeight();
+    Oled::setFont(nullptr);               // restore built-in before real rendering
+  #endif
   out.lockMode(LockMode::None);
-  out.setColors(WHITE, BLACK);
+  // GFX: per-role coloring comes from ColorTable<MyColors> — ANSI-only call.
+  #if !(defined(__AVR__) && defined(IOP_GFX))
+    out.setColors(WHITE, BLACK);
+  #endif
   out.clear();
   // Run::alternative already starts at mainRun (RunLoop's own static init) —
   // no explicit "activeRun=mainRun" needed here anymore.
   nav.printTo(out);
+  #if defined(__AVR__) && defined(IOP_GFX)
+    // sync(Out&) restores lockMode to whatever it was at entry (still None) —
+    // without this, mainRun()'s first doOutput() call starts at None too, so
+    // only THAT call's own end-of-doOutput reset would engage Update; explicit
+    // here for the very first frame, same reasoning as the .RnD example.
+    nav.sync(out);
+    out.lockMode(LockMode::Update);
+  #endif
 }
 
 #ifdef ARDUINO

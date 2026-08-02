@@ -31,7 +31,7 @@ namespace oneMenu {
       }
 
       void clear() {
-        fill();
+        fillRect(0,0,Base::width(),Base::height());
         setPos({0,0});
       }
 
@@ -47,6 +47,21 @@ namespace oneMenu {
         setBackgroundColor(b);
       }
 
+      // (x,y,w,h) — same convention as every GFX fillRect (adaGfxVendor.h,
+      // oledOut.h: x,y,w,h,+optional color/byte, ignored here). Was a private,
+      // (x1,y1,x2,y2)-shaped `fill()` — slightly different signature but
+      // compatible — renamed+widened to public so ScrollBodyPrinter's own
+      // unconditional Base::fillRect(...) call (printers.h) resolves on a
+      // plain ANSI chain too, not just GFX devices. Still beta: character-by-
+      // character space-fill via cursor addressing, not a real hardware rect
+      // fill — fine for a terminal, just don't expect GFX-speed.
+      void fillRect(Sz x,Sz y,Sz w,Sz h,char ch=' ') {
+        for (Sz row = y; row < y+h; row++) {
+          setPos({x,row});
+          for (Sz col = x; col < x+w; col++) Base::_put(ch);
+        }
+      }
+
     private:
       void esc(){Base::_put((char)ESCAPE);}
       void preamble() {esc();Base::_put((char)BRACE);}
@@ -54,13 +69,6 @@ namespace oneMenu {
       void setAttribute(int a){pnv(a,'m');}
       void setBackgroundColor(int color) {setAttribute(color + 40);}
       void setForegroundColor(int color) {setAttribute(color + 30);}
-      void fill(int x1, int y1, int x2, int y2,char ch=' ') {
-        for (int y = y1; y < y2; y++) {
-          setPos({x1,y});
-          for (int x = x1; x < x2; x++) Base::_put(ch);
-        }
-      }
-      void fill(char ch=' ') {fill(0,0,Base::width(),Base::height(),ch);}
     };
     template<typename O> using Part=typename DeviceCursor::Part<_Part<O>>;
   };

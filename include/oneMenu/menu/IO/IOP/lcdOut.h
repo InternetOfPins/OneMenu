@@ -30,6 +30,18 @@ namespace oneMenu {
       static void nl()                     { LCD::setCursor(0, ++_row); O::nl(); }
       static void setPos(const Pos& p)     { _row = p.y; LCD::setCursor(p.x, p.y); }
       static void clear()                  { LCD::clear(); _row = 0; O::clear(); }
+      // Character-cell fill (x,y,w,h in cols/rows here, not pixels — same
+      // convention every fillRect uses, out.h/adaGfxVendor.h) — ScrollPrinter's
+      // default Printer (NoTitleScrollPrinter, below) calls this unconditionally
+      // (ScrollBodyPrinter::printMenu, printers.h) to repaint the body region
+      // after a scroll; without it, ANY LcdOut<Lcd> using the default Printer
+      // failed to compile at all — same class of gap ANSIOut had (ansiOut.h).
+      static void fillRect(Sz x,Sz y,Sz w,Sz h,char ch=' ') {
+        for(Sz row=y; row<y+h; row++) {
+          LCD::setCursor(x,row);
+          for(Sz col=x; col<x+w; col++) LCD::print(ch);
+        }
+      }
       static constexpr void flush()        {}
       static constexpr Sz charWidth()      { return 1; }
       static constexpr Sz lineSpacing()    { return 1; }
