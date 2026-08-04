@@ -191,6 +191,14 @@ namespace oneMenu {
   struct IItemDef:IItem, ItemDefC<hapi::CRTP<IItemDef<II...>>,II...> {
     using Base=ItemDefC<hapi::CRTP<IItemDef<II...>>,II...>;
     using Base::Base;
+    // Deliberately virtual (runtime-polymorphic dispatch, via the IItem base
+    // above) -- this is NOT an HLS synthesis target: no HLS backend can
+    // synthesize a real vtable call (confirmed: Bambu segfaults on it, see
+    // OneOutput/.RnD/hls/FINDINGS.md -- same mechanism applies here). No
+    // static_assert here -- std::is_polymorphic_v<IItemDef> on the injected
+    // class name hits "incomplete type" this early in the class body, and
+    // the property can't silently regress anyway: it's baked into the
+    // IItem base right above.
     // IItem also declares a nav() template (forwarding to the virtual
     // _nav/_kbdNav, for callers holding only an IItem&/IItem*) — ambiguous
     // multiple-inheritance name lookup otherwise when nav<>() is called on

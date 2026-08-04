@@ -170,6 +170,14 @@ namespace oneMenu {
   struct INavDef:INav,DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...> {
     using Base=DefinedNav<NavAPI<hapi::CRTP<INavDef<II...>>>,II...>;
     using Base::Base;
+    // Deliberately virtual (runtime-polymorphic dispatch, via the INav base
+    // above) -- this is NOT an HLS synthesis target: no HLS backend can
+    // synthesize a real vtable call (confirmed: Bambu segfaults on it, see
+    // OneOutput/.RnD/hls/FINDINGS.md -- same mechanism applies here). No
+    // static_assert here -- std::is_polymorphic_v<INavDef> on the injected
+    // class name hits "incomplete type" this early in the class body, and
+    // the property can't silently regress anyway: it's baked into the
+    // INav base right above.
     // navMode() is overloaded on Base (TreeNav::Part: a getter AND a
     // setter, navMode(NavMode)) — declaring the getter override below would
     // otherwise hide the whole overload set by name (ordinary C++ name

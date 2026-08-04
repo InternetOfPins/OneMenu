@@ -112,6 +112,14 @@ namespace oneMenu {
   template<typename... OO>
   struct IOutDef:IOut,OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>{
     using Base=OutImpl<OutAPI<hapi::CRTP<IOutDef<OO...>>>,Resume,OO...>;
+    // Deliberately virtual (runtime-polymorphic dispatch, via the IOut base
+    // above) -- unlike OutDef<>, this is NOT an HLS synthesis target: no HLS
+    // backend can synthesize a real vtable call (confirmed: Bambu segfaults
+    // on it, see OneOutput/.RnD/hls/FINDINGS.md -- same mechanism applies
+    // here). No static_assert here -- std::is_polymorphic_v<IOutDef> on the
+    // injected class name hits "incomplete type" this early in the class
+    // body, and the property can't silently regress anyway: it's baked
+    // into the IOut base right above.
     // Disambiguate: IOutDef inherits Types from both IOut (Chain<>, deliberate
     // — see IOut's own doc comment) and Base (the real chain). Without this,
     // any code that queries Out::Types through an IOutDef& (not just a plain
