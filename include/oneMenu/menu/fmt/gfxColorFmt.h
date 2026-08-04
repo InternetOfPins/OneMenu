@@ -329,7 +329,20 @@ namespace oneMenu {
         // hardware, the selection highlight was a single barely-visible pixel line.
         Sz h = bigItem?Base::lineHeight()*2:Base::lineHeight();
         Sz spc = lineSpc();
-        Base::fillRect(Base::orgX(), m_itemPos.y, Base::width(), spc+h);
+        // ctx.hasBox (Liquid<x,y,BoxSize<w,h>>, item.h): a Liquid-positioned button
+        // doesn't occupy a normal full-width row — its content is drawn elsewhere via
+        // a jump/restore, but this fmtStart<Item> runs before that jump happens, at
+        // the item's own SEQUENTIAL row position. Without this override every
+        // Liquid-boxed item still paints a full StaticArea-width band at its
+        // sequential row — found on real hardware as a full-width highlight band that
+        // moved between sequential rows as touch changed selection ("focus follows
+        // touch"), unrelated to the actual on-screen button grid. m_itemPos/setPos
+        // below stay sequential regardless — content placement and the NEXT item's
+        // row must be unaffected.
+        Sz fillOrgX = ctx.hasBox ? ctx.boxPos.x : Base::orgX();
+        Sz fillY    = ctx.hasBox ? ctx.boxPos.y : m_itemPos.y;
+        Sz fillW    = ctx.hasBox ? ctx.boxSize.x : Base::width();
+        Base::fillRect(fillOrgX, fillY, fillW, spc+h);
         Base::setBigFont(bigItem);
         Base::setPos({Base::orgX(), m_itemPos.y+spc});
         Base::template fmtStart<tag>(ctx);

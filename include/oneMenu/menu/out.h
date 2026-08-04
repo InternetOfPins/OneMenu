@@ -327,7 +327,7 @@ namespace oneMenu {
   };
 
   /// @brief lock-mode gate: controls when output is allowed (None/Update/Sync/Measure/Changed)
-  struct Gate : aParser {
+  struct Gate : aParser, aGate {
     template<typename Before, typename After>
     static constexpr bool rules() {
       static_assert(Excludes<IsDataParser, After>, "Gate: DataParser<sz> must be placed above Gate — character parsing must happen before gating");
@@ -337,7 +337,6 @@ namespace oneMenu {
     template<typename O>
     struct Part:O {
       using IsParser=std::true_type;
-      using HasGate=std::true_type;
       using Base=O;
       void nl() {if(unlocked()) Base::nl();}
       void clear() {if(unlocked()) Base::clear();}

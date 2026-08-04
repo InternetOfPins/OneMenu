@@ -138,6 +138,19 @@ namespace oneMenu {
     Sz idx{0};
     Sz pIdx{0};
 
+    // Per-item visual box override — set by ItemPrinter::Part::printItem (printers.h)
+    // just before fmtStart<Fmt::Item> fires, when the item being printed carries a
+    // LiquidBox<x,y,cellW> (item.h) component. GfxColorFmt (gfxColorFmt.h) reads these
+    // to scope its selection-highlight fillRect to the item's own small on-screen box
+    // instead of the full declared StaticArea width — the ONLY existing channel that
+    // could carry per-item geometry into a format that never sees the item's own type
+    // (fmtStart's signature is (const Ctx&), never the item). Default member
+    // initializers, untouched by both existing Ctx constructors below — every current
+    // Ctx construction site (i.e. every item that isn't LiquidBox) is unaffected.
+    Pos boxPos{};
+    Area boxSize{};
+    bool hasBox{false};
+
     Ctx(
       Path path,
       NavMode mode={NavMode::Nav},
@@ -203,6 +216,11 @@ namespace oneMenu {
   struct aRawDevice {};
   struct aScrollBody{};
   struct aFillRect  {};
+  struct aGate      {};
+  // LiquidBox<x,y,cellW> (item.h) marker — lets ItemPrinter (printers.h) ask "does this
+  // item carry its own on-screen box" via hapi::query<IsLiquidBox, typename I::Types>
+  // without printers.h needing to include item.h itself.
+  struct aLiquidBox {};
   // XmlFmt-specific marker — lets a component (e.g. NumField, item.h) ask
   // "is the currently active format XmlFmt" via hapi::query<IsXmlFmt,
   // typename Out::Types> without item.h needing to include xmlFmt.h at all
@@ -237,6 +255,8 @@ namespace oneMenu {
   using IsDataParser = hapi::TagIs<aDataParser>;
   using RawDevice    = hapi::TagIs<aRawDevice>;
   using IsFillRect   = hapi::TagIs<aFillRect>;
+  using IsGate       = hapi::TagIs<aGate>;
+  using IsLiquidBox  = hapi::TagIs<aLiquidBox>;
 
   using hapi::Requires;
   using hapi::Excludes;

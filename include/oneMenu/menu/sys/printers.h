@@ -348,6 +348,16 @@ namespace oneMenu {
           setPos(getPos());
         }
         ctx.enabled =i.enabled();
+        // LiquidBox<x,y,cellW> (item.h) carries its own on-screen box — bridge it into
+        // ctx here, the one place that sees both the concrete item type I (to query the
+        // tag) and calls fmtStart<Item> before printItem() runs (GfxColorFmt, which
+        // paints the highlight, only ever sees Ctx&, never the item itself). Explicit
+        // else so no stale box leaks from a previous LiquidBox item onto a plain one.
+        if constexpr(hapi::query<IsLiquidBox,typename I::Types>) {
+          ctx.hasBox=true;
+          ctx.boxPos=I::liquidBoxPos();
+          ctx.boxSize=i.liquidBoxSize();
+        } else ctx.hasBox=false;
         Base::template fmtStart<Fmt::Item>(ctx);
         bool r=Base::printItem(i,ctx);
         Base::template fmtStop<Fmt::Item>(ctx);

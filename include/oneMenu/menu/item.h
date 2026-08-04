@@ -1143,13 +1143,42 @@ namespace oneMenu {
   // On a non-cursor device (e.g. plain serial) position is meaningless, so Liquid
   // falls back to a normal in-sequence print instead of touching setPos at all.
 
+  /// @brief compile-time box SIZE only (w,h) — pairs with Liquid<x,y,Box> below to
+  /// declare a per-item highlight-box override for GfxColorFmt (fmtStart<Item> reads
+  /// it via Ctx::boxPos/boxSize — see printers.h's IsLiquidBox query and
+  /// gfxColorFmt.h's fmtStart<Fmt::Item>). No position of its own: Liquid<x,y,Box>
+  /// already knows where it's jumping to, so it supplies that half itself — BoxSize
+  /// only ever needs to say how big. Purely static NTTPs, no measurement, no runtime
+  /// state — swap in a measuring alternative later without touching Liquid's own
+  /// interface if that's ever actually needed. Named BoxSize, not Area, to avoid
+  /// colliding with oneMenu::Area (sys/base.h's Pos/Area alias — a runtime value
+  /// type, not a template).
+  template<Sz W,Sz H>
+  struct BoxSize { static constexpr Sz w=W,h=H; };
+
+  namespace detail_ {
+    template<bool> struct MaybeLiquidBoxBase {};
+    template<> struct MaybeLiquidBoxBase<true> : aLiquidBox {};
+  }
+
   /// @brief compile-time item position: printItem moves cursor to (x,y), renders,
   /// then restores the original position so the next sequential item isn't displaced.
-  template<Sz x,Sz y>
-  struct Liquid {
+  ///
+  /// Optional `Box` (default hapi::Nil = off): a BoxSize<W,H> declaring this item's
+  /// own on-screen box, so GfxColorFmt's selection highlight can be scoped to it
+  /// instead of the full declared StaticArea width — a Liquid-positioned item (e.g. a
+  /// keypad button) doesn't occupy a normal full-width row, but fmtStart<Item> (which
+  /// paints the highlight) runs BEFORE this jump happens, at the item's own
+  /// sequential row position; left unaddressed, every Liquid item still paints a
+  /// full-width band there. Liquid<x,y> alone (Box left at default) behaves exactly
+  /// as it always has — zero risk to any existing call site.
+  template<Sz x,Sz y,typename Box=hapi::Nil>
+  struct Liquid : detail_::MaybeLiquidBoxBase<!std::is_same_v<Box,hapi::Nil>> {
     template<typename I>
     struct Part:I {
       using Base=I;
+      static constexpr Pos liquidBoxPos() {return {x,y};}
+      static constexpr Area liquidBoxSize() {return {Box::w,Box::h};}
       template<typename Out>
       void printItem(Out& out,Ctx& ctx) {
         static_assert(hapi::Excludes<IsScrollBody,typename Out::Types>,

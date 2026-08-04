@@ -44,46 +44,46 @@ namespace oneMenu {
 
     constexpr StaticBody() {}
 
-  template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
-    {return i?((Tail&)tail).printMenu(out,ctx,i-1):head.printMenu(out,ctx);}
+    template<typename Out> bool printMenu(Out& out,Ctx& ctx,Sz i)
+      {return i?((Tail&)tail).printMenu(out,ctx,i-1):head.printMenu(out,ctx);}
 
-  template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
-    bool r=out.printItem(head,ctx);
-    return ((Tail&)tail).printBody(out,ctx,bidx+1)||r;
-  }
-
-  template<typename Out> bool printItem(Out& out,Ctx& ctx,Sz i)
-    {return i?((Tail&)tail).printItem(out,ctx,i-1):head.printItem(out,ctx);}
-  template<typename Out> bool printItem(Out& out,Sz i=0)
-    {return i?((Tail&)tail).printItem(out,i-1):head.printItem(out);}
-  // Inline pad rendering: calls each item's printItem directly (no printer chain),
-  // ctx.idx tracks which item is focused for the focus-cursor check.
-  template<typename Out> bool printInline(Out& out,Ctx& ctx) {
-    bool r=head.printItem(out,ctx);
-    ctx.idx++;
-    return ((Tail&)tail).printInline(out,ctx)||r;
-  }
-
-  template<bool isKbd,typename Nav>
-  bool nav(Nav& n,const CKE& cke,Path path,Sz i)
-    {return i?((Tail&)tail).template nav<isKbd>(n,cke,path,i-1):head.template nav<isKbd>(n,cke,path);}
-
-  template<typename Nav,typename P>
-  bool setStr(Nav& n,const char* s,P p,Sz i)
-    {return i?((Tail&)tail).setStr(n,s,p,i-1):head.setStr(n,s,p);}
-
-  // sizeof...(OO)==0 means Tail is the empty StaticBody<>, which defines no visit() —
-  // terminate here instead: for any valid i (i.e. i within this body's size()), the
-  // recursion has already decremented i to 0 by the time it reaches the last element.
-  template<typename Fn>
-  auto visit(Sz i, Fn&& fn) {
-    if constexpr (sizeof...(OO)==0) {
-      (void)i;
-      return fn(head);
-    } else {
-      return i?((Tail&)tail).visit(i-1,std::forward<Fn>(fn)):fn(head);
+    template<typename Out> bool printBody(Out& out,Ctx& ctx,Sz bidx=0) {
+      bool r=out.printItem(head,ctx);
+      return ((Tail&)tail).printBody(out,ctx,bidx+1)||r;
     }
-  }
+
+    template<typename Out> bool printItem(Out& out,Ctx& ctx,Sz i)
+      {return i?((Tail&)tail).printItem(out,ctx,i-1):head.printItem(out,ctx);}
+    template<typename Out> bool printItem(Out& out,Sz i=0)
+      {return i?((Tail&)tail).printItem(out,i-1):head.printItem(out);}
+    // Inline pad rendering: calls each item's printItem directly (no printer chain),
+    // ctx.idx tracks which item is focused for the focus-cursor check.
+    template<typename Out> bool printInline(Out& out,Ctx& ctx) {
+      bool r=head.printItem(out,ctx);
+      ctx.idx++;
+      return ((Tail&)tail).printInline(out,ctx)||r;
+    }
+
+    template<bool isKbd,typename Nav>
+    bool nav(Nav& n,const CKE& cke,Path path,Sz i)
+      {return i?((Tail&)tail).template nav<isKbd>(n,cke,path,i-1):head.template nav<isKbd>(n,cke,path);}
+
+    template<typename Nav,typename P>
+    bool setStr(Nav& n,const char* s,P p,Sz i)
+      {return i?((Tail&)tail).setStr(n,s,p,i-1):head.setStr(n,s,p);}
+
+    // sizeof...(OO)==0 means Tail is the empty StaticBody<>, which defines no visit() —
+    // terminate here instead: for any valid i (i.e. i within this body's size()), the
+    // recursion has already decremented i to 0 by the time it reaches the last element.
+    template<typename Fn>
+    auto visit(Sz i, Fn&& fn) {
+      if constexpr (sizeof...(OO)==0) {
+        (void)i;
+        return fn(head);
+      } else {
+        return i?tail.visit(i-1,std::forward<Fn>(fn)):fn(head);
+      }
+    }
 
   };
 
