@@ -1194,6 +1194,40 @@ namespace oneMenu {
     };
   };
 
+  /// @brief relative position nudge: prints its wrapped content OO... offset by
+  /// (+x,+y) from wherever the cursor already is (e.g. after Liquid<x,y> jumped
+  /// there), then restores. A cheap hand-tuned stand-in for real text centering —
+  /// no measurement, no extra print pass, so no flash cost beyond the nudge itself
+  /// (unlike Liquid<x,y,BoxSize<w,h>>'s box declaration, which is still the right
+  /// tool for the highlight-fill size; Shift is purely a content-position nudge).
+  /// Horizontal centering can often be faked with leading space characters instead
+  /// (no component needed); Shift exists for the vertical case (and any small
+  /// horizontal tweak) that a literal '\n'/' ' can't reach without printing outside
+  /// the intended box.
+  ///
+  /// Tail-position use only (as the last component in an ItemDef, wrapping the
+  /// item's own content, e.g. `Shift<3,1,StaticText<&text::k1>>`) — unlike AsFmt<>,
+  /// it does not thread through a following sibling component in the same chain.
+  template<Sz x,Sz y,typename... OO>
+  struct Shift {
+    template<typename I>
+    struct Part : hapi::Chain<OO...>::template Part<I> {
+      using Base = typename hapi::Chain<OO...>::template Part<I>;
+      template<typename Out>
+      void printItem(Out& out,Ctx& ctx) {
+        static_assert(hapi::Excludes<IsScrollBody,typename Out::Types>,
+          "Shift: incompatible with ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — "
+          "scroll measurement needs sequential item positions; use FullPrinter/NoTitlePrinter instead");
+        if constexpr(hapi::query<IsCursor,typename Out::Types>) {
+          Pos saved=out.getPos();
+          out.setPos({saved.x+x, saved.y+y});
+          Base::printItem(out,ctx);
+          // out.setPos(saved);
+        } else Base::printItem(out,ctx);  // no addressable cursor: fall back to normal print
+      }
+    };
+  };
+
   /// @brief runtime item position: set liquidPos({x,y}) to relocate item on screen.
   /// Same save/restore and non-cursor fallback behavior as Liquid<x,y>.
   struct LiquidPos {

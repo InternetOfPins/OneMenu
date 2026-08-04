@@ -291,7 +291,17 @@ namespace oneMenu {
 
       // Bottom margin: fixed, once, regardless of internal line count — call
       // AFTER whatever nl() advances already happened for this tag's content.
-      void bottomMargin() {
+      // Skipped entirely for a Liquid-boxed item (ctx.hasBox): this paints a
+      // full StaticArea-WIDTH band at the item's own SEQUENTIAL row position —
+      // meaningless (and actively harmful) for a Liquid-positioned button, whose
+      // real on-screen row has nothing to do with its sequential index. Found on
+      // real hardware as stray full-width bands cutting through unrelated
+      // keypad buttons at whatever absolute Y each button's own sequential slot
+      // happened to land on — a Liquid-boxed item manages its own complete
+      // highlight via fmtStart<Item>'s box-scoped fillRect; it doesn't need (or
+      // want) an inter-item gutter band on top of that.
+      void bottomMargin(const Ctx& ctx) {
+        if(ctx.hasBox) return;
         Sz spc = lineSpc();
         if(spc>0) {
           Pos p = Base::obj().getPos();
@@ -342,7 +352,12 @@ namespace oneMenu {
         Sz fillOrgX = ctx.hasBox ? ctx.boxPos.x : Base::orgX();
         Sz fillY    = ctx.hasBox ? ctx.boxPos.y : m_itemPos.y;
         Sz fillW    = ctx.hasBox ? ctx.boxSize.x : Base::width();
-        Base::fillRect(fillOrgX, fillY, fillW, spc+h);
+        // Height too, not just width/position: a Liquid box is usually much taller
+        // than one text row (e.g. a 66px-tall keypad cell vs a ~21px line) — without
+        // this, only a thin band at the box's top got the selection color, leaving
+        // most of the box showing the default (unselected) background underneath.
+        Sz fillH    = ctx.hasBox ? ctx.boxSize.y : spc+h;
+        Base::fillRect(fillOrgX, fillY, fillW, fillH);
         Base::setBigFont(bigItem);
         Base::setPos({Base::orgX(), m_itemPos.y+spc});
         Base::template fmtStart<tag>(ctx);
@@ -355,7 +370,7 @@ namespace oneMenu {
         if(!ctx.pad) {
           Base::obj().nl();
           if constexpr(big(typename PF::Title{})) Base::obj().nl();
-          bottomMargin();
+          bottomMargin(ctx);
         }
       }
 
@@ -395,7 +410,7 @@ namespace oneMenu {
               Base::obj().nl();
             }
           }
-          bottomMargin();
+          bottomMargin(ctx);
         }
       }
 
