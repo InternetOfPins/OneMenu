@@ -69,7 +69,6 @@ namespace oneMenu {
       using Base    = typename Storage::template Part<I>;
       using Base::Base;
       using Base::get;
-      using Base::set;   // set(const char*) — for web / async value injection
       using Base::sync;  // keep ItemAPI's inherited sync(Out&) template
                          // reachable — this Part's own sync() (0-arg) would
                          // otherwise hide it via ordinary C++ name hiding,
@@ -84,6 +83,16 @@ namespace oneMenu {
 
       char chk{0};
       bool edited{false};
+
+      // Real set(const char*) override, not a bare `using Base::set;` — an external
+      // caller (web/async value injection, or a menu action writing a presentation-
+      // only field directly, e.g. a touch keypad) doing a whole-string write via this
+      // needs edited=true too, exactly like a real nav-driven edit already gets via
+      // the char-insert paths below. Without this, `using Base::set;` reached
+      // Storage's own set() directly, which knows nothing about `edited` at all —
+      // every such write was silently invisible to changed()/redraw unless the
+      // caller remembered to flip edited itself right after.
+      void set(const char* s) noexcept { edited=true; Base::set(s); }
 
       static constexpr Sz size() {return sz;}
       static constexpr Sz depth() {return 2;}
