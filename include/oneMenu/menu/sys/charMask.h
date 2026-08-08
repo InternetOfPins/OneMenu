@@ -15,10 +15,7 @@
 namespace CharMask {
   using oneData::CText;
 
-  /// @brief values between l and t
-  /// @tparam T value type
-  /// @tparam l lower value
-  /// @tparam h higher value
+  /// @brief Values within [l, h].
   template<typename T,T l,T h>
   struct Range {
     static constexpr T high() {return h;}
@@ -61,9 +58,7 @@ namespace CharMask {
     static constexpr bool chk(unsigned char c) {return at(c)>=0;}
   };
 
-  /// @brief characters range
-  /// @tparam l lower value
-  /// @tparam h higher value
+  /// @brief Character range [l, h].
   template<unsigned char l,unsigned char h> using CharRange=Range<unsigned char,l,h>;
 
   /// @brief common character ranges type definitions
@@ -126,9 +121,7 @@ namespace CharMask {
       {return O::chk(c)?(O::low(c)?Prev::high():O::down(c)):Base::high();}
   };
 
-  /// @brief combines multiple character masks and enumerates between them
-  /// @tparam O first mask type
-  /// @tparam ...OO optional mask types
+  /// @brief Combines multiple character masks and cycles between them.
   template<typename O,typename... OO>
   struct Ranges:O {
     using Base=O;
@@ -152,15 +145,7 @@ namespace CharMask {
     static constexpr int sz(){return 1;}
   };
 
-  /// @brief per-character-position mask: position `pos` (0-based) is
-  /// validated/cycled against MM...[pos % n()], not one shared mask — shorter
-  /// validator packs repeat cyclically once N is smaller than the buffer.
-  /// Each M0/MM... is any existing CharMask-conforming type
-  /// (Range/Set/Ranges/PerPos) —
-  /// PerPos only adds position-aware entry points on top, delegating to each
-  /// sub-mask's own unchanged 1-arg chk(c)/up(c)/down(c).
-  /// @tparam M0 mask for position 0 (and every pos where pos%n()==0)
-  /// @tparam MM masks for positions 1..n()-1
+  /// @brief Per-character-position mask: position `pos` is validated/cycled against M0 (pos%n()==0) or MM...[pos%n()-1], repeating cyclically.
   template<typename M0,typename... MM>
   struct PerPos {
     static constexpr int n() {return 1+(int)sizeof...(MM);}
@@ -190,20 +175,8 @@ namespace CharMask {
     static char down(int pos,char c) {return Walk::down(pos%n(),c);}
   };
 
-  /// @brief position-indexed character-set mask, directly over an array of
-  /// allowed-character strings: one C-string per buffer position, repeating
-  /// cyclically via pos%N once N is shorter than the buffer. V is the
-  /// validators array's own address (must be nameable at the call site — a
-  /// real "address of object" — NOT synthesized via per-element pointer
-  /// arithmetic inside a template: C++17 rejects a computed pointer like
-  /// V+I as a pointer-type template argument even when it's the same
-  /// address a named &arr[I] would give). PosSet sidesteps this entirely by
-  /// indexing V[pos%N] at runtime, inside its own methods, instead of
-  /// building N distinct compile-time mask types.
-  /// @tparam V validators array address (e.g. a real `static const char*
-  ///   validators[]` — declared WITHOUT the trailing pointee-const, since
-  ///   CText is `const char*` and V's type is therefore `const char**`,
-  ///   which a `const char* const*` array's address does not convert to)
+  /// @brief Position-indexed character-set mask: one C-string per buffer position, repeating cyclically via pos%N once N is shorter than the buffer.
+  /// @tparam V validators array address; declare as `static const char* validators[]` (not `const char* const*`)
   /// @tparam N number of entries in the validators array
   template<CText* V,int N>
   struct PosSet {

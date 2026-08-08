@@ -61,21 +61,14 @@
 
 namespace am4compat {
 
-  /// @brief satisfies oneMenu's InDef<KK...> device-reader contract
-  ///        (available()/cmd(), same slot oneMenu::ArduinoSerialIn/UartIn
-  ///        already occupy), backed by ANY real, already-constructed AM4
-  ///        `Menu::menuIn`-derived driver instance, reached purely through
-  ///        `menuIn`'s own Stream-derived virtual interface plus AM4's own
-  ///        `navCodesDef` byte convention — see file header comment.
-  ///        Options defaults to AM4's own `Menu::defaultOptions`; pass a
-  ///        sketch-specific `Menu::config` for a custom key mapping.
+  /// Satisfies oneMenu's InDef<KK...> device-reader contract, backed by any
+  /// real, already-constructed AM4 Menu::menuIn-derived driver instance.
   template<const Menu::config& Options = Menu::defaultOptions>
   struct MenuInBridge {
     static inline Menu::menuIn* driver = nullptr;
 
-    /// @brief binds this bridge to a real, already-begin()'d AM4 input
-    ///        driver instance (any Menu::menuIn subclass). Call once,
-    ///        before the first nav.in()/poll() use.
+    /// Binds this bridge to a real, already-begin()'d AM4 input driver
+    /// instance. Call once, before the first nav.in()/poll() use.
     static void begin(Menu::menuIn& d) { driver = &d; }
 
     static oneMenu::Cmd translate(uint8_t ch) {

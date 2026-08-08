@@ -18,9 +18,7 @@
 namespace oneMenu {
 
   /// @brief ANSI terminal format: color sequences, cursor positioning, partial repaint support.
-  /// Colors come from a Color<int>::Table<...> — either supplied via a ColorTable<...>
-  /// component placed below ANSIFmt in the output chain, or this built-in default
-  /// (enforced: ColorTable<> must be placed below ANSIFmt, see rules() below).
+  /// Colors come from a Color<int>::Table<...>, either via a ColorTable<...> placed below ANSIFmt, or a built-in default.
   struct ANSIFmt : aFormat {
     template<typename Before, typename After>
     static constexpr bool rules() {

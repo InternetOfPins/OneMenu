@@ -11,40 +11,11 @@ namespace oneMenu {
   /// @brief an axis-aligned on-screen key rectangle, screen-pixel units.
   struct KeyRect { Sz x,y,w,h; };
 
-  /// @brief real per-key touch hit-testing InDef Part — resolves a raw touch point
-  /// (from any Raw layer exposing static touched()/rawPoint(), e.g. Xpt2046BitBang)
-  /// against a caller-supplied, compile-time table of on-screen key rectangles, and
-  /// emits Cmd::Go carrying that key's 1-based body index — the exact event
-  /// IndexGo::Part::in() (nav.h) already turns into "select item N, then fire
-  /// Cmd::Enter", so no core Nav/CKE change is needed. This generalizes AM4's own
-  /// touch strategy (uniform ROW hit-test: touch.y/resY -> row index) to real
-  /// independent per-key rectangles — "a rectangle is a rectangle".
-  ///
-  /// `rects`/`nRects` should point at the SAME array the sketch used to place each
-  /// key's Liquid<x,y> render position, so the touchable area and the drawn key can
-  /// never drift apart. `goBase` is the Cmd::Go key value for rects[0] — i.e. the
-  /// key item's 1-based position in the nav's assembled body (Base::go(key-1));
-  /// caller picks this to match wherever the keys start in that body.
-  ///
-  /// Calibration (rawXMin/Max, rawYMin/Max) is a first-cut compile-time linear
-  /// min/max map from this specific panel's raw ADC range (captured during bring-up
-  /// on real hardware) to screenW x screenH pixel space — NOT a real 2-point/
-  /// 4-corner affine calibration. Good enough for one physical panel wired once;
-  /// revisit if the mapping proves off-center/skewed on hardware.
-  ///
-  /// One-shot touch-down latch (same idiom as Xpt2046Vendor/UrTouchVendor): fires
-  /// once per touch-down transition, not repeatedly while held.
-  ///
-  /// `debounceMs` (default 150, caller-controlled — resistive touch panels vary):
-  /// ignores a new touch-down transition within `debounceMs` of the last one that
-  /// actually fired, absorbing IRQ contact bounce during a single physical press.
-  /// Neither existing debounce component in this codebase fits a plain polled
-  /// `bool touched()` without an adapter — oneInput::Debounce<Ms> is an interrupt-driven
-  /// onRise()/onFall() mixin (OneInput/include/oneInput/debounce.h), and
-  /// oneMenu::DebouncedButton<ChangeSource,Ms> needs a full ChangeSource object
-  /// (OneMenu/include/oneMenu/debouncedButton.h) — so this is a small, self-contained
-  /// time-gated debounce, same "ignore an edge within Ms of the last one" idea
-  /// oneInput::Debounce itself uses, just inlined for a polled source.
+  /// @brief Per-key touch hit-testing InDef Part: resolves a raw touch point from Raw (e.g. Xpt2046BitBang)
+  /// against a compile-time table of key rectangles, emitting Cmd::Go for the hit key. One-shot latch:
+  /// fires once per touch-down transition, debounced by debounceMs.
+  /// @tparam rects/nRects key-rectangle table, screen-pixel units; must match the rendered key positions
+  /// @tparam goBase Cmd::Go key value for rects[0] (1-based body index)
   template<typename Raw, const KeyRect* rects, Sz nRects, Sz goBase,
            int rawXMin,int rawXMax,int rawYMin,int rawYMax,
            Sz screenW,Sz screenH, Sz debounceMs=150>

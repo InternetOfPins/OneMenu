@@ -189,17 +189,8 @@ namespace am4compat {
   struct IsPlainEventFn<F, std::void_t<decltype(std::declval<F>()(std::declval<oneMenu::EventMask>()))>>
     : std::true_type {};
 
-  /// @brief AM4-compat factory backing MENU()'s style/fn/mask. mask/fn are the
-  /// menu's own title-level Enter/Exit/Focus/Blur handler — auto-dispatch on
-  /// fn's own signature, same "events optional" principle as opItem/toggleDef/
-  /// selectDef/chooseDef: a bool(EventMask) fn gets a real EventAction<mask,fn>
-  /// spliced into the menu's own MM... component pack (Menu<T,B,MM...>'s title
-  /// is a plain data member, NOT part of the HAPI chain — see menu.h; MM...
-  /// is the only slot an event component attached to the menu itself can ride
-  /// on). Any other fn shape (e.g.
-  /// AM4-legacy bool(int) placeholders like Menu::doNothing) keeps today's
-  /// original no-op behavior, byte-for-byte — no IItemDef, no vtable, nothing
-  /// new for every existing MENU() call site in this codebase.
+  /// AM4-compat factory backing MENU()'s style/fn/mask. A bool(EventMask) fn
+  /// gets a real EventAction<mask,fn>; any other fn shape is a no-op.
   template<int style, oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto menuDefStyle(T&& t, B&& b) {
     if constexpr ((style & wrapStyle) != 0) {
@@ -216,14 +207,8 @@ namespace am4compat {
     }
   }
 
-  /// @brief AM4-compat factory backing PADMENU's fn/mask — same auto-dispatch
-  /// as menuDefStyle, routed through padDef instead of menuDef. Deliberately
-  /// single-axis (event-shaped or not only, no style/WrapNav branch): PadDraw
-  /// (menu.h) is a pure rendering tag (flips isPad() for the renderer, no
-  /// logic of its own) and WrapNav is an orthogonal nav-boundary concern — a
-  /// pad has no multi-item nav boundary to wrap, so PADMENU never honored
-  /// style's wrapStyle bit and this fix doesn't start (style stays an
-  /// accepted-but-inert macro parameter, same as before).
+  /// AM4-compat factory backing PADMENU's fn/mask, routed through padDef
+  /// instead of menuDef. style's wrapStyle bit is not honored here.
   template<oneMenu::EventMask mask, auto& fn, typename T, typename B>
   constexpr auto padDefStyle(T&& t, B&& b) {
     if constexpr (IsPlainEventFn<decltype(fn)>::value)
@@ -268,32 +253,8 @@ namespace am4compat {
 
   using EventFuncItemNavPtr = bool(*)(oneMenu::EventMask, oneMenu::INav&, oneMenu::IItem&);
 
-  /// @brief the nav-carrying sibling of item.h's EventActionItem — AM4's
-  /// real (event,nav,item) parameter order preserved. Lives here, not
-  /// item.h: AM4-signature-matching is compat-only, and AM4-port machinery
-  /// stays AM5/compat-side unless it brings value to OneMenu itself. Same
-  /// "vtable-cost sibling of EventAction, opt-in" shape as EventActionItem,
-  /// requires IItemDef (needs Base::obj()), same reason. Deliberately does
-  /// NOT try to fold into a further Base::onEvent(e,n) call the way the
-  /// 1-arg components fold into Base::onEvent(e) — item.h's HasNavOnEvent is
-  /// what makes that safe to omit: nothing below this component in a real
-  /// chain would ever have a genuine 2-arg onEvent to fold into (this is the
-  /// only nav-aware component in practice), and `using Base::onEvent;` is
-  /// what keeps this component's own 1-arg onEvent(EventMask) reachable
-  /// (this class only declares the 2-arg form — without the
-  /// using-declaration it would hide the inherited 1-arg one by ordinary
-  /// C++ name hiding, breaking IItemDef::onEvent(EventMask)'s own
-  /// Base::onEvent(e) call).
-  ///
-  /// mask/fn are runtime constructor-set members, not NTTPs: this component
-  /// only ever gets used behind IItemDef (virtual dispatch already paid
-  /// for), so baking mask/fn into the type buys nothing — every distinct
-  /// (mask,fn) pair at an OP() call site would generate its own class
-  /// instantiation and its own onEvent() override, byte-identical except
-  /// for which mask/fn it closed over, growing the whole
-  /// IItemDef/EventAction-touching portion of the binary substantially for
-  /// no benefit. Matches AM4's own `action` class, which stores fn as a
-  /// plain runtime member behind one non-templated dispatch function.
+  /// Event handler receiving (EventMask,INav&,IItem&); requires IItemDef<...>.
+  /// mask/fn are runtime constructor-set members.
   struct EventActionItemNav {
     template<typename I>
     struct Part : I {
@@ -365,18 +326,8 @@ namespace am4compat {
   using ResultFunc0 = Menu::result(&)();
   using ResultFunc1 = Menu::result(&)(oneMenu::EventMask);
 
-  /// @brief zero-cost tier for AM4's real `Menu::result()`/`Menu::result(
-  /// oneMenu::EventMask)` handler shapes — by far the most common real OP()
-  /// handler shape across real AM4 sketches (myLedOn(), doFeed(),
-  /// doRunCuts(), etc. — zero-arg, no event/nav/item needed at all).
-  /// Dispatched through nav() — the same call site Action<fn> already
-  /// occupies, only ever reachable on Cmd::Enter, same restriction Action<fn>
-  /// itself already has (no mask flexibility; real AM4 OP() handlers are
-  /// overwhelmingly enterEvent-triggered anyway) — which already carries a
-  /// real Nav&, so quit's real "close this level" effect (AM4's own
-  /// nav.cpp: `if(go==quit&&!selected().isMenu()) exit();`) is honored here
-  /// at zero extra cost: no IItemDef, no vtable, same footprint as
-  /// Action<fn> plus one comparison.
+  /// Zero-cost OP() tier for a `Menu::result()` handler; only reachable on
+  /// Cmd::Enter. Closes the level when fn returns quit.
   template<ResultFunc0 fn>
   struct ResultAction0 {
     template<typename I>
@@ -392,10 +343,8 @@ namespace am4compat {
     };
   };
 
-  /// @brief sibling of ResultAction0 for the `oneMenu::EventMask` shape —
-  /// same zero-cost nav()-based dispatch, fn always called with
-  /// oneMenu::EventMask::Enter (the only bit reachable through nav(), same
-  /// as ResultAction0's own Enter-only restriction).
+  /// Zero-cost OP() tier for a `Menu::result(EventMask)` handler; fn is
+  /// always called with EventMask::Enter.
   template<ResultFunc1 fn>
   struct ResultAction1 {
     template<typename I>
@@ -414,40 +363,9 @@ namespace am4compat {
   using ResultFuncItemPtr    = Menu::result(*)(oneMenu::EventMask, oneMenu::IItem&);
   using ResultFuncItemNavPtr = Menu::result(*)(oneMenu::EventMask, oneMenu::INav&, oneMenu::IItem&);
 
-  /// @brief vtable-cost tier for `Menu::result(oneMenu::EventMask,IItem&)` —
-  /// real AM4 handlers are often declared this way (e.g. `doAlert(eventMask,
-  /// prompt&)`, throughout many real ported examples).
-  ///
-  /// Dispatched through nav(), NOT onEvent — a real, empirically-confirmed
-  /// framework default forced this: menu.h's own Menu::Part::nav() closes
-  /// the current level on ANY unhandled Enter (`(cke.cmd==Cmd::Enter&&n.
-  /// close())`, its own fallback term when doNav/the item's own nav() don't
-  /// return true) — this is how EXIT() items work "for free," but it also
-  /// means EventActionItem/EventActionItemNav (which only override onEvent,
-  /// never nav()) already close the level after firing REGARDLESS of what
-  /// their handler returns, confirmed by testing the existing bool-based
-  /// tier directly. onEvent fires strictly AFTER doCmd's own nav()-driven
-  /// dispatch has already run (EventDispatch::doCmd, nav.h) — it is a
-  /// side-channel notification, not something that can suppress that
-  /// default close. So a result-returning tier that wants "stay unless
-  /// quit" MUST override nav() itself, mirroring Action<fn>'s own Enter-
-  /// only "return true to prevent the default close" shape — meaning this
-  /// tier, like Action<fn>/ResultAction0/ResultAction1, only actually fires
-  /// on Cmd::Enter (mask is still stored/accepted for OP(text,fn,mask)
-  /// call-site fidelity, but is not otherwise consulted here).
-  ///
-  /// No INav& reachable at this 2-arg call shape, so quit's real close()-
-  /// the-level effect can't be selectively honored — fn's return value is
-  /// discarded (documented, disclosed limitation, not silently wrong): the
-  /// item always stays put after firing (closer to AM4's own "proceed"
-  /// behavior than the alternative, since a plain OP staying put by
-  /// default is far more common in practice than one wanting to exit). Use
-  /// ResultActionItemNav (the 3-arg shape, below) if you need the real
-  /// effect. AM4's own real behavior for a 2-arg handler is actually MORE
-  /// fragile than this: its blind reinterpret-cast trick means such a
-  /// handler's own 2nd (`prompt&`) parameter secretly receives the real
-  /// navNode& reference reinterpreted as a prompt& — this compat layer
-  /// deliberately does not reproduce that.
+  /// OP() tier for a `Menu::result(EventMask,IItem&)` handler; requires
+  /// IItemDef<...>. fn's return value is discarded — quit is not honored
+  /// (no INav& reachable at this arity); use ResultActionItemNav for that.
   struct ResultActionItem {
     template<typename I>
     struct Part : I {
@@ -466,18 +384,8 @@ namespace am4compat {
     };
   };
 
-  /// @brief vtable-cost tier for `Menu::result(oneMenu::EventMask,oneMenu::INav&,
-  /// oneMenu::IItem&)` — AM4's real, full 3-arg handler shape (result(
-  /// eventMask,navNode&,prompt&), menuBase.h), parameter order preserved.
-  /// Dispatched through nav() for the same reason ResultActionItem's own
-  /// doc comment explains (menu.h's default "unhandled Enter closes the
-  /// level" behavior must be overridden by returning true from nav()
-  /// itself — onEvent fires too late to prevent it). INav& is directly
-  /// available here (nav()'s own Nav& parameter — the concrete assembled
-  /// Nav type, itself always INav-derived, converts to oneMenu::INav&
-  /// implicitly), so quit's real close()-the-level effect IS honored: this
-  /// is the tier that gives a faithful AM4 port both the real handler
-  /// signature AND the real navigational consequence of its return value.
+  /// OP() tier for a `Menu::result(EventMask,INav&,IItem&)` handler;
+  /// requires IItemDef<...>. Honors quit by closing the level.
   struct ResultActionItemNav {
     template<typename I>
     struct Part : I {
@@ -496,13 +404,7 @@ namespace am4compat {
     };
   };
 
-  /// @brief OP()'s real factory (see OP()'s own doc comment, below). Picks
-  /// between the seven OP() bindings based on fn's own signature —
-  /// auto-dispatch, not a caller-facing flag: nothing to opt into or out of
-  /// at the call site. Menu::result-returning shapes are checked FIRST — see
-  /// IsResultFnNav's own doc comment for why (a result-returning fn is also
-  /// silently callable through the bool-based checks below, with wrong,
-  /// silently-discarded quit semantics, if checked in the other order).
+  /// OP()'s factory; picks the OP() binding to use based on fn's signature.
   template<oneMenu::EventMask mask, auto& fn, typename T>
   constexpr auto opItem(T&& text) {
     if constexpr (IsResultFnNav<decltype(fn)>::value)
@@ -532,38 +434,8 @@ namespace am4compat {
   // (IsPlainEventFn itself now lives above, ahead of menuDefStyle/padDefStyle
   // — same trait, reused here.)
 
-  /// @brief zero-cost `Menu::result(oneMenu::EventMask)` tier for TOGGLE/
-  /// SELECT/CHOOSE's own fn/mask — the same real-AM4 result-returning shape
-  /// OP() honors via ResultAction1, reused here (IsResultFn1/ResultFunc1,
-  /// both already declared above). Unlike ResultAction1 (which dispatches
-  /// through nav() only to decide close()-the-level), this component sits in
-  /// the EXACT chain slot EventAction<mask,fn> already occupies for these
-  /// three macros — one level ABOVE ToggleBehave/SelectBehave/RecallNavPos
-  /// (see toggleDef/selectDef/chooseDef below: `ItemDef<SyncValue<W>,
-  /// <event-slot>, <Behave>, Menu<...>>`) — confirmed by tracing each
-  /// Behave's own nav() that this slot is the one and only point from which
-  /// their default action (cycle/inline-open/nested-open) can be pre-empted:
-  /// unlike Menu<T,B,OO...>::Part's own nav() (menu.h), which hardcodes
-  /// `n.open()`/`n.padOpen()` for the p.len==0&&Enter case WITHOUT ever
-  /// consulting OO..., ToggleBehave/SelectBehave/RecallNavPos are themselves
-  /// the OO...-adjacent component being wrapped from the OUTSIDE by this
-  /// slot, so intercepting nav() here and simply not forwarding to
-  /// Base::nav() genuinely, safely skips their default action — no core
-  /// menu.h/item.h change needed, unlike MENU()/PADMENU()/FIELD() (see this
-  /// file's own header comment for why those three remain open).
-  ///
-  /// Semantics (a deliberate, disclosed scoping choice, not a literal port of
-  /// AM4's own isMenu()-conditional `nav.cpp:216` exit()-on-quit branch,
-  /// which additionally closes the *current* level for non-menu items —
-  /// replicating that would need its own INav&-driven close() decision this
-  /// slot has no clean access to without widening scope further): `quit`
-  /// suppresses the item's own default action for that Enter (no toggle
-  /// cycle / no inline picker open / no CHOOSE descend); `proceed` (or mask
-  /// not matching Enter) behaves exactly as if fn weren't there at all —
-  /// forwards straight to Base::nav(). Non-Enter keys always forward
-  /// unconditionally (this tier only ever intercepts the one edge the
-  /// default action fires on, same restriction OP()'s own tiers already
-  /// have).
+  /// Zero-cost TOGGLE/SELECT/CHOOSE tier for a `Menu::result(EventMask)`
+  /// handler; `quit` suppresses the item's own default action for that Enter.
   template<oneMenu::EventMask mask, ResultFunc1 fn>
   struct ResultEventAction1 {
     template<typename I>
@@ -684,21 +556,8 @@ namespace Menu {
 // ── item-tree macros — each expands to a value expression ──────────────────
 // (unlike AM4's own OP/EXIT/FIELD, which expand to a declaration + a pointer)
 
-/// @brief AM4 OP(text,fn,mask) — fn's own signature decides the binding
-///        (am4compat::opItem, above), events are opt-in per call site, not a
-///        flag:
-///        - fn shaped bool(EventMask,IItem&) -> real event dispatch
-///          (EventActionItem, item.h) matching AM4's actual callback shape
-///          (menuBase.h: result(*)(eventMask,navNode&,prompt&)) — costs
-///          IItemDef's virtual dispatch (real AM4 items are always virtual
-///          too, via prompt&, so this matches AM4's own cost model; mainly
-///          a RAM cost, not flash, since the vtable itself lands in .data
-///          on this toolchain).
-///        - any other fn shape (the original v1 binding — bool(int), mask
-///          ignored) -> plain Action<fn>, zero-cost, no IItemDef at all.
-///        No caller-facing syntax difference either way — same OP(text,fn,
-///        mask) call, the compiler picks. mask is ignored in the bool(int)
-///        case (matches v1; nothing to mask when there's no dispatch).
+/// AM4 OP(text,fn,mask) — creates an action item; fn's signature selects the
+/// binding (am4compat::opItem). mask is ignored for a plain bool(int) fn.
 #define OP(text, fn, mask) \
   ::am4compat::opItem<(::oneMenu::EventMask)(mask), fn>(text)
 
@@ -707,17 +566,9 @@ namespace Menu {
 #define EXIT(text) \
   ::oneMenu::ItemDef<::oneData::Text>{text}
 
-/// @brief AM4 FIELD(var,label,unit,lo,hi,step,tune,fn,mask,style) — var is bound
-///        directly via DataRef (zero-copy, same edit-by-reference semantics as
-///        AM4's menuField). fn/mask now wired to a real EventCall<mask,fn> (fn must be
-///        a plain void() — AM4's most common FIELD handler shape, e.g. Fielduino's
-///        updateWave; see item.h's EventCall for why this is a separate component from
-///        EventAction rather than one signature trying to cover every AM4 handler
-///        shape). step/tune (AM4's accel) still accepted but ignored — always steps by
-///        1. One known behavioral difference from AM4: fires on *both* directions of
-///        the Cmd::Enter edit-mode toggle (entering AND leaving edit), not just on
-///        commit — harmless for an idempotent handler like updateWave (redraws the same
-///        still-unchanged value) but not identical to AM4's commit-only firing.
+/// AM4 FIELD(var,label,unit,lo,hi,step,tune,fn,mask,style) — numeric field
+/// bound to var via DataRef; fn must be a plain void(), fires on both
+/// entering and leaving edit mode. step/tune are accepted but ignored.
 #define FIELD(var, label, unit, lo, hi, step, tune, fn, mask, style) \
   ::oneMenu::NumFieldDef< \
       ::oneMenu::AsLabel<::oneData::Text>, \
@@ -730,28 +581,9 @@ namespace Menu {
     >{label, unit}
 
 namespace am4compat {
-  /// @brief AM4 EDIT()'s real factory — buf bound zero-copy via
-  /// oneMenu::TextBufRef (fields.h), the TextField-storage counterpart to
-  /// FIELD()'s DataRef<&(var)>. validators is bridged directly via
-  /// CharMask::PosSet (charMask.h) — no per-position type-building needed,
-  /// PosSet indexes the array at runtime inside chk/up/down (an earlier
-  /// design tried building N distinct CharMask::Set<> types at compile time,
-  /// one per position — doesn't compile in C++17: a pointer computed via
-  /// V+I inside a nested template isn't "the address of an object", even
-  /// though it's the same address a named &arr[I] would give).
-  ///
-  /// EventCallT is an ALREADY-BUILT oneMenu::EventCall<mask,fn> type, built
-  /// by the EDIT() macro directly (matching FIELD()'s own exact shape) —
-  /// NOT a separate `EventMask mask, VoidFunc fn` NTTP pair re-templated in
-  /// here: passing fn as editItem's own template parameter and re-using it
-  /// one level deeper inside EventCall<mask,fn> here fails with "not a
-  /// valid template argument... must be the name of a function with
-  /// external linkage" on avr-g++ — the same family of
-  /// function-reference-as-NTTP quirk am4compat::IdleTimeout also has to
-  /// work around (re-deriving RunLoop's RunFn one level deep) — even for a
-  /// plain, named, non-overloaded fn. Building EventCall<mask,fn> at the
-  /// macro's own call site sidesteps it entirely, same fix shape as
-  /// IdleTimeout's Run-as-a-type parameter.
+  /// AM4 EDIT()'s factory; buf is bound zero-copy via TextBufRef, validators
+  /// bridged via CharMask::PosSet. EventCallT must be an already-built
+  /// oneMenu::EventCall<mask,fn> type.
   template<char* buf, int sz, oneData::CText* validators, int n,
            typename EventCallT, typename T>
   constexpr auto editItem(T&& label) {
@@ -766,34 +598,9 @@ namespace am4compat {
   }
 }
 
-/// @brief AM4 EDIT(label,buf,validators,fn,mask,style) — buf is bound
-///        directly (zero-copy, in place) via oneMenu::TextBufRef, the
-///        TextField-storage counterpart to FIELD()'s DataRef<&(var)>
-///        binding; sz is buf's own sizeof(buf)-1, computed here at the call
-///        site (AM4: "field will initialize its size by this string
-///        length"). validators is AM4's real per-position validator array
-///        (macros.h's EDIT_ — one entry per character position, repeating
-///        cyclically — pos % N — once N is shorter than the
-///        buffer, e.g. TextField.ino's single-entry alphaNum[] reused
-///        across all 30 positions of the Name field); bridged onto
-///        CharMask::PosSet (charMask.h) directly from validators's own
-///        address + entry count, both computed here for the same reason sz
-///        is. KNOWN ADAPTATION (see file header's "Known semantic gap" —
-///        SUBMENU — for the established precedent of documenting these):
-///        unlike AM4's own `const char* const validData[]` idiom,
-///        `validators` must be declared WITHOUT the trailing pointee-const
-///        (`const char* validData[] = {...};`) — CharMask::PosSet<CText*>'s
-///        existing NTTP parameter type is `const char**`, which a `const
-///        char* const*` array's address does not convert to. fn/mask wired
-///        through a real EventCall<mask,fn> — same choice as FIELD()
-///        (EDIT()'s closest sibling), not OP()'s auto-dispatch; fn must be
-///        a plain void() handler (see FIELD()'s own doc comment, above, for
-///        the same avr-g++ NTTP-shape rationale). EventCall<mask,fn> is
-///        built HERE, at the macro's own call site (matching FIELD()'s
-///        exact shape), not inside editItem — see editItem's own doc
-///        comment for why (a real avr-g++ 7.3 NTTP quirk). style is
-///        accepted for AM4 call-site syntax fidelity but ignored, same as
-///        FIELD()'s step/tune.
+/// AM4 EDIT(label,buf,validators,fn,mask,style) — text field bound to buf
+/// via TextBufRef; validators is a per-position validator array, declared
+/// WITHOUT trailing pointee-const. fn must be a plain void(); style is ignored.
 #define EDIT(label, buf, validators, fn, mask, style) \
   ::am4compat::editItem< \
       (buf), (int)(sizeof(buf)-1), (validators), \
@@ -801,63 +608,44 @@ namespace am4compat {
       ::oneMenu::EventCall<(::oneMenu::EventMask)(mask), fn> \
     >(label)
 
-/// @brief AM4 VALUE(label,val,fn,mask) — one option inside TOGGLE/SELECT/CHOOSE.
-///        val must be a compile-time constant — same "static value on the leaf"
-///        shape oneMenu::EnumValue<V> (item.h) already provides; TOGGLE/SELECT/
-///        CHOOSE read it back via SyncValue on selection. fn/mask accepted but
-///        ignored (v1, matching every other value-less-handler macro here).
+/// AM4 VALUE(label,val,fn,mask) — one option inside TOGGLE/SELECT/CHOOSE;
+/// val must be a compile-time constant. fn/mask are accepted but ignored.
 #define VALUE(label, val, fn, mask) \
   ::oneMenu::ItemDef<::oneMenu::EnumValue<(val)>, ::oneData::Text>{label}
 
-/// @brief AM4 TOGGLE(var,id,label,fn,mask,style,...values) — single Enter
-///        cycles to the next VALUE(...) and writes it into var (DataRef,
-///        zero-copy, same binding style as FIELD). fn auto-dispatches like
-///        OP() (am4compat::toggleDef, above): a real, unmodified
-///        `Menu::result(oneMenu::EventMask)` handler gets ResultEventAction1
-///        (quit suppresses the cycle for that Enter), a plain
-///        bool(EventMask) gets EventAction<mask,fn> (side-channel
-///        notification only), anything else keeps the original no-op (v1).
-///        style still ignored.
+/// AM4 TOGGLE(var,id,label,fn,mask,style,...values) — Enter cycles to the
+/// next VALUE(...) and writes it into var (DataRef). fn auto-dispatches on
+/// its signature (am4compat::toggleDef); style is ignored.
 #define TOGGLE(var, id, label, fn, mask, style, ...) \
   auto id = ::am4compat::toggleDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{label}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
-/// @brief AM4 SELECT(var,id,label,fn,mask,style,...values) — Enter opens an
-///        inline picker (stays on the parent's display row); a second Enter
-///        commits whichever VALUE(...) is highlighted into var (DataRef).
-///        fn auto-dispatches like OP() (am4compat::selectDef, above); style
-///        still ignored.
+/// AM4 SELECT(var,id,label,fn,mask,style,...values) — Enter opens an inline
+/// picker; a second Enter commits the highlighted VALUE(...) into var
+/// (DataRef). fn auto-dispatches on its signature; style is ignored.
 #define SELECT(var, id, label, fn, mask, style, ...) \
   auto id = ::am4compat::selectDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneMenu::AsLabel<::oneData::Text>, ::oneMenu::AsEditMode<>>{label}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
-/// @brief AM4 CHOOSE(var,id,label,fn,mask,style,...values) — Enter opens a
-///        real nested level to browse VALUE(...) options; entering one
-///        commits it into var (DataRef). fn auto-dispatches like OP()
-///        (am4compat::chooseDef, above); style still ignored.
+/// AM4 CHOOSE(var,id,label,fn,mask,style,...values) — Enter opens a nested
+/// level to browse VALUE(...) options; entering one commits it into var
+/// (DataRef). fn auto-dispatches on its signature; style is ignored.
 #define CHOOSE(var, id, label, fn, mask, style, ...) \
   auto id = ::am4compat::chooseDef<::oneData::DataRef<&(var)>, (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{label}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
-/// @brief AM4 MENU(id,text,fn,mask,style,...items) — single statement, whole
-///        body is one nested expression. fn/mask auto-dispatch on fn's own
-///        signature (am4compat::menuDefStyle, above) — a bool(EventMask) fn
-///        gets real Enter/Exit/Focus/Blur dispatch on the menu item itself;
-///        anything else (e.g. Menu::doNothing) is the original no-op, unchanged.
-///        style's wrapStyle bit is still honored (adds WrapNav).
+/// AM4 MENU(id,text,fn,mask,style,...items) — declares a submenu. fn/mask
+/// auto-dispatch on fn's signature; style's wrapStyle bit adds WrapNav.
 #define MENU(id, text, fn, mask, style, ...) \
   auto id = ::am4compat::menuDefStyle<(style), (::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text>{text}, \
       ::oneMenu::staticBody(__VA_ARGS__))
 
-/// @brief AM4 PADMENU(id,text,fn,mask,style,...items) — single-line/pad style
-///        menu. fn/mask auto-dispatch the same way MENU() does
-///        (am4compat::padDefStyle, above); style is accepted (AM4 call-syntax
-///        compat) but not forwarded — wrapStyle never applied to pads before
-///        this fix and still doesn't (see padDefStyle's own doc comment).
+/// AM4 PADMENU(id,text,fn,mask,style,...items) — declares a single-line/
+/// pad-style menu. fn/mask auto-dispatch like MENU(); style is not forwarded.
 #define PADMENU(id, text, fn, mask, style, ...) \
   auto id = ::am4compat::padDefStyle<(::oneMenu::EventMask)(mask), fn>( \
       ::oneMenu::ItemDef<::oneData::Text, ::oneMenu::AsEditMode<>>{text}, \
@@ -867,50 +655,13 @@ namespace am4compat {
 ///        the enclosing body. Move-only: see file comment "Known semantic gap".
 #define SUBMENU(id) std::move(id)
 
-/// @brief AM4 OBJ(id) — splices a previously hand-declared item object (built
-///        without any macro, e.g. a native TextFieldDef<...>/NumFieldDef<...>
-///        composed directly) into the enclosing body — AM4's own separate
-///        name for "any other pre-built object," as opposed to SUBMENU's "a
-///        pre-built submenu" specifically. Mechanically identical in OneMenu:
-///        AM4's real OBJ() takes the object's address and inserts it into a
-///        runtime Menu::prompt*[] array (its body is a runtime polymorphic
-///        pointer array); OneMenu's body is a compile-time heterogeneous type
-///        chain instead (StaticBody's own head/tail cons storage, no vtables
-///        — see item.h's own "IItem is a cap, not a cost that spreads" doc
-///        comment, opt-in only for OP()'s event-shaped-handler case, never
-///        used for the body itself), so a pre-declared item is already
-///        exactly the right shape for staticBody(...)'s own parameter pack —
-///        no type erasure needed, same move-splice SUBMENU() already does.
-///        Move-only, same as SUBMENU: see file comment "Known semantic gap".
+/// AM4 OBJ(id) — splices a previously hand-declared item object into the
+/// enclosing body. Move-only, same as SUBMENU().
 #define OBJ(id) std::move(id)
 
 /**
- * ── v2: MENU_INPUTS / MENU_OUTPUTS / NAVROOT (device wiring) ───────────────
- *
- * Built directly on native oneMenu machinery, not a separate am4compat-local
- * reimplementation: InGroup/OutGroup (in.h/out.h) are oneMenu's own
- * compile-time-fixed device packs, and oneMenu::Pool<InG,OutG> (nav.h) is a
- * real nav chain component fusing one input source + one output sink for one
- * nav.
- *
- * This deliberately does NOT build on InList<N>/OutList<N> (a runtime,
- * virtual-dispatch device *list* — in.h/out.h): Menu::Part::printMenu
- * (menu.h) calls `out.printMenu(*this,ctx)`, templated on the concrete item
- * type — a template method can't be virtual, so IOut fundamentally can't
- * expose it, and once a device is behind IOut& its concrete type (and with
- * it, the ability to run a real templated print walk) is gone for good, not
- * recoverable even one device at a time. InGroup/OutGroup avoid this by
- * construction: recursive inheritance over a compile-time pack keeps every
- * device's concrete type, so nav.doOutput(*p) always sees the real chain.
- * Devices stay plain OutDef<...>/InDef<...> — no vtables needed anywhere in
- * this path.
- *
- * Syntax fidelity: MENU_INPUTS/NAVROOT are byte-for-byte AM4 syntax. NONE
- * (AM4's own ">=2 items" placeholder) is an empty macro, same as AM4's own
- * VAR_HEAD_NONE/REF_HEAD_NONE (macros.h) — it disappears at the token level,
- * leaving a trailing comma before InGroup/OutGroup's closing brace — a
- * braced-init-list's trailing comma stays legal even when it resolves to a
- * variadic constructor call, not just aggregate init.
+ * Device-wiring macros (MENU_INPUTS/MENU_OUTPUTS/NAVROOT/NAVROOT_IDLE),
+ * built on oneMenu's InGroup/OutGroup/Pool.
  */
 
 /// @brief AM4 MENU_INPUTS(id,&dev1,&dev2,...) — byte-for-byte AM4 syntax.
@@ -918,49 +669,22 @@ namespace am4compat {
 #define MENU_INPUTS(id, ...) \
   auto id = ::oneMenu::InGroup{__VA_ARGS__}
 
-/// @brief AM4 MENU_OUTPUTS(id,maxDepth,&dev1,&dev2,...) — maxDepth accepted
-///        but ignored (OneMenu derives depth from the menu type). Builds a
-///        native oneMenu::OutGroup over the given devices.
+/// AM4 MENU_OUTPUTS(id,maxDepth,&dev1,&dev2,...) — builds an oneMenu::OutGroup
+/// over the given devices; maxDepth is accepted but ignored.
 #define MENU_OUTPUTS(id, maxDepth, ...) \
   auto id = ::oneMenu::OutGroup{__VA_ARGS__}
 
-/// @brief AM4 NAVROOT(id,menu,maxDepth,in,out) — maxDepth is accepted but
-///        deliberately still ignored, not cross-checked against
-///        `decltype(menu)::depth()` (OneMenu's own real nesting-depth
-///        member, nav.h): OneMenu's depth() counts differently from AM4's
-///        maxDepth (e.g. this file's own `mainMenu` — one submenu deep by
-///        AM4's counting — reports `depth()==3`, not 2). The two aren't the
-///        same quantity, so comparing them wouldn't be a meaningful
-///        correctness check. OneMenu doesn't need `maxDepth` for anything
-///        anyway — `TreeNav`'s own buffers are already sized from its own
-///        `depth()` internally (nav.h), independent of whatever the caller
-///        passes here — so the argument stays a pure syntax-compat
-///        placeholder. in/out must be InGroup/OutGroup (from
-///        MENU_INPUTS/MENU_OUTPUTS above), matching how real AM4 sketches
-///        always route through those macros even for a single device.
-///        id.poll() works exactly like AM4's navRoot::poll() — now
-///        oneMenu::Pool's own poll(), reached through ordinary chain
-///        inheritance instead of a separate wrapper type deriving from an
-///        already-built Nav. Nav chain includes EventDispatch (nav.h) so
-///        EventAction/onEvent (item.h) fire for macro-built menus. Pool
-///        must stay the *first* component listed here for its constructor
-///        to be reachable — see Pool's own doc comment (nav.h) for why.
+/// AM4 NAVROOT(id,menu,maxDepth,in,out) — declares the nav root; maxDepth is
+/// accepted but ignored. in/out must be InGroup/OutGroup (from
+/// MENU_INPUTS/MENU_OUTPUTS). id.poll() works like AM4's navRoot::poll().
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::oneMenu::INavDef< \
       ::oneMenu::Pool<decltype(in), decltype(out)>, \
       ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<menu> \
     > id(in, out)
 
-/*
- * ── NAVROOT_IDLE: idle-control bridge (opt-in) ──────────────────────────────
- *
- * Plain NAVROOT's INav::idling()/idleOn()/idleOff() stay the inherited
- * no-op (oneMenu::INav's own default, nav.h) — binding a *specific*
- * RunLoop<mainFn> into a *specific* nav's INav is AM4-flavored wiring (AM4's
- * own nav.root->idleOn()/idleOff(), menuBase.h), so it stays entirely
- * compat-side, mirroring oneMenu::NavAPI/INavDef exactly plus the Run
- * binding.
- */
+/* NAVROOT_IDLE: opt-in idle-control bridge, binding a RunLoop<mainFn> into a
+ * nav's INav::idling()/idleOn()/idleOff() (no-op on plain NAVROOT). */
 namespace am4compat {
   // Run is an already-built oneMenu::RunLoop<mainFn> TYPE, not mainFn
   // re-templated here — avr-g++ 7.3 rejects re-deriving a function-reference
@@ -1003,40 +727,21 @@ namespace am4compat {
   };
 }
 
-/// @brief NAVROOT variant binding nav.idleOn()/idleOff() (callable from a
-///        3-arg OP() handler) to a specific already-built RunLoop<mainFn> —
-///        declare `using Run=oneMenu::RunLoop<mainFn>;` yourself first, same
-///        convention as am4compat::IdleTimeout's own usage. NAVROOT itself
-///        is untouched — every other port keeps the plain no-op idle
-///        fallback, zero new cost.
+/// NAVROOT variant binding idling()/idleOn()/idleOff() to a specific
+/// already-built oneMenu::RunLoop<mainFn> type, passed as Run.
 #define NAVROOT_IDLE(id, menu, maxDepth, in, out, Run) \
   ::am4compat::NavRootDef<Run, \
       ::oneMenu::Pool<decltype(in), decltype(out)>, \
       ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<menu> \
     > id(in, out)
 
-/// @brief AM4 NONE — placeholder satisfying MENU_OUTPUTS'/MENU_INPUTS' AM4-side
-///        "at least 2 devices" macro quirk. Empty, same as AM4's own NONE
-///        (macros.h's VAR_HEAD_NONE/REF_HEAD_NONE expand to nothing too) — the
-///        slot just disappears, leaving InGroup/OutGroup's variadic constructor
-///        with one fewer real argument. Global, unscoped (like AM4's own —
-///        macros aren't namespace-scoped), so avoid this exact token elsewhere
-///        in a TU that includes am4.h.
+/// AM4 NONE — empty placeholder satisfying MENU_OUTPUTS'/MENU_INPUTS'
+/// "at least 2 devices" syntax quirk. Global, unscoped.
 #define NONE
 
-/// @brief AM4-style per-backend output-device macro for OneMenu's ANSI/console
-///        backend — `ANSI_OUT(id,w,h)` declares `id` as a ready-to-use device,
-///        same spirit as AM4's own `SERIAL_OUT(port)`/`ANSISERIAL_OUT(port,color,
-///        panels...)` (each hides a concrete menuIO type behind a one-line call).
-///        Not byte-for-byte AM4 syntax — AM4 has no console/native ANSI backend
-///        to match against (`ANSISERIAL_OUT` is Serial-port-specific, taking a
-///        port + explicit panel regions); this is the compat layer's own
-///        backend adapter for the one output stack the native examples actually
-///        use (`FullPrinter`/`ANSIFmt`/`ANSIOut`/`ConsoleOut`), following the
-///        "components first, macros only for the AM4-call-site translation on
-///        top" principle. Plain OutDef<...>,
-///        not IOutDef<...> — MENU_OUTPUTS's OutGroup keeps each device's
-///        concrete type itself, no virtual dispatch needed here.
+/// Output-device macro for OneMenu's ANSI/console backend; `ANSI_OUT(id,w,h)`
+/// declares id as a ready-to-use device. Not byte-for-byte AM4 syntax (AM4
+/// has no native console backend to match).
 #define ANSI_OUT(id, w, h) \
   ::oneMenu::OutDef< \
       ::oneMenu::FullPrinter, ::oneMenu::ANSIFmt, ::oneMenu::DataParser<>, ::oneMenu::CtrlChars, \
@@ -1045,23 +750,9 @@ namespace am4compat {
     > id
 
 #ifdef ARDUINO
-/// @brief AM4-style per-backend output-device macro, *inline* form — unlike
-///        ANSI_OUT (which declares a named variable), `SERIAL_OUT(port)` is
-///        used directly inside a MENU_OUTPUTS(...) argument list, matching
-///        AM4's own SERIAL_OUT call shape exactly. Expands to a pointer to a
-///        function-local static OutDef instance (Meyers-singleton) — C++
-///        doesn't allow declaring a named variable inside an expression, so
-///        this is what makes the inline placement work with zero change to
-///        the calling AM4 source. `port` is accepted for AM4 syntax fidelity
-///        but ignored: oneMenu::SerialOut (like every bottom-of-chain Arduino
-///        IO component here) is a compile-time component bound to the global
-///        Serial object (serialOut.h) — OneMenu's device set is fixed at
-///        compile time, so a *runtime* stream argument has nothing to bind
-///        to. Real AM4 sketches pass literal Serial here anyway; passing
-///        Serial1/Serial2 would silently still target Serial. Area is a fixed
-///        40x6 default — AM4's own SERIAL_OUT has no area parameter to thread through either.
-///        Arduino-only (like the real oneMenu::SerialOut it wraps). Plain
-///        OutDef<...>, not IOutDef<...> — see ANSI_OUT's comment above.
+/// AM4 SERIAL_OUT(port) — inline Arduino serial output device, usable
+/// directly inside a MENU_OUTPUTS(...) argument list. port is accepted but
+/// ignored (bound to the global Serial object). Fixed 40x6 area. Arduino-only.
 // NOTE: `return (dev);` — the extra parens are load-bearing, not decoration.
 // decltype(auto) deduces from the return *expression as written*: an
 // unparenthesized id-expression (`return dev;`) decltype's to the plain
@@ -1079,42 +770,9 @@ namespace am4compat {
       return (dev); \
     }())
 
-/// @brief AM4 ANSISERIAL_OUT(port,colors,panels...) — real AM4 call shape
-///        (`ANSISERIAL_OUT(Serial,colors,{1,1,26,10},{28,1,16,10},{46,1,16,10})`),
-///        adapted onto OneMenu's own native ANSI stack rather than bridged:
-///        `ansiSerialOut.h` (like every AM4 driver written by the same author
-///        as this compat layer) has no licensing reason to stay untouched
-///        the way third-party-contributed `menuIO/*.h` drivers do — this
-///        reuses `ANSIFmt`+`ANSIOut` (already proven via
-///        `ANSI_OUT`, console-only until now) over the real `SerialOut`
-///        hardware sink (already proven via `SERIAL_OUT`, plain-text-only
-///        until now) instead. Both are `aRawDevice`, so the swap is a
-///        straight recomposition — zero new rendering code.
-///
-///        `port` is accepted but ignored, same "compile-time device, runtime
-///        arg has nothing to bind to" precedent as `SERIAL_OUT(port)`/
-///        `serialIn(Stream&)` above. `panels...` (multi-panel side-by-side
-///        depth display) is accepted but dropped — same "OneMenu doesn't
-///        need AM4's own panel/paging bookkeeping, a single output area is
-///        enough" precedent `NAVROOT`'s own `maxDepth` already established;
-///        a real multi-panel *OneMenu* layout isn't built yet.
-///
-///        `colors` is the one genuine call-shape adaptation: AM4's `colors`
-///        is a *runtime* `colorDef<uint8_t>[6]` array (6 named roles ×
-///        {disabled,enabled}×{normal,selected,editing} states); OneMenu's
-///        `ColorTable<...>` needs a *compile-time* `Color<int>::Table<...>`
-///        type (organized by state-path, not by role — see docs/oneMenu.md
-///        "Cascading color/font tables"). These are different axes on the
-///        same information, not a mechanical syntax swap — translating one
-///        into the other is real per-sketch port work, same "known semantic
-///        gap" category as `SUBMENU`'s move-only limitation. This macro
-///        expects `colors` to already *be* that translated `Color<int>::
-///        Table<...>` type (a `using colors = ...;` alias at the call site,
-///        in place of AM4's runtime array declaration) — the macro call
-///        itself then stays textually identical to the real AM4 source.
-///        Area is a fixed 40x10 default, same "no area param to thread
-///        through, pick a sensible fixed size" precedent as `SERIAL_OUT`'s
-///        own 40x6.
+/// AM4 ANSISERIAL_OUT(port,colors,panels...) — ANSI-colored serial output
+/// device; port/panels are ignored. colors must be a compile-time
+/// Color<int>::Table<...> type, not AM4's runtime colorDef<uint8_t>[6] array.
 #define ANSISERIAL_OUT(port, colors, ...) \
   (&[]() -> decltype(auto) { \
       static ::oneMenu::OutDef< \
@@ -1127,17 +785,9 @@ namespace am4compat {
     }())
 
 namespace Menu {
-  /// @brief AM4 serialIn(Stream&) — input device wrapper, real AM4 call shape
-  ///        (`serialIn serial(Serial); MENU_INPUTS(in,&serial);`). Wraps the
-  ///        native compile-time Serial+key-parser chain
-  ///        (InDef<SerialIn,IdxParser,PCKbd>) — MENU_INPUTS's InGroup keeps
-  ///        each device's concrete type itself, no virtual dispatch needed
-  ///        here (plain InDef<...>, not IInDef<...>). The Stream&
-  ///        constructor arg is accepted for AM4 syntax fidelity but ignored —
-  ///        like SerialOut, oneMenu::SerialIn (serialIn.h) is a compile-time
-  ///        component bound to the global Serial object; a runtime Stream&
-  ///        has nothing to bind to. Real AM4 sketches pass literal Serial
-  ///        here anyway.
+  /// AM4 serialIn(Stream&) — input device wrapper over the compile-time
+  /// Serial+key-parser chain. The Stream& constructor arg is accepted for
+  /// AM4 syntax fidelity but ignored (bound to the global Serial object).
   struct serialIn : ::oneMenu::InDef<::oneMenu::SerialIn, ::oneMenu::IdxParser, ::oneMenu::PCKbd> {
     serialIn(Stream&) {}
   };
@@ -1145,35 +795,9 @@ namespace Menu {
 #endif
 
 namespace am4compat {
-  /// @brief AM4's nav.timeOut/idleTask/nav.idleOn()/nav.sleepTask auto-idle
-  /// trigger — adapted onto oneMenu::RunLoop (nav.h) purely from this compat
-  /// layer, no OneMenu header touched (AM4-port machinery stays
-  /// AM5/compat-side unless it brings value to OneMenu itself — RunLoop
-  /// already does, this doesn't need to). Platform-agnostic (unlike
-  /// SERIAL_OUT/serialIn above, not gated on ARDUINO): RunLoop/hw::Timeout
-  /// both already work natively too. TimeoutMs is AM4's nav.timeOut
-  /// (inactivity window, ms); Run is an already-built oneMenu::RunLoop<mainFn>
-  /// *type* (not mainFn itself, re-templated) — avr-g++ 7.3 rejects
-  /// re-deriving a RunFn (bool(&)()) NTTP through a nested template
-  /// instantiation like this one ("not a valid template argument... must be
-  /// the name of a function with external linkage"), the same family of
-  /// function-reference-as-NTTP quirk documented elsewhere in this file
-  /// (Menu::doNothing/OP(), FIELD()'s noField()); taking Run as a type
-  /// sidesteps it entirely since there's nothing left to re-derive. AM4's
-  /// real 2-arg idleTask(out,idleEvent) start/end signature isn't
-  /// replicated — idleFn is a plain bool(), same AltRunFn shape every other
-  /// RunLoop alternative already uses.
-  ///
-  /// Usage (see examples/fullIdle): `using Run=oneMenu::RunLoop<mainFn>;
-  /// using Idle=am4compat::IdleTimeout<50,Run>;` then call
-  /// tick(activity,idleFn) once per mainFn invocation, where `activity` is
-  /// whatever already-real signal means "something happened this tick" (e.g.
-  /// nav.poll()'s own bool return — no new activity-detection machinery
-  /// needed, poll() already reports it). idleFn is whatever the sketch wants
-  /// to run while suspended — same free-standing bool() shape as
-  /// RunLoop::idleOn's own argument; it's the idleFn's own job to call
-  /// Run::idleOff() once its own "wake up" condition is met (AM4's
-  /// nav.idleOff()).
+  /// Adapts oneMenu::RunLoop into AM4-style idle triggering. TimeoutMs is
+  /// the inactivity window (ms); Run must be an already-built
+  /// oneMenu::RunLoop<mainFn> type.
   template<unsigned long TimeoutMs, typename Run>
   struct IdleTimeout {
     static inline hw::Timeout<TimeoutMs> timer;

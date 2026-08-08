@@ -45,10 +45,8 @@
 
 namespace am4compat {
 
-  /// @brief shared, driver-agnostic dummy single-panel bookkeeping — see
-  ///        this file's own header comment for why its content is never
-  ///        actually read (only exists to satisfy an AM4 driver's own
-  ///        constructor).
+  /// Driver-agnostic dummy single-panel bookkeeping, to satisfy an AM4
+  /// driver's own constructor; its content is never read.
   template<uint8_t W, uint8_t H>
   struct DummyPanel {
     static inline Menu::panel panel_{0, 0, (Menu::idx_t)W, (Menu::idx_t)H};
@@ -57,13 +55,9 @@ namespace am4compat {
     static inline Menu::idx_t tops[1] = {0};
   };
 
-  /// @brief satisfies oneMenu::LcdDisplay<LCD>'s contract
-  ///        (`OneMenu/include/oneMenu/menu/IO/IOP/lcdOut.h` — `print(char)`,
-  ///        `print(const char*)`, `setCursor(col,row)`, `clear()`, static
-  ///        `cols`/`rows`), backed by ANY real, already-constructed AM4
-  ///        `Menu::menuOut`-derived driver instance, reached purely through
-  ///        `menuOut`'s own virtual interface — see file header comment.
-  ///        W/H are the display's character grid size (columns, rows).
+  /// Satisfies oneMenu::LcdDisplay<LCD>'s contract, backed by any real,
+  /// already-constructed AM4 Menu::menuOut-derived driver instance. W/H are
+  /// the display's character grid size (columns, rows).
   template<uint8_t W, uint8_t H>
   struct MenuOutBridge {
     static constexpr uint8_t cols = W;
@@ -71,9 +65,8 @@ namespace am4compat {
 
     static inline Menu::menuOut* driver = nullptr;
 
-    /// @brief binds this bridge to a real, already-begin()'d AM4 driver
-    ///        instance (any Menu::menuOut subclass). Call once, before the
-    ///        first nav.printTo()/OutDef use.
+    /// Binds this bridge to a real, already-begin()'d AM4 driver instance.
+    /// Call once, before the first nav.printTo()/OutDef use.
     static void begin(Menu::menuOut& d) { driver = &d; }
 
     static void print(char c)        { driver->write((uint8_t)c); }
@@ -82,14 +75,8 @@ namespace am4compat {
     static void clear()              { driver->clear(); }
   };
 
-  /// @brief ready-made OutDef for any AM4-menuOut-backed display — same
-  ///        "just declare and go" shape as oneMenu::LcdOut. Usage:
-  ///        `Am4Out<20,4> devOut; MenuOutBridge<20,4>::begin(driver);`
-  ///        (`driver` already real, already constructed+begin()'d by the
-  ///        caller) — begin() is called on the bridge TYPE directly, same
-  ///        pattern oneIO::display::U8g2Spi's own `Oled::begin()` already
-  ///        uses (called on the underlying device trait, not through the
-  ///        assembled OutDef instance — see examples/u8g2Oled/src/main.cpp).
+  /// Ready-made OutDef for any AM4-menuOut-backed display. Usage:
+  /// `Am4Out<20,4> devOut; MenuOutBridge<20,4>::begin(driver);`.
   template<uint8_t W, uint8_t H>
   using Am4Out = oneMenu::LcdOut<MenuOutBridge<W, H>>;
 

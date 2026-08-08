@@ -10,9 +10,7 @@
 
 namespace oneMenu {
 
-  /// @brief compile-time color table: one Colors<f,b> pair at the root cascades
-  /// through the whole enabled x selected x role matrix. Override only the
-  /// branch that needs to differ; everything else defaults from its parent.
+  /// @brief Compile-time color table cascading through the enabled x selected x role matrix; override only the branches that differ.
   /// @tparam Cor color value type (e.g. int for ANSI codes)
   template<typename Cor>
   struct Color {
@@ -27,10 +25,7 @@ namespace oneMenu {
       using EditMode=Ed;
     };
 
-    /// @brief focus/blur: Selected (focused/highlighted) defaults to Item's own colors.
-    /// Sel defaults to It::Body (a leaf Colors<f,b>), not It itself (the whole Item<...>
-    /// struct) — every consumer of ::Selected (e.g. GfxFmt::itemInverted, ANSIFmt::fb) expects
-    /// a leaf, and It is always an Item<...> by construction at every real call site.
+    /// @brief Focus/blur state; Selected defaults to It::Body, a leaf Colors<f,b> (not the whole Item<...>).
     template<typename It, typename Sel=typename It::Body>
     struct Enabled { using Item=It; using Selected=Sel; };
 
@@ -54,9 +49,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief marker component: carries a Color<Cor>::Table<...> type, zero runtime
-  /// behavior. Drop anywhere below ANSIFmt in the output chain to override its
-  /// palette; omit it and ANSIFmt falls back to its own built-in default table.
+  /// @brief Marker component carrying a Color<Cor>::Table<...> type (no runtime behavior); place below ANSIFmt to override its palette.
   template<typename Table>
   struct ColorTable {
     using Type=Table;

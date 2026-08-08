@@ -6,10 +6,7 @@
 namespace oneMenu {
 
   // ── SkipOutId<Tag> ─────────────────────────────────────────────────────────
-  /// @brief output chain component: intercepts printItem and skips items tagged OutId<Tag>.
-  /// Place above the printer in the main OutDef to suppress footer items on the main output.
-  ///
-  ///   OutDef<SkipOutId<FooterTag>, ScrollPrinter, ANSIFmt, ..., StaticArea<30,9>> main_out;
+  /// Output chain component: intercepts printItem and skips items tagged OutId<Tag>.
   template<typename Tag>
   struct SkipOutId {
     template<typename O>

@@ -30,21 +30,16 @@
 
 namespace am4compat {
 
-  /// @brief a plain monochrome default color table (nColors=6: bg/fg/val/
-  ///        unit/cursor/title) — 0=off,1=on for every slot. u8g2Out's own
-  ///        constructor requires one; most real AM4 u8g2 sketches declare
-  ///        an equivalent table themselves for a 1-bit display.
+  /// Plain monochrome default color table (nColors=6: bg/fg/val/unit/
+  /// cursor/title) — 0=off,1=on for every slot.
   inline const Menu::colorDef<uint8_t> defaultMonoColors[Menu::nColors] = {
     {{0,0},{1,1,1}}, {{0,0},{1,1,1}}, {{0,0},{1,1,1}},
     {{0,0},{1,1,1}}, {{0,0},{1,1,1}}, {{0,0},{1,1,1}}
   };
 
-  /// @brief constructs a real Menu::u8g2Out over `gfx` (already real,
-  ///        already `gfx.begin()`'d by the caller) and binds it to
-  ///        `MenuOutBridge<W,H>`. W/H are the display's CHARACTER grid size
-  ///        (columns, rows), not pixels — matches u8g2Out's own resX/resY
-  ///        character-cell convention (see file header comment). Call
-  ///        once, before the first nav.printTo()/OutDef use.
+  /// Constructs a real Menu::u8g2Out over `gfx` (already begin()'d by the
+  /// caller) and binds it to MenuOutBridge<W,H>; W/H are the character grid
+  /// size (columns, rows), not pixels.
   template<uint8_t W, uint8_t H, uint8_t ResX = 6, uint8_t ResY = 9>
   void beginU8g2(U8G2& gfx, const Menu::colorDef<uint8_t> (&colors)[Menu::nColors] = defaultMonoColors) {
     using Panel = DummyPanel<W, H>;

@@ -129,9 +129,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief start body printing process by redirecting to the item.
-  /// Chains to Base::printMenu so any other post-body printers in the same
-  /// MenuPrinter<...> pack are reached through the normal fmt pipeline.
+  /// @brief Starts body printing by redirecting to the item; chains to Base::printMenu.
   struct BodyPrinter : aPrinter {
     template<typename O>
     struct Part:O {
@@ -262,18 +260,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief like ScrollBodyPrinter, but skips the scroll-search entirely — top is always
-  /// exactly ctx.sel(). There's no window to search for: a FullScreen item (item.h)
-  /// always consumes the whole page, so "increasing top eventually fits more items"
-  /// (ScrollBodyPrinter::printMenu's own search invariant) can never become true here;
-  /// forcing FullScreen through that search risks an infinite loop and a stale
-  /// position, so this case gets its own dedicated path instead of patching a function
-  /// built for a different case.
-  /// Deliberately reuses ScrollBodyPrinter::Part's own printItem unchanged (its
-  /// skip-before-top / stop-when-full gating applies equally here — only the *search*
-  /// for top is skipped) by inheriting from it and overriding only printMenu, then
-  /// calling straight through to BodyPrinter::Part::printMenu (ScrollBodyPrinter's own
-  /// Base) instead of ScrollBodyPrinter::Part::printMenu — skipping its search loop.
+  /// @brief Like ScrollBodyPrinter but without the scroll-search: top is always exactly ctx.sel().
   struct SelectBodyPrinter : aPrinter, aScrollBody {
     template<typename Before, typename After>
     static constexpr bool rules() {
@@ -400,14 +387,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief triggers the item's own enabled/disabled state print — unlike
-  /// NavCursorPrinter's '@'/'-'/' ' (which only distinguishes enabled from
-  /// disabled when the item is ALSO the focused one), this fires for every
-  /// item unconditionally, same shape as IndexPrinter — a universal no-op
-  /// for any format that doesn't specifically handle Fmt::Enabled (out.h's
-  /// own base default), real output only from XmlFmt today (web clients:
-  /// render a disabled item as non-clickable instead of guessing from
-  /// nav-focus state alone).
+  /// @brief Triggers the item's own enabled/disabled state print, unconditionally for every item.
   struct EnabledPrinter : aPrinter {
     template<typename O>
     struct Part:O {
@@ -440,9 +420,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief allow inclusion of data on the printers queue as a item part
-  /// @tparam Data: included static data
-  /// @brief printer that injects a static data value as an item prefix
+  /// @brief Printer that injects a static data value as an item prefix.
   template<typename Data>
   struct StaticDataPrinter : aPrinter {
     template<typename O>

@@ -11,9 +11,7 @@
 
 namespace oneMenu {
 
-  /// @brief compile-time font table: one Value<v> at the root cascades through the
-  /// whole enabled x selected x role matrix, same skeleton as Color<Cor>. Override
-  /// only the branch that needs to differ.
+  /// @brief Compile-time font table cascading through the enabled x selected x role matrix; override only the branches that differ.
   /// @tparam Fnt font selector type (e.g. bool for big/normal; a font-id enum later)
   template<typename Fnt>
   struct Font {
@@ -28,9 +26,7 @@ namespace oneMenu {
       using EditMode=Ed;
     };
 
-    /// @brief focus/blur: Selected (focused/highlighted) defaults to Item's own font.
-    /// Sel defaults to It::Body (a leaf Value<v>), not It itself (the whole Item<...> struct)
-    /// — same fix as Color<Cor>::Enabled, see colors.h.
+    /// @brief Focus/blur state; Selected defaults to It::Body, a leaf Value<v> (not the whole Item<...>).
     template<typename It, typename Sel=typename It::Body>
     struct Enabled { using Item=It; using Selected=Sel; };
 
@@ -54,9 +50,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief marker component: carries a Font<Fnt>::Table<...> type, zero runtime
-  /// behavior. Drop anywhere below a font-aware format (e.g. GfxFmt) in the output
-  /// chain to override it; omit it and that format's own built-in default applies.
+  /// @brief Marker component carrying a Font<Fnt>::Table<...> type (no runtime behavior); place below a font-aware format to override it.
   template<typename Table>
   struct FontTable {
     using Type=Table;

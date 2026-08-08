@@ -118,48 +118,20 @@ namespace oneMenu {
   using RunFn = bool(&)();
   using AltRunFn = bool(*)();
 
-  /// @brief virtual-dispatch nav interface — the nav-side twin of item.h's
-  /// IItem and out.h's IOut, same "escape hatch capped at one boundary"
-  /// pattern all three share. level()/sel()/navMode() are pure virtual:
-  /// every real INavDef<...> chain composes TreeNav, so INavDef can always
-  /// forward them. idling()/idleOn()/idleOff() default to a total no-op —
-  /// core INav doesn't know or care whether any concrete nav chain is bound
-  /// to a real RunLoop<mainFn> (below, this file) — that's AM4-flavored
-  /// wiring for a *particular* sketch's mainFn (AM4-port machinery stays
-  /// AM5/compat-side unless it brings value to OneMenu itself — RunLoop
-  /// itself already does, this binding doesn't need to). Plain INavDef
-  /// therefore compiles unchanged with zero new
-  /// obligation; only am4compat::NavRootDef (am4.h) overrides these three
-  /// to forward into a real RunLoop<mainFn> — see that type's own doc
-  /// comment.
+  /// @brief Virtual-dispatch nav interface, the nav-side twin of item.h's IItem and out.h's IOut. level()/sel()/navMode() are pure virtual; idling()/idleOn()/idleOff() default to a no-op.
   struct INav {
     virtual Depth level() const=0;
     virtual Sz sel() const=0;
     virtual NavMode navMode() const=0;
 
-    /// @brief AM4 nav.root->navFocus-equivalent: "is this nav still the one
-    /// actually in control." OneMenu has one INav per nav chain (no AM4
-    /// -style multiple-navRoot registry), so this collapses onto "not
-    /// currently backgrounded by an idle/dialog alternative" — derives
-    /// from idling() alone, nothing separate to override.
+    /// @brief Whether this nav is still the one in control (not backgrounded by an idle/dialog alternative).
     bool isFocused() const {return !idling();}
 
     virtual bool idling() const {return false;}
     virtual void idleOn(AltRunFn) {}
     virtual void idleOff() {}
 
-    /// @brief level-mutating primitives (TreeNav::Part's own open/close/
-    /// padOpen/doNav, above) — the ONLY way a nav chain's selection/depth
-    /// actually changes. Not pure: a bare INav with no real TreeNav behind
-    /// it (there is no such thing today, but a future non-tree nav shape
-    /// might not have levels at all) safely no-ops rather than forcing every
-    /// INav-family type to implement level bookkeeping it doesn't have.
-    /// Needed so a type-erased item (IItem::_nav/_kbdNav, item.h — takes
-    /// INav&, not a concrete TreeNav type) can itself open/close a level or
-    /// move a selection, e.g. a virtual-dispatch item wrapping its own
-    /// Menu-shaped/submenu body. Same "escape hatch capped at one boundary"
-    /// pattern as idling()/idleOn()/idleOff() just above — purely additive,
-    /// every existing INavDef<...> chain keeps compiling unchanged.
+    /// @brief Level-mutating primitives (open/close/padOpen/doNav) — the only way a nav chain's selection/depth changes. Default no-op (not pure).
     virtual bool open() {return false;}
     virtual bool close() {return false;}
     virtual bool padOpen() {return false;}
@@ -226,12 +198,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief attaches a compile-time-constant id to a nav chain, letting a runtime
-  ///        key (e.g. an HTTP/WS request field) select among several otherwise-
-  ///        independent NavDef<...> instances (a main tree plus a dialog tree,
-  ///        say) without any server-tracked per-client state — composes like
-  ///        Root<>/StaticRoot<> above: no data members, rootId() stays entirely
-  ///        compile-time-resolved (zero-cost, confirmed via sizeof comparison).
+  /// @brief Attaches a compile-time-constant id to a nav chain, letting a runtime key select among several independent NavDef<...> instances.
   template<int Id>
   struct RootId {
     template<typename N>
@@ -240,39 +207,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief fuses input+output for one nav: the small "poll everything, redraw if
-  ///        changed" cycle every sketch otherwise hand-writes itself in loop()/run().
-  ///        Composes like any other nav component instead of needing its own
-  ///        separately-built Nav type to derive from.
-  ///
-  ///        Deliberately generic over InG/OutG, NOT type-erased (IIn&/IOut&) —
-  ///        m_in.doInput(...)/m_out.doOutput(...) are both template calls, so
-  ///        plugging in plain compile-time InDef<...>/OutDef<...> costs nothing
-  ///        extra, same as composing them directly. A device set that's
-  ///        heterogeneous but still fixed at compile time (AM4-compat's
-  ///        MENU_INPUTS/MENU_OUTPUTS) uses InGroup/OutGroup (in.h/out.h) —
-  ///        also zero vtable cost, a compile-time pack that keeps every
-  ///        device's own concrete type (needed: Menu::Part::printMenu is
-  ///        templated on the item type, so it can't cross a type-erased IOut&
-  ///        boundary at all). InList<N>/OutList<N> (genuinely runtime-picked/
-  ///        hot-swappable devices) stay usable as InG, but OutList can't
-  ///        drive a real menu tree for the same reason — see its own comment
-  ///        (out.h).
-  ///
-  ///        Deliberately narrow: owns just this one fan-out+redraw fusion, not
-  ///        idle timers or which nav is "active" (examples/fields' activeRun
-  ///        state machine already does that, unaffected — Pool doesn't try to
-  ///        replace it, just gives it a reusable primitive to build multiple
-  ///        Pool instances from instead of hand-rolling each one's cycle).
-  ///
-  ///        Must be the FIRST component in the chain (`INavDef<Pool<...>,
-  ///        EventDispatch, TreeNav, Root<...>> id(in,out);`) for its constructor
-  ///        to be reachable: hapi::Chain forwards a component's own constructor
-  ///        upward via `using Base::Base;` at every wrapping layer (same
-  ///        mechanism Menu<T,B,OO...>::Part's 2-arg constructor already relies
-  ///        on), but only the outermost link's constructor is what a plain
-  ///        `using Base::Base;` two layers up (DefinedNav/INavDef, this file)
-  ///        actually exposes at the top.
+  /// @brief Fuses input+output for one nav: polls both and redraws if changed.
+  /// Must be the FIRST component in the chain (e.g. `INavDef<Pool<...>, EventDispatch, TreeNav, Root<...>> id(in,out);`) for its constructor to be reachable.
   template<typename InG,typename OutG>
   struct Pool {
     template<typename N>
@@ -515,23 +451,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief AM4-parity event dispatch: detects nav-level state transitions (selection
-  /// and level changes) and raises EventMask events to the affected item's onEvent()
-  /// hook (item.h). Place above TreeNav: NavDef<EventDispatch, TreeNav, Root<...>>.
-  ///
-  /// v1 scope: only Enter/Exit/Focus/Blur are raised; selFocus/selBlur/updateEvent/
-  /// activateEvent are real AM4 features not implemented here yet.
-  /// - Dispatches at any level, walking root().body down through the live path to reach
-  ///   items inside nested submenus (see detail::eventVisit below).
-  /// - Wraps doCmd(), NOT in() — real input-device-driven nav.in()/poll() calls (and
-  ///   IndexGo's own in(), when composed) route through Base::obj() (hapi::CRTP) before
-  ///   calling doCmd, specifically so a more-derived doCmd() override like this one is
-  ///   still reached from those call sites — see TreeNav::Part::in()/IndexGo::Part::in().
-  /// - Enter/Exit fire regardless of whether they also changed level, matching AM4.
-  /// - Enter/Exit are gated on the target item's enabled() (AM4 parity); Focus/Blur are
-  ///   not — a disabled item is still selectable (Menu::Part::nav's plain Up/Down never
-  ///   consults enabled() at all), so gating Focus/Blur too would suppress an event kind
-  ///   the rest of the codebase treats as enabled-agnostic.
+  /// @brief Event dispatch: detects nav-level state transitions (selection and level changes) and raises EventMask events to the affected item's onEvent() (item.h).
+  /// Place above TreeNav: NavDef<EventDispatch, TreeNav, Root<...>>. v1 scope: only Enter/Exit/Focus/Blur.
   namespace detail {
     // Detects "does this item have a nested .body" (i.e. it's an ItemDef<Menu<...>>) —
     // std::void_t/declval come from HAPI's avr_std.h shim on AVR (no <type_traits> there
@@ -612,27 +533,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief the "alternative poll handler" pattern: a single active handler,
-  /// swapped by idleOn()/idleOff() to show an idle screen, a dialog, or
-  /// anything else that should take over the poll loop. `run()` always
-  /// calls `alternative()` unconditionally — no null-check, since
-  /// `alternative` always points at a valid function. "Restoring normal
-  /// operation" means reassigning it back to `mainFn`, not to null —
-  /// simpler than AM4's own internal `sleepTask`, which does use NULL+a
-  /// check.
-  ///
-  /// `mainFn` is a compile-time NTTP (the common case never changes at
-  /// runtime, so it costs nothing to fix at compile time — same convention
-  /// as EventFunc/IdleFunc); the *alternative* is the one genuinely
-  /// runtime-swappable slot, since which alternative runs (idle screen,
-  /// which dialog, ...) is a real runtime decision. Each handler is just an
-  /// arbitrary `bool()` function — it can drive the *same* nav, a
-  /// completely separate nav+menu+device (AM4's own dialog pattern), or
-  /// nothing nav-related at all. RunLoop itself doesn't know or care what a
-  /// handler does — same "cap, not a spreading cost" shape as this
-  /// codebase's other escape hatches: composing it costs one function
-  /// pointer, nothing else.
-
+  /// @brief "Alternative poll handler" pattern: a single active handler, swapped by idleOn()/idleOff() to show an idle screen, dialog, or similar.
+  /// `mainFn` is fixed at compile time; `alternative` is the runtime-swappable slot, restored to `mainFn` (not null) by idleOff().
   template<RunFn mainFn>
   struct RunLoop {
     static inline AltRunFn alternative = mainFn;
@@ -647,26 +549,7 @@ namespace oneMenu {
     static bool active() { return alternative != mainFn; }
   };
 
-  /// @brief drives per-frame animation (AM22's `TickFocus`). Every output poll,
-  /// dispatches tick() (item.h) to whichever item is currently focused —
-  /// reusing EventDispatch's own detail::eventVisit walker, so composition
-  /// order relative to EventDispatch doesn't matter, neither depends on the
-  /// other.
-  ///
-  /// Overrides changed(Out&), NOT doOutput() — unlike IndexGo/EventDispatch (which
-  /// override doCmd()/in(), methods DefinedNav actually delegates to), doOutput() is
-  /// defined directly on DefinedNav itself (this file, above) and never calls
-  /// Base::doOutput() at all, so a chain component overriding doOutput() would be
-  /// silently unreachable (a plain override binds statically to this scope, not
-  /// to whatever DefinedNav actually calls). changed(Out&) IS one of the primitives
-  /// DefinedNav::doOutput actually composes from Base, so overriding it here correctly
-  /// makes tick()-driven animation feed the same redraw decision a real data change would.
-  /// Reports true if tick() advanced anything, in addition to (not instead of) whatever
-  /// Base::changed(out) already found — an animating item's own changed() (item.h's
-  /// TextRoll) must independently report true too, since Update-mode's per-row gate
-  /// (printers.h's ItemPrinter) only unlocks a row when *that item's* changed() is true,
-  /// not just the nav-level aggregate probed here.
-  ///
+  /// @brief Drives per-frame animation: every output poll, dispatches tick() (item.h) to whichever item is currently focused.
   /// Place above TreeNav: NavDef<TickFocus, TreeNav, Root<...>>.
   struct TickFocus {
     template<typename N>
@@ -688,18 +571,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief "esc to common base, then go to target" — the OneMenu
-  /// equivalent of AM4's escTo()+menuNode::async() composition. Walks from
-  /// wherever `nav` currently is to
-  /// `target` (an absolute path from root, `len` entries): finds the deepest common
-  /// ancestor level, escapes back to it, then descends to `target` one level at a time.
-  /// Deliberately built entirely from doCmd()-routed primitives (up/down/enter/esc, all
-  /// already observed correctly by EventDispatch) rather than AM4's O(1) index-jump
-  /// (go()) + hand-fired events — trades walk speed (O(steps) instead of O(1) per level)
-  /// for zero new event-firing code, since every step is a primitive already proven to
-  /// fire the right event. A faster jump-based version is possible later (mirroring how
-  /// IndexGo's Cmd::Go already jumps via go()) but would need to fire events itself
-  /// rather than getting them for free from doCmd.
+  /// @brief Navigates from wherever `nav` currently is to `target` (an absolute path from root, `len` entries): escapes to the deepest common ancestor, then descends.
   template<typename Nav>
   bool gotoPath(Nav& nav, const Sz* target, Depth len) {
     // target[] indexed via (int) casts: Depth is `char` on AVR (base.h, memory-optimized),

@@ -82,10 +82,7 @@ namespace oneMenu {
     using Key=unsigned int;
   #endif 
 
-  /// @brief compile time `max(a,b)` function
-  /// @tparam a value
-  /// @tparam b value
-  /// @return Sz
+  /// @brief Compile-time max(a,b).
   template<const Sz a,const Sz b> constexpr Sz staticMax() {return a>b?a:b;}
 
   struct IItem;

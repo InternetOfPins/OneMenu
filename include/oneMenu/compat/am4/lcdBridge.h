@@ -20,11 +20,9 @@
 
 namespace am4compat {
 
-  /// @brief constructs a real Menu::liquidCrystalOut over `lcd` (already
-  ///        real, already `lcd.begin(W,H)`'d by the caller) and binds it to
-  ///        `MenuOutBridge<W,H>`. Call once, before the first
-  ///        nav.printTo()/OutDef use — same "begin() on the bridge type"
-  ///        pattern menuOutBridge.h's own doc comment describes.
+  /// Constructs a real Menu::liquidCrystalOut over `lcd` (already begin()'d
+  /// by the caller) and binds it to MenuOutBridge<W,H>. Call once, before
+  /// the first nav.printTo()/OutDef use.
   template<uint8_t W, uint8_t H>
   void beginLcd(LiquidCrystal& lcd) {
     using Panel = DummyPanel<W, H>;

@@ -4,16 +4,8 @@
 
 namespace oneMenu {
 
-  /// @brief Joins two bodies into one logical body.
-  /// Indices [0, BodyA::size()) route to b1; [BodyA::size(), total) route to b2.
-  /// Both bodies may be any body type (StaticBody, CArrayBody, StdBody, …).
-  /// Nest to join more than two: JoinBody<A, JoinBody<B, C>>.
-  /// NOTE: template parameters are named BodyA/BodyB, not B1/B2 — Arduino's
-  /// own binary.h (`#define B1 1`, `#define B2 2`, ..., pulled in
-  /// transitively by <Arduino.h> under any framework=arduino build) would
-  /// otherwise macro-substitute B1/B2 in this file's own template<>
-  /// declarations before the compiler ever sees them as identifiers,
-  /// breaking the template entirely.
+  /// Joins two bodies into one logical body: indices [0, BodyA::size()) route to b1,
+  /// [BodyA::size(), total) route to b2. Any body type; nest to join more than two.
   template<typename BodyA, typename BodyB>
   struct JoinBody {
     BodyA b1;

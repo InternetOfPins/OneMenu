@@ -67,14 +67,7 @@ namespace oneMenu {
     template<typename Nav> bool doOutput(Nav& nav) { return nav.doOutput(*this); }
   };
 
-  /// @brief output interface base for runtime-polymorphic output dispatch.
-  ///        Types=Chain<> — a type-erased Out can't statically claim any
-  ///        compile-time capability tag (IsCursor, PartialDraw via
-  ///        hapi::TagIs<...>::Check<Out>) since the concrete device behind the
-  ///        interface isn't known here; every tag-gated shortcut in nav.h
-  ///        (cursor repositioning, selective partial redraw) safely evaluates
-  ///        false and falls back to the plain always-full-redraw path instead
-  ///        — every device already has to support that path anyway.
+  /// @brief Output interface base for runtime-polymorphic output dispatch; Types=Chain<> (a type-erased Out claims no compile-time capability tags).
   struct IOut {
     using Types = hapi::Chain<>;
     virtual void lockMode(LockMode)=0;
@@ -208,9 +201,7 @@ namespace oneMenu {
   //
   // Fixed-capacity array, not a dynamic container — no heap, no std::
   // dependency (AVR has no libstdc++).
-  /// @brief runtime list of IOut* sinks; itself a valid IOut (mirrors InList).
-  ///        Low-level put-broadcast only — see class comment for why it can't
-  ///        drive a real menu tree; use OutGroup (below) for that instead.
+  /// @brief Runtime list of IOut* sinks, itself a valid IOut; low-level put-broadcast only — cannot drive a real menu tree (use OutGroup for that).
   template<Sz N>
   struct OutList : IOut {
     OutList() = default;
@@ -389,9 +380,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief use device cursor, must be placed on top of the device
-  /// will record the edit cursor position upon Fmt::TextEditCursor start
-  /// for ´ANSIEditFmt´ (or similar) to restore upon Fmt::Viewport stop
+  /// @brief Records the edit cursor position on Fmt::TextEditCursor start, for restore on Fmt::Viewport stop; must be placed on top of the device.
   struct DeviceCursor {
     template<typename F>
     struct Part:F {
@@ -446,24 +435,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief compile-time output settings: gutter (horizontal) and itemSpacing
-  /// (vertical, per-row cosmetic padding) — ported from AM22's out.h
-  /// (LineSpacing<gut,spc>, real usage e.g. AM22/examples/.../lolin32/
-  /// src/main.cpp: composed dead-last in the OutDef chain, right after the
-  /// raw device — a pure settings leaf like StaticPos/StaticArea, nothing
-  /// above it needs to see through it). Opt-in: a Fmt component that wants
-  /// itemSpacing() detects whether this is composed (e.g. via a HasX-style
-  /// SFINAE trait) and falls back to 0 if it isn't — this is NOT wired into
-  /// any Fmt by default.
-  ///
-  /// Member named itemSpacing(), NOT AM22's own lineSpacing(): found on real
-  /// ST7789 hardware that VendorGfxOut/OledOut (oledOut.h) already define
-  /// their OWN, unrelated lineSpacing() (forwards Oled::lineSpacing(), the
-  /// device's CharH, used for Cursor's LineH template arg) — same name,
-  /// completely different meaning. VendorGfxOut sits earlier (more derived)
-  /// in a real chain than this component (composed dead-last), so ordinary
-  /// C++ name-hiding silently picked VendorGfxOut's version — no compile
-  /// error (identical signature), just a padding value of 16 instead of 1.
+  /// @brief Compile-time output settings: gutter (horizontal) and itemSpacing (vertical, per-row padding).
+  /// Compose dead-last in the OutDef chain, right after the raw device; opt-in, not wired into any Fmt by default.
   template<Sz gut=1, Sz spc=1>
   struct LineSpacing {
     template<typename O>
@@ -596,9 +569,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief clip output to defined area
-  /// this will require `DataParser` and possibly `UTF8` above 
-  /// and `Cursor` + `Gate` bellow
+  /// @brief Clips output to the defined area. Requires `DataParser` (and possibly `UTF8`) above, `Cursor` + `Gate` below.
   struct Clip : aParser {
     template<typename Before, typename After>
     static constexpr bool rules() {

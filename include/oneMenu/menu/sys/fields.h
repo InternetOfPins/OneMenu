@@ -24,27 +24,9 @@ namespace oneMenu {
       M::chk(std::declval<int>(),std::declval<char>()))>>
     : std::true_type {};
 
-  /// @brief zero-copy external char-buffer binding for TextField/EDIT() —
-  /// binds directly over a caller-owned `char buf[]`, matching AM4's real
-  /// EDIT() semantics (bound-not-copied, in place; "field will initialize
-  /// its size by this string length"). This is NOT oneData::DataRef: DataRef
-  /// (oneData.h) already special-cases get() correctly for a char* NTTP
-  /// (returns the pointer itself, not *address) but its set() stays the
-  /// generic scalar set(Type v)=set(char v) (writes one char) inherited from
-  /// DataRef's size-less, shared "0 bytes RAM" contract — wrong for
-  /// TextField::PartEnd::setStr()'s "set(const char*), whole-string" need,
-  /// and DataRef has no capacity to bound a copy against even if it grew
-  /// that overload. TextBufRef is the small, TextField-only adapter that
-  /// adds exactly that one missing thing (a compile-time size), reusing
-  /// Data<char[N]>::set()'s own bounded-copy shape against an external
-  /// pointer instead of an owned array.
-  /// @tparam address the buffer's own array-decayed pointer — pass the array
-  ///   name itself (e.g. `TextBufRef<buf,sizeof(buf)-1>`), NOT `&buf` (whose
-  ///   type is char(*)[N], not char*); buf must have static storage duration
-  ///   and linkage (same pre-existing constraint DataRef<&(var)>-based
-  ///   FIELD() bindings already have).
-  /// @tparam sz usable buffer length, excluding the trailing '\0' — matches
-  ///   AM4's "field size = the buffer's own string length" rule.
+  /// @brief Zero-copy binding for TextField/EDIT() over a caller-owned `char buf[]` (bound, not copied).
+  /// @tparam address the array name itself (not `&buf`); must have static storage duration and linkage
+  /// @tparam sz usable buffer length, excluding the trailing '\0'
   template<char* address,Sz sz>
   struct TextBufRef {
     template<typename O>

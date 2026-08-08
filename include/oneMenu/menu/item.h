@@ -43,31 +43,15 @@ namespace oneMenu {
     // generic no-op — no redeclaration or using-declaration needed here.
     template<bool isKbd,typename Nav> static constexpr bool nav(Nav& n,const CKE& cke,Path) {return false;}
     template<typename Nav,typename P> static constexpr bool setStr(Nav&,const char*,P) {return false;}
-    /// @brief AM4-parity semantic event hook (see enums.h EventMask). Default no-op,
-    /// same pattern as nav()/printItem() — override in a component that cares
-    /// (e.g. EventAction<mask,fn> below), not by patching every item.
+    /// @brief Semantic event hook (see enums.h EventMask); default no-op, override in a component that cares.
     static constexpr bool onEvent(EventMask) {return false;}
-    /// @brief per-frame animation hook, dispatched only to the currently-focused item
-    /// (see TickFocus, nav.h). Default no-op — returns false (nothing to redraw), same
-    /// pattern as onEvent()/nav(). Override in a component that animates (e.g. TextRoll
-    /// below) to advance internal state and report whether a redraw is needed.
+    /// @brief Per-frame animation hook, dispatched only to the currently-focused item (see TickFocus, nav.h); default no-op.
     static constexpr bool tick() {return false;}
   };
 
   template<typename... OO> struct ItemDef; // forward — ItemDefC's Ins/App alias it below
 
-  /// @brief ItemDef's real logic, parameterized on Cfg (threaded down to
-  /// ItemAPI<Cfg> -> oneItem::ItemAPI<Cfg> -> oneData::DataAPI<Cfg>, which
-  /// derives from Cfg directly — the same "anchor" slot hapi::Chain<>::Part<T>
-  /// uses for T). Plain ItemDef<OO...> below is just Cfg=Nil. IItemDef (this
-  /// file) is the other instantiation, Cfg=hapi::CRTP<IItemDef<II...>> — giving
-  /// its OO... chain a working obj() self-reference, same pattern nav.h's
-  /// DefinedNav<API,NN...> already uses for NavDef/INavDef. Needed so a
-  /// component nested in OO... can reach the fully-assembled IItemDef&, and
-  /// through it, IItem& (see EventActionItem below) — a plain static_cast from
-  /// inside OO... can't reach IItem& otherwise, since IItemDef puts IItem and
-  /// OO... on separate multiple-inheritance branches (neither static_cast nor
-  /// dynamic_cast can bridge that gap without this).
+  /// @brief ItemDef's real logic, parameterized on Cfg; ItemDef<OO...> is Cfg=Nil, IItemDef is Cfg=hapi::CRTP<IItemDef<II...>>.
   template<typename Cfg,typename... OO>
   struct ItemDefC:APIOf<ItemAPI<Cfg>,OO...>{
     using Base=APIOf<ItemAPI<Cfg>,OO...>;
@@ -108,18 +92,7 @@ namespace oneMenu {
     using Base::Base;
   };
 
-  /// @brief virtual-dispatch item interface — the item-side twin of out.h's
-  /// IOut and nav.h's INav, same "escape hatch capped at one boundary"
-  /// pattern all three share. This is a *cap*, not a cost that spreads: IItem
-  /// sits at exactly the outer edge of IItemDef<II...> (below); the II...
-  /// component chain inside it stays ordinary static HAPI composition, same
-  /// zero-vtable machinery as plain ItemDef<OO...>. Nothing about being
-  /// composed *inside* an IItemDef pays a virtual-dispatch tax internally —
-  /// only code that actually needs a type-erased IItem&/IItem* (e.g.
-  /// EventActionItem, for AM4-compat's OP() — see am4.h's am4compat::opItem,
-  /// which reaches for IItemDef only when a handler's own signature asks for
-  /// it) touches this boundary at all. Plain ItemDef stays the zero-cost
-  /// default everywhere else; this is opt-in, not the norm.
+  /// @brief Virtual-dispatch item interface, the item-side twin of out.h's IOut and nav.h's INav; opt-in escape hatch, not the zero-cost default (plain ItemDef).
   struct IItem {
     virtual bool printMenu(IOut& out,Ctx& ctx)=0;
     virtual bool printBody(IOut& out,Ctx&)=0;
@@ -141,24 +114,10 @@ namespace oneMenu {
 
     virtual void printItem(IOut& out,Ctx& ctx) {}
 
-    /// @brief fake-no-op default (same shape as printItem() above) — overridden
-    /// by IItemDef to forward into the real OO... chain's onEvent(); lets
-    /// EventActionItem (below) hand a real item& to a user handler for items
-    /// that opted into virtual dispatch, without every IItem user needing to
-    /// override this.
+    /// @brief No-op default; overridden by IItemDef to forward into the real OO... chain's onEvent().
     virtual bool onEvent(EventMask) {return false;}
 
-    /// @brief nav-carrying sibling (AM4's real result(eventMask,navNode&,
-    /// prompt&) signature — see am4compat::EventActionItemNav, am4.h). The
-    /// default's call-back to onEvent(e) is SAFE here specifically because
-    /// onEvent(EventMask) is a genuine virtual function — the call resolves
-    /// through IItem's own vtable to whatever the real most-derived 1-arg
-    /// override is, unlike a plain (non-virtual) compile-time component
-    /// trying the identical "call back to the 1-arg form" trick, which
-    /// would statically bind to its own lexical scope instead — see
-    /// IItemDef::onEvent(EventMask,INav&) below, and HasNavOnEvent's own
-    /// doc comment, for why that path needs a different approach instead
-    /// of this same default.
+    /// @brief Nav-carrying sibling of onEvent(EventMask); default forwards to the 1-arg overload.
     virtual bool onEvent(EventMask e, INav&) {return onEvent(e);}
 
     template <typename Out>
@@ -267,12 +226,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief AM4-parity event handler: fires fn(raisedEvent) when EventDispatch (nav.h)
-  /// raises any bit overlapping mask — mirrors AM4's navNode::event() exactly (masked
-  /// "any overlap" match, handler receives the raised bit not the registered mask; see
-  /// enums.h EventMask). Generalizes Action<fn> (which stays as the zero-cost
-  /// Enter-only default, unmodified) rather than replacing it — use EventAction when you
-  /// need Exit/Focus/Blur or a combined mask, Action for the plain Enter-only case.
+  /// @brief Fires fn(raisedEvent) when EventDispatch raises any bit overlapping mask; use for Exit/Focus/Blur or combined masks (Action covers the plain Enter-only case).
   using EventFunc=bool(&)(EventMask);
 
   template<EventMask mask,EventFunc fn>
@@ -288,15 +242,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief AM4-parity event handler for the plain zero-arg void() handler shape — AM4's
-  /// `action` class accepts several handler signatures (result(eventMask),
-  /// result(eventMask,navNode&), result(eventMask,navNode&,prompt&) — menuBase.h ~169-171)
-  /// via constructor overloads; a real AM4 sketch's FIELD/MENU handler is very commonly
-  /// just `void fn()` though (e.g. neu-rah/Fielduino's `updateWave`). EventAction above
-  /// needs `bool(EventMask)`; this sibling component exists so that exact shape can be
-  /// used unmodified rather than requiring every ported handler to be rewritten — "other
-  /// action components to match AM4 features" (Rui), not one signature trying to cover
-  /// every AM4 handler shape.
+  /// @brief Event handler for the plain zero-arg `void fn()` handler shape (EventAction above needs `bool(EventMask)`).
   using VoidFunc=void(&)();
 
   template<EventMask mask,VoidFunc fn>
@@ -313,23 +259,10 @@ namespace oneMenu {
     };
   };
 
-  /// @brief AM4-parity event handler that also hands the item itself to fn —
-  /// closest match to AM4's real result(eventMask,navNode&,prompt&) shape
-  /// (the navNode& half isn't provided). Requires the item be built as
-  /// IItemDef<...>, not plain ItemDef<...>: IItem& is only reachable via
-  /// IItemDef's own CRTP self-reference (ItemDefC's Cfg slot, see IItemDef
-  /// above) — a plain ItemDef<...> has no such anchor and no IItem base to
-  /// cast to. This is the vtable-cost sibling of EventAction: use
-  /// EventAction for the zero-cost case, this one only where AM4-compat
-  /// needs the item reference (e.g. am4.h's OP()) and the escape-hatch cost
-  /// is already accepted.
+  /// Event handler that also receives the item itself; requires IItemDef<...>.
   using EventFuncItemPtr=bool(*)(EventMask,IItem&);
 
-  /// mask/fn are runtime constructor-set members, not NTTPs: this component
-  /// only ever gets used behind IItemDef (virtual dispatch already paid
-  /// for), so baking mask/fn into the type would buy nothing except one
-  /// distinct class instantiation per (mask,fn) pair at every OP() call
-  /// site, byte-identical except for which mask/fn it closed over.
+  /// Runtime-configurable event handler (mask/fn set via constructor).
   struct EventActionItem {
     template<typename I>
     struct Part:I {
@@ -346,29 +279,10 @@ namespace oneMenu {
     };
   };
 
-  /// @brief scrolling/marquee text for a long item label — animates only while the item
-  /// is focused (matches AM22's `TextRoller`/`TextRoll`). Wraps a text component
-  /// (StaticText, MultiLangText, ...) that provides get(): const char* — same
-  /// "measure then decide how to print" shape as oneData::Decimals, not a plain
-  /// pass-through decorator.
-  ///
-  /// @tparam cps scroll speed in characters per second (advance one character every
-  ///             1000/cps ms, via OneChip's hw::Period — see clock.h)
-  /// @tparam pad right margin, in characters, reserved when scrolling (space before wrap)
-  ///
-  /// Behavior, only decided by (a) whether the text overflows the available print width
-  /// and (b) whether this exact instance currently has focus (`ctx`'s own bool operator —
-  /// same "is this the selected item" check GfxFmt::itemInverted already uses):
-  ///   - fits (len<=free width): plain full print, always, focused or not.
-  ///   - overflows + focused: scroll a `rollPos`-relative window, ticker-tape wrap at the
-  ///     end (one trailing space then restart from character 0), same shape as AM22's.
-  ///   - overflows + not focused: static clip to the available width, no animation —
-  ///     avoids corrupting layout on outputs with no line-wrap of their own.
-  /// rollPos is genuine per-item state (not the shared/static state AM22 used) — a
-  /// blurred item simply stops advancing (tick() is only ever dispatched to the
-  /// currently-focused item by TickFocus, nav.h) and resumes mid-scroll on refocus,
-  /// deliberately not reset — same "no reset on blur" behavior AM22 has, just
-  /// achieved by dispatch instead of a shared static.
+  /// @brief Scrolling/marquee text for a long item label; animates only while focused.
+  /// Fits: plain full print. Overflows+focused: scrolls a rolling window. Overflows+blurred: static clip, no animation.
+  /// @tparam cps scroll speed in characters per second
+  /// @tparam pad right margin, in characters, reserved when scrolling
   template<Sz cps, Sz pad=1>
   struct TextRoll {
     template<typename O>
@@ -447,12 +361,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief oneMenu's own extension of oneData::Hidden<II...> (oneData.h) — the
-  /// print()/printItem() suppress-and-redirect logic itself now lives there (pure
-  /// blind forwarding, generic on Ctx, no oneMenu dependency needed to compile or
-  /// test it standalone). This layer derives Part<I> from it and adds exactly the
-  /// one piece that genuinely needs real oneMenu semantics, not just a type name:
-  /// nav() routes Cmd/CKE navigation to I, oneMenu's own concrete CKE/Path types.
+  /// @brief Extension of oneData::Hidden<II...>: suppresses print/printItem and adds oneMenu's own Cmd/CKE nav() routing.
   template<typename... II>
   struct Hidden {
     template<typename I>
@@ -465,27 +374,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief oneMenu's own extension of oneData::IdText<id,Src> (oneData.h) —
-  /// the id-lookup/language-selector logic itself lives there (format-
-  /// agnostic, always resolves real text). This layer adds the one piece
-  /// that genuinely needs oneMenu's own Fmt/Out machinery: for web-facing
-  /// formats (XmlFmt/JsonFmt) emit a marked id ("#N") instead of resolved
-  /// text, so a browser client can do its own client-side translation
-  /// lookup — the device never resolves text into a web payload for an
-  /// IdText-labeled field. The '#' prefix (not a bare number) matters once
-  /// IdText is composed inside an option list (Toggle/Select/Choose's own
-  /// <opt><fld>) alongside genuinely-numeric literal values (e.g. a plain
-  /// percentage option "10") — without a marker, a client-side "is this
-  /// string purely numeric" translation heuristic can't tell an id from a
-  /// literal value once the id space grows large enough to collide (id 10
-  /// existing would otherwise silently mistranslate a literal "10"). Any
-  /// other format (ANSI/OLED/Serial/...) falls through to oneData::IdText's
-  /// own resolved-text behavior unchanged. Same IsXmlFmt/IsJsonFmt gate
-  /// already used by NumField's own lo/hi emission and Choose/Toggle/
-  /// Select's own Fmt::Choice/Option/Selected markers — deliberately does
-  /// NOT forward through Base (which would also print the resolved text
-  /// first, double-emitting), same reasoning oneData's own Trans/Translated
-  /// already document for their own non-forwarding.
+  /// @brief Extension of oneData::IdText<id,Src>: for web formats (XmlFmt/JsonFmt) emits a marked id ("#N") instead of resolved text; other formats resolve text as usual.
   template<int id, typename Src>
   struct IdText {
     template<typename I>
@@ -506,29 +395,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief per-item mouseover/description text (id-indexed, multilingual —
-  /// same Src::text(id,lang) contract as oneData::IdText, but this doesn't
-  /// derive from it: IdText's own print()/printItem() unconditionally
-  /// emit(get()) as the item's OWN displayed text, which is wrong here —
-  /// Footer's text is a SIDE-CHANNEL, never the item's main label.
-  ///
-  /// Renders differently per format, deliberately NOT unconditionally:
-  ///  - XmlFmt/JsonFmt: a real child tag (Fmt::Footer — same shape as
-  ///    NumField's own Low/High, see that component's own comment on why
-  ///    the IsXmlFmt/IsJsonFmt gate is required, not optional), emitted for
-  ///    EVERY item that has one, printed together with the rest of that
-  ///    item in the SAME pass — a mouse can hover any visible item, not
-  ///    just whichever one nav-focus happens to be on, so this is
-  ///    unconditional on ctx.
-  ///  - TextFmt (IsTextFmt): the neurMenu-style split-line behavior this
-  ///    component's design is based on (see item.h git history/.RnD/
-  ///    neurMenu) — an indented follow-up line, gated on ctx (only the
-  ///    currently focused item), since a scrolling terminal has no spare
-  ///    room to show every item's description at once the way a full XML/
-  ///    JSON tree naturally can.
-  ///  - Any other format (ANSI/graphics/...): no-op — same "safe default,
-  ///    no cost unless composed AND actively rendered in a format that
-  ///    understands it" shape as every other conditional tag in this file.
+  /// @brief Per-item mouseover/description text (id-indexed, multilingual), a side-channel separate from the item's own label.
+  /// XmlFmt/JsonFmt: emitted as a child tag for every item. TextFmt: an indented follow-up line for the focused item only. Other formats: no-op.
   template<int id, typename Src>
   struct Footer {
     template<typename I>
@@ -613,17 +481,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief fires fn(v) on every value mutation while editing — every encoder
-  /// step, keystroke, or externally-driven set() (e.g. AsyncNav::setAt()).
-  /// fn receives the value re-read via get() AFTER Base::set(), not the raw
-  /// argument, since an inward component (e.g. StaticNumRange) may clamp/
-  /// transform it — same reasoning NumField::clamp() already re-reads get()
-  /// after a set(). auto fn (bare NTTP function pointer) mirrors oneData's
-  /// Trans<getFn,setFn> convention, letting fn's parameter type follow the
-  /// field's own Type instead of a fixed signature.
-  /// Compose as one of NumField<...>'s own II... args (inside the range/
-  /// storage chain), e.g.
-  /// NumField<StaticNumRange<...>, OnChange<fn>, AsField<Watch<...>>>.
+  /// @brief Fires fn(v) on every value mutation while editing; v is re-read via get() after Base::set() (may be clamped/transformed).
+  /// Compose inside NumField<...>'s range/storage chain, e.g. NumField<StaticNumRange<...>, OnChange<fn>, AsField<Watch<...>>>.
   template<auto fn>
   struct OnChange {
     template<typename I>
@@ -636,15 +495,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief fires fn(v) once, when edit mode is left — Enter-to-commit or
-  /// Esc-while-editing. EditField has no revert/undo logic, so Esc leaves
-  /// whatever was live-edited; from the value's own perspective that IS the
-  /// final commit, not a cancel — documented behavior, not a bug.
-  /// Compose OUTSIDE (wrapping) EditField in the ItemDef list, e.g.
-  /// ItemDef<..., OnUpdate<fn>, EditField, NumField<...>> — brackets
-  /// EditField's own nav() call and compares navMode() before/after to catch
-  /// the Edit->Nav transition EditField performs internally, without
-  /// duplicating its Enter/Esc logic.
+  /// @brief Fires fn(v) once when edit mode is left (Enter-to-commit or Esc-while-editing; Esc is treated as a commit, not a cancel).
+  /// Compose outside (wrapping) EditField, e.g. ItemDef<..., OnUpdate<fn>, EditField, NumField<...>>.
   template<auto fn>
   struct OnUpdate {
     template<typename I>
@@ -663,15 +515,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief reverts to the value held at edit-mode entry when Esc is used to
-  /// leave editing, instead of keeping whatever was live-edited — the revert
-  /// EditField itself deliberately doesn't do (see OnUpdate's doc comment
-  /// above). Saves get() the instant Nav->Edit is about to happen (path.len==0,
-  /// navMode()!=Edit, Cmd::Enter — same transition EditField's own nav() acts
-  /// on) and restores it with set() the instant Edit->Nav happens via Cmd::Esc
-  /// specifically (an Enter-commit leaves the live value untouched). Compose
-  /// OUTSIDE (wrapping) EditField, same slot as OnUpdate, e.g.
-  /// ItemDef<..., CancelOnEsc, EditField, NumField<...>>.
+  /// @brief Reverts to the value held at edit-mode entry when Esc leaves editing (an Enter-commit leaves the live value untouched).
+  /// Compose outside (wrapping) EditField, e.g. ItemDef<..., CancelOnEsc, EditField, NumField<...>>.
   struct CancelOnEsc {
     template<typename I>
     struct Part:I {
@@ -810,29 +655,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief store and restore navigation position
-  ///
-  /// IsRealMenu (NTTP, default true) distinguishes ChooseFieldDef's own real
-  /// nested-menu navigation (Enter causes Menu::Part::nav's own n.open() — no
-  /// PadDraw/ParentDraw in its composition, so isPad() stays at its default
-  /// false) from ToggleBehave/SelectBehave, whose own nav() overrides Enter's
-  /// default action entirely (cycle-in-place / n.padOpen()) and which compose
-  /// RecallNavPos<false>::Part<I> as their own base instead of the bare,
-  /// default-true form ChooseFieldDef/am4.h's chooseDef() use directly.
-  /// (isPad() itself was checked and rejected as the discriminator: neither
-  /// ToggleFieldDef nor SelectFieldDef's own Menu<...,ParentDraw,...> sets it
-  /// true — only a separate, unrelated component, PadDraw, does — so all
-  /// three fields share the same isPad()==false default; ParentDraw's own
-  /// nav() (item.h, just above) is what actually redirects Enter to
-  /// n.padOpen() for Toggle/Select, not isPad().)
-  ///
-  /// A plain NTTP (not a runtime-overridable method) is used deliberately —
-  /// a method meant to be "overridden" by a derived Part would hit the same
-  /// static-dispatch trap already documented elsewhere in this codebase
-  /// (calling a chain-overridable op from the base that defines it binds to
-  /// that base's own scope, not a further-derived Part) — the NTTP sidesteps
-  /// this entirely: ToggleBehave/SelectBehave name RecallNavPos<false>
-  /// explicitly as their own base, so there is no dispatch to get wrong.
+  /// @brief Stores and restores navigation position.
+  /// @tparam IsRealMenu true for real nested-menu navigation (ChooseFieldDef); false for cycle-in-place fields (Toggle/Select), which compose RecallNavPos<false> directly.
   template<bool IsRealMenu=true>
   struct RecallNavPos {
     template<typename I>
@@ -938,18 +762,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief syncs the selected choice's EnumValue<V> out to an external storage W, both on a
-  /// real physical/keyboard-driven commit (nav()'s own Cmd::Enter) AND on a web-driven
-  /// setStr() (AsyncNav::setAt(), the /set and WS "S|" path) — enum fields (Select/Choose/
-  /// Toggle) otherwise only ever hold their own m_sel index (RecallNavPos), with no
-  /// equivalent to how NumField's value can be owned or externally referenced/composed.
-  /// W follows the same Data-chain shape as everywhere else — Data<T> for an owned member,
-  /// DataRef<&ext>/DataFn<Src> for external — so SyncValue<Data<T>>, SyncValue<DataRef<&ext>>,
-  /// SyncValue<DataFn<Src>> are all equally valid. W can also be a real multi-component
-  /// chain, e.g. SyncValue<hapi::Chain<OnChange<fn>,DataRef<&ext>>> — OnChange<fn> fires on
-  /// every sync same as it would inside a NumField's own chain, since m_value.set(...) below
-  /// routes straight through it.
-  /// Place above a RecallNavPos-based field (SelectFieldDef/ChooseFieldDef/ToggleFieldDef).
+  /// @brief Syncs the selected choice's EnumValue<V> to external storage W, on both a physical commit and a web-driven setStr().
+  /// W follows the standard Data-chain shape (Data<T>, DataRef<&ext>, DataFn<Src>, or a chain). Place above a RecallNavPos-based field.
   template<typename W>
   struct SyncValue {
     template<typename I>
@@ -1036,9 +850,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief alternative representation for a value
-  /// @tparam Title title type
-  /// @tparam Value value type
+  /// @brief Alternative representation for a value.
   template<typename Title,typename Value>
   struct Alias {
     template<typename O>
@@ -1151,16 +963,7 @@ namespace oneMenu {
   // On a non-cursor device (e.g. plain serial) position is meaningless, so Liquid
   // falls back to a normal in-sequence print instead of touching setPos at all.
 
-  /// @brief compile-time box SIZE only (w,h) — pairs with Liquid<x,y,Box> below to
-  /// declare a per-item highlight-box override for GfxColorFmt (fmtStart<Item> reads
-  /// it via Ctx::boxPos/boxSize — see printers.h's IsLiquidBox query and
-  /// gfxColorFmt.h's fmtStart<Fmt::Item>). No position of its own: Liquid<x,y,Box>
-  /// already knows where it's jumping to, so it supplies that half itself — BoxSize
-  /// only ever needs to say how big. Purely static NTTPs, no measurement, no runtime
-  /// state — swap in a measuring alternative later without touching Liquid's own
-  /// interface if that's ever actually needed. Named BoxSize, not Area, to avoid
-  /// colliding with oneMenu::Area (sys/base.h's Pos/Area alias — a runtime value
-  /// type, not a template).
+  /// @brief Compile-time box SIZE only (w,h); pairs with Liquid<x,y,Box> to declare a per-item highlight-box override for GfxColorFmt.
   template<Sz W,Sz H>
   struct BoxSize { static constexpr Sz w=W,h=H; };
 
@@ -1169,17 +972,8 @@ namespace oneMenu {
     template<> struct MaybeLiquidBoxBase<true> : aLiquidBox {};
   }
 
-  /// @brief compile-time item position: printItem moves cursor to (x,y), renders,
-  /// then restores the original position so the next sequential item isn't displaced.
-  ///
-  /// Optional `Box` (default hapi::Nil = off): a BoxSize<W,H> declaring this item's
-  /// own on-screen box, so GfxColorFmt's selection highlight can be scoped to it
-  /// instead of the full declared StaticArea width — a Liquid-positioned item (e.g. a
-  /// keypad button) doesn't occupy a normal full-width row, but fmtStart<Item> (which
-  /// paints the highlight) runs BEFORE this jump happens, at the item's own
-  /// sequential row position; left unaddressed, every Liquid item still paints a
-  /// full-width band there. Liquid<x,y> alone (Box left at default) behaves exactly
-  /// as it always has — zero risk to any existing call site.
+  /// @brief Compile-time item position: printItem moves the cursor to (x,y), renders, then restores the original position.
+  /// @tparam Box optional BoxSize<W,H> declaring this item's own on-screen box, scoping GfxColorFmt's selection highlight to it instead of the full row width.
   template<Sz x,Sz y,typename Box=hapi::Nil>
   struct Liquid : detail_::MaybeLiquidBoxBase<!std::is_same_v<Box,hapi::Nil>> {
     template<typename I>
@@ -1202,20 +996,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief relative position nudge: prints its wrapped content OO... offset by
-  /// (+x,+y) from wherever the cursor already is (e.g. after Liquid<x,y> jumped
-  /// there), then restores. A cheap hand-tuned stand-in for real text centering —
-  /// no measurement, no extra print pass, so no flash cost beyond the nudge itself
-  /// (unlike Liquid<x,y,BoxSize<w,h>>'s box declaration, which is still the right
-  /// tool for the highlight-fill size; Shift is purely a content-position nudge).
-  /// Horizontal centering can often be faked with leading space characters instead
-  /// (no component needed); Shift exists for the vertical case (and any small
-  /// horizontal tweak) that a literal '\n'/' ' can't reach without printing outside
-  /// the intended box.
-  ///
-  /// Tail-position use only (as the last component in an ItemDef, wrapping the
-  /// item's own content, e.g. `Shift<3,1,StaticText<&text::k1>>`) — unlike AsFmt<>,
-  /// it does not thread through a following sibling component in the same chain.
+  /// @brief Relative position nudge: prints wrapped content OO... offset by (+x,+y) from the current cursor position, then restores.
+  /// Tail-position use only (last component in an ItemDef, e.g. `Shift<3,1,StaticText<&text::k1>>`) — does not thread through a following sibling.
   template<Sz x,Sz y,typename... OO>
   struct Shift {
     template<typename I>
@@ -1260,16 +1042,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief item claims the rest of the current page: after printing its own content it
-  /// pads down to the bottom of the free area (Cursor::clearFree()) so the enclosing
-  /// body's per-item free().y accounting sees this item as having consumed the whole
-  /// page. Requires ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter) — its
-  /// scroll-to-fit loop is what turns "this item eats all remaining room" into
-  /// single-item-per-screen paging as the selection moves; under a non-scrolling body
-  /// (FullPrinter/NoTitlePrinter) this would just pad trailing blank lines with no
-  /// paging effect. Unlike Liquid/LiquidPos this never jumps the cursor backward — it
-  /// only pads forward — so it doesn't corrupt ScrollBodyPrinter's sequential position
-  /// measurement the way a decal that warps away and back would.
+  /// @brief Item claims the rest of the current page: pads down to the bottom of the free area after printing its own content.
+  /// Requires ScrollBodyPrinter (ScrollPrinter/NoTitleScrollPrinter).
   struct FullScreen {
     template<typename I>
     struct Part:I {
@@ -1332,16 +1106,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief horizontal text alignment (Left/Center/Right) tag/grouping — no rendering logic of
-  /// its own. Align used to carry its own measure-then-pad-then-print implementation (a
-  /// standalone dry-run against the full out.free()), but that's now Row's job exclusively —
-  /// having two copies of the same algorithm was duplicate code for no benefit, and Align's own
-  /// version couldn't coordinate with siblings sharing a line the way Row does. Whoever wants
-  /// aligned content composes Row directly (Row<Left,Center,Right>) — Align just groups/labels
-  /// its II... the same way Hidden<II...>/Decor<II...> do (hapi::Chain<II...> wrapped below),
-  /// e.g. AlignCenter<Watch<Default<Int,0>>>, as a plain marker of intent. An Align used on its
-  /// own (nothing routing it through Row) just prints its content plain/unaligned — it's a tag,
-  /// not a printer.
+  /// @brief Horizontal text alignment (Left/Center/Right) tag/grouping; no rendering logic of its own — compose Row<Left,Center,Right> for actual alignment.
   template<AlignMethod method,typename... II>
   struct Align {
     template<typename I>
@@ -1355,21 +1120,8 @@ namespace oneMenu {
   template<typename... II> using AlignCenter = Align<AlignMethod::Center,II...>;
   template<typename... II> using AlignRight  = Align<AlignMethod::Right,II...>;
 
-  /// @brief coordinates 3 independently-printable items on one line: Left prints at the current
-  /// position, Right ends flush with the far right edge, Center fills the *gap* between them —
-  /// not the full line width. Unlike Align (which only knows its own content vs whatever's left
-  /// after prior siblings), Row measures all three up front (LockMode::Measure dry runs, no
-  /// printing) before printing any of them for real, so Center's position correctly accounts for
-  /// Right's width too — the thing a plain Chain<Text,AlignCenter<Text>,AlignRight<Text>> can't
-  /// do, since each Align only ever sees out.free() *at the moment it runs*, never what a later
-  /// sibling will still consume.
-  /// Left/Center/Right must each be a standalone printable+constructible type (print(out) const,
-  /// printItem(out,ctx)) — typically an ItemDef<...>. nav()/setStr()/changed()/sync()/etc. are
-  /// forwarded to Center (see Part below) so an editable field placed there works
-  /// correctly, matching CenterRow's own established convention (Left/Right empty, real content
-  /// in Center); Left/Right stay structural/display-only.
-  /// Adequate for small (single-line) devices; a fuller layout (rows of Rows, VAlign, etc.) can
-  /// be built on top later.
+  /// @brief Coordinates 3 independently-printable items on one line: Left at the current position, Right flush right, Center filling the gap between them.
+  /// Left/Center/Right must each be a standalone printable+constructible type (typically an ItemDef<...>); nav()/setStr()/changed()/sync()/etc. are forwarded to Center.
   template<typename Left,typename Center,typename Right>
   struct Row {
     template<typename I>
@@ -1487,24 +1239,8 @@ namespace oneMenu {
     };
   };
 
-  /// @brief vertical layout: Top, then Body anchored (Left=top/Center/Right=bottom) within
-  /// whatever free vertical space remains after Bottom's `bottomLines` are reserved — a
-  /// header+body+footer stack where Body's own placement in the free space is a **vertical
-  /// Align, applied to lines the same way Align/Row apply to characters on one line**. Top
-  /// and Bottom are structural (a free-space partition: how much room each edge gets),
-  /// exactly mirroring Row's Left/Right; `vMethod` is the internal-alignment half — unlike
-  /// horizontal Align (which has a coherent standalone no-op meaning: "print, wherever the
-  /// cursor is"), vertical anchoring is meaningless without knowing the region's free height
-  /// vs Body's own height, so it can't be a separable tag the way Align is — it only exists
-  /// as a mode here, on the thing that actually partitions the space.
-  /// vMethod==Left needs no measurement (print Body immediately, same as today); Center/Right
-  /// need Body's own line count first, via a LockMode::Measure dry run — the vertical twin of
-  /// Row::measure, over lines instead of pixel width. Bottom's `bottomLines` stays a compile-
-  /// time NTTP (static: usually known up front); a fully dynamic sibling (Bottom's height also
-  /// measured at runtime) is the natural next tier if that stops being true.
-  /// On non-cursor (streaming) devices neither the footer-pin nor vMethod mean anything (no
-  /// known height to measure against), so Rows falls back to plain sequential printing — same
-  /// fallback Row uses for its own horizontal centering.
+  /// @brief Vertical layout: Top, then Body vertically anchored (per vMethod) within the free space above Bottom's reserved `bottomLines`, then Bottom.
+  /// nav()/setStr()/changed()/sync()/etc. are forwarded to Body. Falls back to plain sequential printing on non-cursor devices.
   template<Sz bottomLines,AlignMethod vMethod,typename Top,typename Body,typename Bottom>
   struct Rows {
     template<typename I>
@@ -1631,10 +1367,8 @@ namespace oneMenu {
   using RowsBottom = Rows<bottomLines,AlignMethod::Right,Top,Body,Bottom>;
 
   // output partition tag -------------------------------------------------------
-  /// @brief marks an item as belonging to output partition Tag.
-  /// - SkipOutId<Tag> in the main OutDef skips these items on the main output.
-  /// - PartitionBody<Tag,Body> renders only these items to a secondary output.
-  /// - Items are nav-invisible when placed after the body's navSize() boundary.
+  /// @brief Marks an item as belonging to output partition Tag; see SkipOutId<Tag> and PartitionBody<Tag,Body>.
+  /// Nav-invisible when placed after the body's navSize() boundary.
   template<typename Tag>
   struct OutId {
     template<typename O> using Part=O;  // pure tag: zero behavior, queryable via SameAs<OutId<Tag>>
