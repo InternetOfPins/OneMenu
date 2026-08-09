@@ -215,7 +215,8 @@ namespace oneMenu {
   struct aFillRect  {};
   struct aGate      {};
   // LiquidBox<x,y,cellW> (item.h) marker — lets ItemPrinter (printers.h) ask "does this
-  // item carry its own on-screen box" via hapi::query<IsLiquidBox, typename I::Types>
+  // item carry its own on-screen box" via hapi::FromTypes<IsLiquidBox>::Apply<I>
+  // (SFINAE-safe when I is the type-erased IItem, which has no ::Types at all)
   // without printers.h needing to include item.h itself.
   struct aLiquidBox {};
   // XmlFmt-specific marker — lets a component (e.g. NumField, item.h) ask

@@ -340,7 +340,7 @@ namespace oneMenu {
         // tag) and calls fmtStart<Item> before printItem() runs (GfxColorFmt, which
         // paints the highlight, only ever sees Ctx&, never the item itself). Explicit
         // else so no stale box leaks from a previous LiquidBox item onto a plain one.
-        if constexpr(hapi::query<IsLiquidBox,typename I::Types>) {
+        if constexpr(hapi::FromTypes<IsLiquidBox>::template Apply<I>::value) {
           ctx.hasBox=true;
           ctx.boxPos=I::liquidBoxPos();
           ctx.boxSize=i.liquidBoxSize();
