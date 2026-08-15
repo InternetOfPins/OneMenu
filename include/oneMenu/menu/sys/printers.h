@@ -156,6 +156,7 @@ namespace oneMenu {
     template<typename P>
     struct Part:BodyPrinter::Part<P> {
       using IsPrinter=std::true_type;
+      using HasScrollBody=std::true_type;
       using Base=typename BodyPrinter::Part<P>;
       using Base::lockMode;
       using Base::getPos;

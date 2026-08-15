@@ -28,6 +28,15 @@ namespace oneMenu {
   template<typename T>
   struct HasPartialUpdate<T, std::void_t<typename T::HasPartialUpdate>> : std::true_type {};
 
+  // Same fix, same root cause, applied to the tops[] bug this comment already
+  // named above: hapi::query<TagIs<ScrollBodyPrinter>,Out::Types> (formerly used
+  // by printTo(), below) never actually finds it — ScrollBodyPrinter::Part's own
+  // HasScrollBody marker typedef sidesteps that the same way HasPartialUpdate does.
+  template<typename T, typename = void>
+  struct HasScrollBody : std::false_type {};
+  template<typename T>
+  struct HasScrollBody<T, std::void_t<typename T::HasScrollBody>> : std::true_type {};
+
   template<typename N> struct NavAPI:N {};
 
   template <typename API,typename... NN>
@@ -313,13 +322,13 @@ namespace oneMenu {
         // the *logical* position (m_at) already is — useless when m_at itself is wrong.
         if constexpr(hapi::query<IsCursor,typename Out::Types>) out.setPos({out.orgX(),out.orgY()});
         ///track scroll top for each level, this is output device specific
-        // hapi::query<...> (Any<>-folded, single bool), not TagIs<...>::Check<...>::value
-        // directly — Check<> on a real multi-element chain yields a nested Chain-of-
-        // is_base_of-results tree (no ::value), not a plain bool; query<> is what
-        // actually reduces it, same as the IsCursor check just above. Also Out::Types,
-        // not bare Out — Out itself is OutDef<Chain<...>>, an opaque wrapper Traverse
-        // can't descend into directly (matches the IsCursor check's own pattern).
-        if constexpr(hapi::query<hapi::TagIs<ScrollBodyPrinter>,typename Out::Types>) {
+        // HasScrollBody<Out>, not hapi::query<TagIs<ScrollBodyPrinter>,Out::Types> —
+        // the latter never actually matched (ScrollBodyPrinter sits nested inside
+        // MenuPrinter<...>'s own template args), so tops stayed permanently nullptr
+        // and every real scroll-state write (base.h's Ctx::top(Sz), unguarded unlike
+        // the read side) segfaulted the first time a body needed to scroll. See the
+        // HasPartialUpdate comment above — same detection defect, same fix shape.
+        if constexpr(HasScrollBody<Out>::value) {
           static Sz tops[root().depth()]{0};
           Ctx ctx{focus(m_level+1),m_navMode,m_print_level,true,tops,0,m_prevSel};
           bool r=root().printMenu(out,ctx);
