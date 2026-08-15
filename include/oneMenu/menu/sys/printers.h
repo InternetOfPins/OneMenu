@@ -232,6 +232,16 @@ namespace oneMenu {
         // color is currently set (the last item measured above — setColors() isn't
         // Gate-guarded, so it took real effect even during the Measure-mode walk).
         Base::fillRect(x, y, Base::width()-x, Base::height()-y);
+        // fillRect (ansiOut.h) walks row-by-row via its own internal setPos(x,row) calls,
+        // ending parked at the last cleared row — that never reaches the outer Cursor<>'s
+        // own m_at (fillRect isn't one of the methods Cursor intercepts), so Cursor still
+        // logically believes it's sitting at (x,y) while the real device cursor is actually
+        // at the bottom of the just-cleared region. The real item walk below prints
+        // sequentially via plain nl() chaining with no per-item reposition (that's only
+        // ItemPrinter's Update-mode force-unlock path) — without this, item 0 lands wherever
+        // fillRect's last row left the real cursor instead of its own row. Re-sync now, same
+        // idiom as the setPos({x,y}) above it and ItemPrinter's own setPos(getPos()).
+        setPos({x,y});
         bool r=Base::printMenu(i,ctx);
         return r;
       }
@@ -529,7 +539,11 @@ namespace oneMenu {
   >;
   using ScrollPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<TitlePrinter,ScrollBodyPrinter,ItemsPrinter>
+    MenuPrinter<
+      TitlePrinter,
+      ScrollBodyPrinter,
+      ItemsPrinter
+    >
   >;
 
   // No-title variants: body + footer only — default for small-display devices
