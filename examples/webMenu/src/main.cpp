@@ -279,13 +279,13 @@ using LangSel = ItemDef<
   SyncValue<Chain<OnChange<action::onLangChange>, DataRef<&oneData::MultiLangText::current>>>,
   SelectBehave,
   Menu<
-    ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtLang, text::Src>>, oneMenu::Footer<text::txtLangDesc, text::Src>, BodyAction<action::subIdx>>,
+    ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtLang, text::Src>>, oneMenu::Footer<text::txtLangDesc, text::Src>>,
     StaticBody<
       ItemDef<EnumValue<0>, AsField<oneData::IdText<0, text::LangNameSrc>>>,
       ItemDef<EnumValue<1>, AsField<oneData::IdText<1, text::LangNameSrc>>>,
       ItemDef<EnumValue<2>, AsField<oneData::IdText<2, text::LangNameSrc>>>
     >,
-    EditField, ParentDraw, WrapNav
+    EditField, ParentDraw, WrapNav, BodyAction<action::subIdx>
   >
 >;
 
@@ -307,7 +307,7 @@ using ToggleDemo = ToggleFieldDef<
 >;
 
 using SelectDemo = SelectFieldDef<
-  ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtSelectDemo, text::Src>>, BodyAction<action::subIdx>>,
+  ItemDef<AsEditMode<>, AsLabel<oneMenu::IdText<text::txtSelectDemo, text::Src>>>,
   StaticBody<
     ItemDef<AsField<StaticText<&text::s10>>,  AsUnit<StaticText<&text::percent>>>,
     ItemDef<AsField<StaticText<&text::s40>>,  AsUnit<StaticText<&text::percent>>>,
@@ -320,7 +320,7 @@ using SelectDemo = SelectFieldDef<
 >;
 
 using ChooseDemo = ChooseFieldDef<
-  ItemDef<AsEditMode<>, oneMenu::IdText<text::txtChooseDemo, text::Src>, BodyAction<action::subIdx>>,
+  ItemDef<AsEditMode<>, oneMenu::IdText<text::txtChooseDemo, text::Src>>,
   StaticBody<
     ItemDef<AsField<StaticText<&text::s10>>,  AsUnit<StaticText<&text::percent>>>,
     ItemDef<AsField<StaticText<&text::s40>>,  AsUnit<StaticText<&text::percent>>>,

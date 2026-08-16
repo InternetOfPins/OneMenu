@@ -311,8 +311,7 @@ using ToggleDemo = ToggleFieldDef<
 using SelectDemo = SelectFieldDef<
   ItemDef<
     AsEditMode<>,
-    AsLabel<StaticText<&text::select_demo>>,
-    BodyAction<action::subIdx>
+    AsLabel<StaticText<&text::select_demo>>
   >,
   StaticBody<
     ItemDef<AsField<StaticText<&text::s10>>,  AsUnit<StaticText<&text::percent>>>,
@@ -329,8 +328,7 @@ using SelectDemo = SelectFieldDef<
 using ChooseDemo = ChooseFieldDef<
   ItemDef<
     AsEditMode<>,
-    StaticText<&text::choose_demo>,
-    BodyAction<action::subIdx>
+    StaticText<&text::choose_demo>
   >,
   StaticBody<
     ItemDef<AsField<StaticText<&text::s10>>,  AsUnit<StaticText<&text::percent>>>,
