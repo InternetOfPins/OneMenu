@@ -376,7 +376,16 @@ namespace oneMenu {
       using Base=O;
       template<typename I>
       bool printItem(I& i,Ctx& ctx) {
-        i.printItem(Base::obj(),ctx);
+        // On a FooterOnly device (out.h), an item with nothing footer-aware in its own
+        // chain (no StaticFooter<Text>/Footer<id,Src> — see HasDescription, base.h) has
+        // nothing to intercept this call, so it would otherwise fall through to its own
+        // ordinary rendering (label/value) — wrong for a device meant to show only
+        // descriptions. Gated on HasFooterOnly so every other device (out/xml/syslog,
+        // none FooterOnly-tagged) is completely unaffected — same idiom MenuPrinter
+        // already uses for "device type from CRTP obj()" (IsChoiceBody check, above).
+        if constexpr(!HasFooterOnly<std::decay_t<decltype(Base::obj())>>::value
+                  || HasDescription<I>::value)
+          i.printItem(Base::obj(),ctx);
         return Base::printItem(i,ctx)||i.changed();
       }
     };

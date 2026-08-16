@@ -404,6 +404,7 @@ namespace oneMenu {
     struct Part:I {
       using Base=I;
       using Base::Base;
+      using HasDescription=std::true_type;//see base.h — lets a FooterOnly device (out.h) tell this item has description content
       static const char* get() noexcept { return Src::text(id,oneData::MultiLangText::current); }
       template<typename Out>
       void printItem(Out& out, Ctx& ctx) {
@@ -437,6 +438,7 @@ namespace oneMenu {
     struct Part:I {
       using Base=I;
       using Base::Base;
+      using HasDescription=std::true_type;//see base.h — lets a FooterOnly device (out.h) tell this item has description content
       static const char* get() noexcept { return *Text; }
       template<typename Out>
       void printItem(Out& out, Ctx& ctx) {

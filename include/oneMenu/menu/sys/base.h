@@ -258,6 +258,18 @@ namespace oneMenu {
   template<typename T>
   struct HasFooterOnly<T, std::void_t<typename T::HasFooterOnly>> : std::true_type {};
 
+  // Same mechanism as HasFooterOnly above, checking the *item* type instead of the
+  // *device* type: does this item carry a StaticFooter<Text>/Footer<id,Src> component
+  // anywhere in its chain? ItemBodyPrinter (printers.h) uses this to skip printing an
+  // item entirely on a FooterOnly device when the item has no description to show —
+  // without this, an item with nothing footer-aware in its chain falls through to its
+  // own ordinary rendering (label/value), which is wrong for a device meant to show
+  // only descriptions.
+  template<typename T, typename = void>
+  struct HasDescription : std::false_type {};
+  template<typename T>
+  struct HasDescription<T, std::void_t<typename T::HasDescription>> : std::true_type {};
+
   // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
   using IsCursor     = hapi::TagIs<aCursor>;
   using IsScrollBody = hapi::TagIs<aScrollBody>;
