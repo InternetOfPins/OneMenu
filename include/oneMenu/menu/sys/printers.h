@@ -534,7 +534,7 @@ namespace oneMenu {
 
   /// @brief Just the item's own content — no index number, no enabled-state fmt, no nav
   /// cursor marker. For a printer stack meant to show exactly one item's content standing
-  /// alone (e.g. NoTitleSelectPrinter, below) rather than a row inside a visible list —
+  /// alone (e.g. SelectedPrinter, below) rather than a row inside a visible list —
   /// index/cursor chrome only makes sense when sibling rows are also on screen to compare
   /// against.
   using PlainItemsPrinter=ItemPrinter<ItemBodyPrinter>;
@@ -574,7 +574,7 @@ namespace oneMenu {
   // sibling rows ever visible at once), so an index number / nav cursor marker would be
   // noise, not signal — zero other consumers today (only neurMenu's `footer` device), so
   // safe to keep chrome-less rather than adding yet another printer-stack alias for it.
-  using NoTitleSelectPrinter=Chain<
+  using SelectedPrinter=Chain<
     ViewPrinter,
     MenuPrinter<SelectBodyPrinter,PlainItemsPrinter>
   >;
