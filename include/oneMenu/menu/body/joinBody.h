@@ -8,6 +8,7 @@ namespace oneMenu {
   /// [BodyA::size(), total) route to b2. Any body type; nest to join more than two.
   template<typename BodyA, typename BodyB>
   struct JoinBody {
+    using Types = hapi::Chain<BodyA, BodyB>;
     BodyA b1;
     BodyB b2;
 
@@ -65,3 +66,23 @@ namespace oneMenu {
     {return {std::forward<BodyA>(b1),std::forward<BodyB>(b2)};}
 
 };//namespace oneMenu
+
+// JoinBody previously had zero HAPI integration at all (no ::Types, no Traverse, no
+// query<> specialization) — unlike its sibling StaticBody (staticBody.h), which this
+// mirrors exactly. A hapi::query/Traverse walk through a JoinBody-bodied Menu would
+// have silently seen nothing inside b1/b2 (Menu::find<Q>() is safe regardless — it
+// fails loudly, a compile error, via a different mechanism, detail::find's overload
+// set — but any direct hapi::query<Q,...> was exposed to the silent-false failure
+// mode this whole audit is about).
+template<typename Q, typename BodyA, typename BodyB>
+constexpr const bool hapi::template query<Q, oneMenu::JoinBody<BodyA,BodyB>>{
+  hapi::template query<Q, BodyA> || hapi::template query<Q, BodyB>
+};
+
+namespace hapi {
+  template<typename Op, typename BodyA, typename BodyB>
+  struct Traverse<Op, oneMenu::JoinBody<BodyA,BodyB>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, BodyA>::Beta,
+                                                   typename Traverse<Op, BodyB>::Beta>;
+  };
+}

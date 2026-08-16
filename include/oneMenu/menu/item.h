@@ -13,6 +13,7 @@
 
 #include "oneData/oneData.h"
 using oneData::Bool;
+using oneData::CText;
 #if defined(MENU_DEBUG_FULLSCREEN) || defined(MENU_DEBUG_ROWS)
 #include <cstdio>
 #endif
@@ -407,6 +408,41 @@ namespace oneMenu {
       template<typename Out>
       void printItem(Out& out, Ctx& ctx) {
         if constexpr(hapi::query<IsXmlFmt,typename Out::Types>
+                  || hapi::query<IsJsonFmt,typename Out::Types>) {
+          out.template fmtStart<Fmt::Footer>(ctx);
+          out.put(get());
+          out.template fmtStop<Fmt::Footer>(ctx);
+          Base::printItem(out,ctx);
+        } else if constexpr(hapi::query<IsTextFmt,typename Out::Types>) {
+          Base::printItem(out,ctx);
+          if(ctx) { out.nl(); out.put("  "); out.put(get()); }
+        } else {
+          Base::printItem(out,ctx);
+        }
+      }
+    };
+  };
+
+  /// @brief Like Footer<id,Src>, sourced from a single fixed CText pointer (StaticText<>'s
+  /// own NTTP style) instead of an id/Src multilingual table. Same Xml/Json/TextFmt dispatch,
+  /// plus a HasFooterOnly branch (out.h): a device tagged FooterOnly shows just the focused
+  /// item's description, nothing else — unlike the TextFmt branch, it never calls
+  /// Base::printItem, since a footer-only device never shows the item's own label/body.
+  /// HasFooterOnly<Out> (SFINAE probe, not hapi::query<Tag,Out::Types>) is deliberate — Out is
+  /// commonly IOutDef (out.h's own Types override empties Out::Types for IOut&-erasure
+  /// safety, which also blinds a Types-query here); see out.h's HasFooterOnly for the full why.
+  template<const CText* Text>
+  struct StaticFooter {
+    template<typename I>
+    struct Part:I {
+      using Base=I;
+      using Base::Base;
+      static const char* get() noexcept { return *Text; }
+      template<typename Out>
+      void printItem(Out& out, Ctx& ctx) {
+        if constexpr(HasFooterOnly<Out>::value) {
+          if(ctx) out.put(get());
+        } else if constexpr(hapi::query<IsXmlFmt,typename Out::Types>
                   || hapi::query<IsJsonFmt,typename Out::Types>) {
           out.template fmtStart<Fmt::Footer>(ctx);
           out.put(get());
@@ -1379,4 +1415,48 @@ namespace oneMenu {
 //rules ItemDef query specialization --
 template<typename Q,typename... OO>
 constexpr const bool hapi::template query<Q,oneMenu::template ItemDef<OO...>>{(hapi::template query<Q,OO>||...)};
+
+// ItemDef's own query<> bypass (above) only covers the *bare* form,
+// hapi::query<Q,ItemDef<OO...>> — every real call site elsewhere in this codebase
+// instead queries through ::Types (hapi::query<Tag,typename Out::Types> and siblings),
+// which for a StaticBody/JoinBody/Menu element goes through THEIR Traverse
+// specializations recursing via Traverse<Op,O> (not query<Q,O>) — so without this,
+// ItemDef was still an opaque leaf on that path despite the bypass above. Found via
+// this audit's own verification test (StaticBody/JoinBody/Menu's ::Types-based
+// hapi::query silently missing a tag nested inside an ItemDef element) — the same
+// bug class the whole audit is about, one level deeper than initially mapped.
+namespace hapi {
+  template<typename Op,typename... OO>
+  struct Traverse<Op, oneMenu::ItemDef<OO...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...>;
+  };
+}
+
+// Hidden<II...>/Decor<II...>/EnDis<ens>/NumField<II...> are all the same
+// Chain<...>::Part<O>-wrapping shape as MenuPrinter (printers.h) — opaque to
+// hapi::query/Traverse without their own specialization. None have a confirmed live
+// trigger today (no real tag happens to be nested inside any of them yet), but
+// NumField is the single most widely-used wrapper in the codebase (every AM4
+// FIELD() macro expansion) and itself nests AsField<...> inside it, so it's the
+// most exposed of the four to a future real tag landing inside it unnoticed.
+namespace hapi {
+  template<typename Op, typename... II>
+  struct Traverse<Op, oneMenu::Hidden<II...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, II>::Beta...>;
+  };
+  template<typename Op, typename... II>
+  struct Traverse<Op, oneMenu::Decor<II...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, II>::Beta...>;
+  };
+  // EnDis<ens>::Part<I> wraps a single element, Hidden<Default<Bool,ens>> — not a
+  // pack, so ApplyPack takes that one Beta directly rather than expanding II....
+  template<typename Op, bool ens>
+  struct Traverse<Op, oneMenu::EnDis<ens>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, oneMenu::Hidden<oneData::Default<oneData::Bool,ens>>>::Beta>;
+  };
+  template<typename Op, typename... II>
+  struct Traverse<Op, oneMenu::NumField<II...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, II>::Beta...>;
+  };
+}
 

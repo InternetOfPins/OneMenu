@@ -239,6 +239,25 @@ namespace oneMenu {
   // TextFmt itself just inherits aTextFmt alongside the generic aFormat.
   struct aTextFmt   {};
 
+  // Nested-typedef SFINAE probe (NOT the aXmlFmt/aJsonFmt/aTextFmt+TagIs convention
+  // above) — FooterOnly (out.h) is a device-level marker, unrelated to which Fmt is
+  // active, so StaticFooter<Text>/Footer<id,Src> (item.h) can't tell "the main menu
+  // device" from "a dedicated focused-item-description strip" via Fmt alone (both may
+  // use the same Fmt, e.g. two ANSIFmt devices). A hapi::query<Tag,Out::Types> check
+  // was tried first and silently failed: IOutDef (out.h) deliberately empties its own
+  // ::Types (`using IOut::Types;`) so a type-erased IOut& can't wrongly claim any
+  // compile-time capability — but that override also blinds the query even when Out is
+  // the concrete IOutDef<...> itself (reached via Base::obj(), not through IOut&).
+  // Plain member lookup on the fully-assembled Out sees inherited members regardless —
+  // same fix shape as nav.h's own HasPartialUpdate/HasScrollBody, forced there by the
+  // identical root cause. Declared here, not out.h, so item.h can see it: fields.h (next
+  // #include after this file, in oneMenu.h) pulls in menu.h/item.h transitively before
+  // oneMenu.h ever reaches its own #include of out.h.
+  template<typename T, typename = void>
+  struct HasFooterOnly : std::false_type {};
+  template<typename T>
+  struct HasFooterOnly<T, std::void_t<typename T::HasFooterOnly>> : std::true_type {};
+
   // predicate aliases — use with hapi::query<>, Requires<>, Excludes<>
   using IsCursor     = hapi::TagIs<aCursor>;
   using IsScrollBody = hapi::TagIs<aScrollBody>;

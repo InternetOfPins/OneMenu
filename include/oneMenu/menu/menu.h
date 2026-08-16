@@ -58,12 +58,18 @@ namespace oneMenu {
   template<typename T,typename B,typename... OO>
   struct Menu {
     using Chain_=hapi::Chain<OO...>;
-    using Types=hapi::Chain<OO..., B>; // expose body for compile-time queries (StaticBody only)
+    // Includes Title (T): matches the query<Q,Menu<...>> specialization below and
+    // find<Q>()'s own logic (both treat Title as a valid match target) — previously
+    // excluded here (comment used to read "expose body only"), which let
+    // hapi::query<Q,SomeMenu::Types> and hapi::query<Q,SomeMenu> silently disagree
+    // about anything tagged on Title. Nothing tags Title today, so this was latent,
+    // not live — fixed for consistency between the two mechanisms regardless.
+    using Types=hapi::Chain<T, OO..., B>;
     template<typename O>
     struct Part : Chain_::template Part<O> {
       using Base=typename Chain_::template Part<O>;
       using Base::Base;
-      using Types=hapi::Chain<OO..., B>; // expose body for compile-time queries (StaticBody only)
+      using Types=hapi::Chain<T, OO..., B>;
       using Title=T;
       using Body=B;
       Title title;
@@ -218,7 +224,8 @@ namespace oneMenu {
 namespace hapi {
   template<typename Op, typename T, typename B, typename... MM>
   struct Traverse<Op, oneMenu::Menu<T,B,MM...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, MM>::Beta...,
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, T>::Beta,
+                                                   typename Traverse<Op, MM>::Beta...,
                                                    typename Traverse<Op, B>::Beta>;
   };
 }

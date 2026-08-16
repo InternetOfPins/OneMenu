@@ -532,6 +532,13 @@ namespace oneMenu {
 
   using ItemsPrinter=ItemPrinter<IndexPrinter,EnabledPrinter,NavCursorPrinter,ItemBodyPrinter>;
 
+  /// @brief Just the item's own content — no index number, no enabled-state fmt, no nav
+  /// cursor marker. For a printer stack meant to show exactly one item's content standing
+  /// alone (e.g. NoTitleSelectPrinter, below) rather than a row inside a visible list —
+  /// index/cursor chrome only makes sense when sibling rows are also on screen to compare
+  /// against.
+  using PlainItemsPrinter=ItemPrinter<ItemBodyPrinter>;
+
   // Full printers: title + body + footer
   using FullPrinter=Chain<
     ViewPrinter,
@@ -563,8 +570,38 @@ namespace oneMenu {
     ViewPrinter,
     MenuPrinter<TitlePrinter,SelectBodyPrinter,ItemsPrinter>
   >;
+  // PlainItemsPrinter, not ItemsPrinter: this shows exactly one item standing alone (no
+  // sibling rows ever visible at once), so an index number / nav cursor marker would be
+  // noise, not signal — zero other consumers today (only neurMenu's `footer` device), so
+  // safe to keep chrome-less rather than adding yet another printer-stack alias for it.
   using NoTitleSelectPrinter=Chain<
     ViewPrinter,
-    MenuPrinter<SelectBodyPrinter,ItemsPrinter>
+    MenuPrinter<SelectBodyPrinter,PlainItemsPrinter>
   >;
 };//oneMenu
+
+// ItemPrinter<OO...> and AsFmt<Fmt tag,OO...> (above) are both the same
+// Chain<OO...>::Part<O>-wrapping shape as MenuPrinter — opaque to hapi::query/Traverse
+// without their own specialization, exactly like MenuPrinter was before its own fix
+// (see that specialization's own comment, above, for the real SIGSEGV this class of
+// bug already caused once). Neither has a confirmed live trigger today (no real tag
+// happens to be nested inside either one yet) — fixed prophylactically anyway, same
+// mechanical pattern, cheap. ItemPrinter is the closer of the two: it's the direct
+// one-level-nested sibling of MenuPrinter inside every stock printer stack above
+// (FullPrinter, ScrollPrinter, NoTitlePrinter, ...).
+namespace hapi {
+  template<typename Op, typename... OO>
+  struct Traverse<Op, oneMenu::ItemPrinter<OO...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...>;
+  };
+
+  // AsFmt<tag,OO...>::Part<O> is built from Chain<OO...,PartEnd>::Part<O> (PartEnd is
+  // AsFmt's own inert terminal sentinel, see its definition above) — mirrored here for
+  // structural faithfulness, though PartEnd itself carries no tag so its presence
+  // never changes a query's outcome either way.
+  template<typename Op, oneMenu::Fmt tag, typename... OO>
+  struct Traverse<Op, oneMenu::AsFmt<tag,OO...>> {
+    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...,
+                                                   typename Traverse<Op, typename oneMenu::AsFmt<tag,OO...>::PartEnd>::Beta>;
+  };
+}

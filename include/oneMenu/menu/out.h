@@ -516,6 +516,15 @@ namespace oneMenu {
     };
   };
 
+  /// @brief Tags a device as HasFooterOnly (SFINAE probe declared in sys/base.h, next to
+  /// IsXmlFmt/IsTextFmt for the same "item.h needs to see this" reason) — StaticFooter<Text>/
+  /// Footer<id,Src> (item.h) then show only the focused item's description on that device,
+  /// nothing else. Pure marker, no behavior of its own.
+  struct FooterOnly {
+    template<typename O>
+    struct Part:O { using HasFooterOnly=std::true_type; };
+  };
+
   /// @brief support utf8 surrogates, only needed if using cursors and clipping
   struct UTF8 : aParser {
     template<typename Before, typename After>

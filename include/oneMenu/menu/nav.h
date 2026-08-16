@@ -218,6 +218,24 @@ namespace oneMenu {
 
   /// @brief Fuses input+output for one nav: polls both and redraws if changed.
   /// Must be the FIRST component in the chain (e.g. `INavDef<Pool<...>, EventDispatch, TreeNav, Root<...>> id(in,out);`) for its constructor to be reachable.
+  ///
+  /// Rule (currently enforced only by caller discipline, not the type system): every
+  /// output device that shares THIS nav's state must be part of the same OutG — a
+  /// device drawn/synced outside Pool's own drawAll/syncAll pass (out.h's OutGroup,
+  /// or the single-device path below) will desync, since syncOutput() mutates SHARED
+  /// nav-wide state (TreeNav's own m_level/m_navMode/m_prevSel, item Watch<>/Dirty<>
+  /// values) that a separately-timed call can no longer see as "just changed" —
+  /// see drawOutput()'s own comment, below, for the concrete failure shape (upstream
+  /// AM4's outputsList::printMenu/clearChanged split, mirrored by OutGroup's own
+  /// drawAll-then-syncAll two-phase design).
+  ///
+  /// TODO (future, not enforced today): since OutG is fundamentally Nav-dependent —
+  /// its correctness requires knowing which devices share THIS nav's state, a fact
+  /// only Pool/Nav itself truly has — the output list arguably belongs Nav-hosted
+  /// (e.g. Nav owns/registers its own device list) rather than caller-assembled
+  /// externally (an OutGroup built by hand and handed in, as today) and merely
+  /// trusted to be complete. Nav-hosted would let the type system catch "you forgot
+  /// to add this device to the same list" instead of relying on someone remembering.
   template<typename InG,typename OutG>
   struct Pool {
     template<typename N>
