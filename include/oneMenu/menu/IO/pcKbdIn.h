@@ -24,7 +24,22 @@ namespace oneMenu {
 
       inline static CKE _pending{};  // Cmd::None = nothing queued
 
-      static bool available() { return _pending.cmd != Cmd::None || O::available(); }
+      // esc/escTimer stay function-local statics (not inline static members): a member
+      // with hw::Timeout's non-trivial constructor (calls millis()) needs AVR's global-
+      // constructor-table machinery to run before main() — pulling that in cost 236 bytes
+      // of flash on a target that only had 144 spare (neurMenu/uno: 32112 -> 32348 of
+      // 32256, overflow). A function-local static's guarded lazy-init is far cheaper and
+      // wasn't otherwise needed anywhere in this program. Exposed via these two small
+      // accessors so available() (below) can read the same shared state parseKey uses.
+      static Key& escState() { static Key esc=0; return esc; }
+      static hw::Timeout<30>& escTimerState() { static hw::Timeout<30> t; return t; }
+
+      // escState()==1 && escTimerState() (not escState()==1 alone): the latter would
+      // report "ready" continuously while the 30ms window is still open, and inBurst
+      // (in.h)'s draining loop would busy-spin forever on it — in() returns false for
+      // Cmd::None (the timer hasn't fired yet), so its call-count never advances, and
+      // available() going false is the loop's only other exit condition.
+      static bool available() { return _pending.cmd != Cmd::None || (escState()==1 && escTimerState()) || O::available(); }
 
       // Poll with no new key — used for ESC timeout and draining _pending.
       static CKE cmd() {
@@ -37,9 +52,9 @@ namespace oneMenu {
       }
 
       static CKE parseKey(Key k) {
-        static Key esc  = 0;
         static Key term = 0;
-        static hw::Timeout<30> escTimer;
+        Key& esc = escState();
+        hw::Timeout<30>& escTimer = escTimerState();
 
         // ESC timeout: ESC was received but no bracket followed within 30ms.
         if (esc == 1 && escTimer && !k) {
