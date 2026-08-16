@@ -103,6 +103,20 @@ namespace oneMenu {
       template<typename Out>
       bool printBodyAt(Out& out,Ctx& ctx,Sz idx) {return body.printItem(out,ctx,idx);}
 
+      // Only a pad's own body needs this: its sub-items render via printInline
+      // (below), bypassing ItemPrinter's per-item i.changed()/i.sync() gating —
+      // see StaticBody::changed(). A non-pad submenu's children are always visited
+      // through that normal per-item path instead (real open(), not padOpen()), so
+      // they already have their own working changed()/sync() and don't need this
+      // aggregate — skipping it there avoids instantiating a whole-subtree walk on
+      // every Menu in the app just to answer false every time (AVR flash cost).
+      bool changed() {if constexpr(Base::isPad()) return body.changed(); else return Base::changed();}
+      void sync() {if constexpr(Base::isPad()) body.sync(); else Base::sync();}
+      using Base::sync;  // keep ItemAPI's inherited sync(Out&) template reachable —
+                         // this Part's own sync() (0-arg) would otherwise hide it via
+                         // ordinary C++ name hiding, breaking IItemDef's virtual
+                         // sync(IOut&) override (item.h) for a Menu wrapped in IItemDef.
+
       template<typename Out>
       bool printItem(Out& out,Ctx& ctx) {
         bool r=title.printItem(out,ctx);

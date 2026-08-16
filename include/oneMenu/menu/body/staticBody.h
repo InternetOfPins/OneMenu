@@ -20,6 +20,8 @@ namespace oneMenu {
     template<typename Out> static constexpr bool printItem(Out&,Ctx&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printItem(Out&,Sz=0) noexcept {return false;}
     template<typename Out> static constexpr bool printInline(Out&,Ctx&) noexcept {return false;}
+    static constexpr bool changed() noexcept {return false;}
+    static constexpr void sync() noexcept {}
     template<bool isKbd,typename Nav>
     static constexpr bool nav(Nav&,const CKE&,Path,Sz=0) noexcept {return false;}
     template<typename Nav,typename P>
@@ -63,6 +65,12 @@ namespace oneMenu {
       ctx.idx++;
       return ((Tail&)tail).printInline(out,ctx)||r;
     }
+
+    // Aggregate for a pad's own inline items (printInline above): they bypass
+    // ItemPrinter's per-item i.changed()/i.sync() gating, so the pad's outer item
+    // needs this to answer "did anything inside me change" as a whole (Menu::Part::changed()).
+    bool changed() {return head.changed()||((Tail&)tail).changed();}
+    void sync() {head.sync();((Tail&)tail).sync();}
 
     template<bool isKbd,typename Nav>
     bool nav(Nav& n,const CKE& cke,Path path,Sz i)
