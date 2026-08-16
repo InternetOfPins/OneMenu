@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <oneChip/clock.h>
+
 namespace oneMenu {
 
   // PartialDraw::Part<O> (out.h) marks partial-draw capability via a member typedef
@@ -263,6 +265,16 @@ namespace oneMenu {
       // inside OutG's own doOutput(Nav&) resolves correctly once Base::obj()
       // is what gets passed in as `nav`.
       bool poll(Sz maxCount=8) {
+        #ifdef __linux__
+          // Linux has no natural per-frame yield point (unlike AVR's bare-metal single-
+          // tasking or the Arduino runtime's own scheduling) — an unthrottled poll loop
+          // pegs a core at 100%. Cap to 60Hz here, once, so every caller's loop (main()'s
+          // while(running), a GUI timer, etc.) gets it for free instead of each
+          // reimplementing the same hw::Timeout dance.
+          static hw::Timeout<1000/60> fps;
+          if(!fps) { hw::delay_ms(fps.when()-hw::millis()); return false; }
+          fps.reset();
+        #endif
         bool i=m_in.doInput(*this,maxCount);
         bool o=m_out.doOutput(Base::obj());
         return i||o;
