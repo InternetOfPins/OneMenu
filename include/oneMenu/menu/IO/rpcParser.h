@@ -18,7 +18,7 @@
  * Usage:
  *   using Rpc = RpcParser<2>;
  *   InDef<Rf433In<0>, Rpc> in;
- *   NavDef<IndexGo, TreeNav, Root<...>> nav;
+ *   NavDef<IndexGo, TreeNav<>, Root<...>> nav;
  */
 
 #include "oneMenu/menu/in.h"

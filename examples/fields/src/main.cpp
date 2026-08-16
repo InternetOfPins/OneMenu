@@ -413,7 +413,7 @@ auto mainMenu = menuDef<WrapNav>(
 
 INavDef<
   IndexGo,
-  TreeNav,
+  TreeNav<>,
   Root<mainMenu>
 > nav;
 
@@ -432,7 +432,7 @@ auto promptMenu = menuDef<>(
 );
 
 INavDef<
-  TreeNav,
+  TreeNav<>,
   Root<promptMenu>
 > promptNav;
 

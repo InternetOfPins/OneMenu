@@ -115,6 +115,16 @@ namespace oneMenu {
     }
     template<typename Out>
     bool doOutput(Out& out) { bool r=drawOutput(out); syncOutput(out); return r; }
+
+    // No-arg twins: drive whatever OO... outputs TreeNav<OO...> owns directly (its own
+    // OutGroup<OO...> member already implements this same draw-everything-then-sync-
+    // everything discipline internally). Ordinary inheritance resolves these through to
+    // TreeNav::Part's own no-arg drawOutput()/syncOutput()/doOutput() — same Base::
+    // pattern as every other cross-component call in this chain, no CRTP needed since
+    // TreeNav sits below DefinedNav in the real chain, not above it.
+    bool drawOutput() { return Base::drawOutput(); }
+    void syncOutput() { Base::syncOutput(); }
+    bool doOutput()   { return Base::doOutput(); }
   };
 
   /// @brief compose a navigation chain from nav components (TreeNav, Root, IndexGo, etc.)
@@ -218,71 +228,59 @@ namespace oneMenu {
     };
   };
 
-  /// @brief Fuses input+output for one nav: polls both and redraws if changed.
-  /// Must be the FIRST component in the chain (e.g. `INavDef<Pool<...>, EventDispatch, TreeNav, Root<...>> id(in,out);`) for its constructor to be reachable.
-  ///
-  /// Rule (currently enforced only by caller discipline, not the type system): every
-  /// output device that shares THIS nav's state must be part of the same OutG — a
-  /// device drawn/synced outside Pool's own drawAll/syncAll pass (out.h's OutGroup,
-  /// or the single-device path below) will desync, since syncOutput() mutates SHARED
-  /// nav-wide state (TreeNav's own m_level/m_navMode/m_prevSel, item Watch<>/Dirty<>
-  /// values) that a separately-timed call can no longer see as "just changed" —
-  /// see drawOutput()'s own comment, below, for the concrete failure shape (upstream
-  /// AM4's outputsList::printMenu/clearChanged split, mirrored by OutGroup's own
-  /// drawAll-then-syncAll two-phase design).
-  ///
-  /// TODO (future, not enforced today): since OutG is fundamentally Nav-dependent —
-  /// its correctness requires knowing which devices share THIS nav's state, a fact
-  /// only Pool/Nav itself truly has — the output list arguably belongs Nav-hosted
-  /// (e.g. Nav owns/registers its own device list) rather than caller-assembled
-  /// externally (an OutGroup built by hand and handed in, as today) and merely
-  /// trusted to be complete. Nav-hosted would let the type system catch "you forgot
-  /// to add this device to the same list" instead of relying on someone remembering.
-  template<typename InG,typename OutG>
-  struct Pool {
+  template<typename... OO> struct TreeNav;  // forward decl — see full definition below
+
+  /// @brief Expands an already-built OutGroup<Outs...> (e.g. from AM4-compat's
+  /// MENU_OUTPUTS) into TreeNav<Outs...> — lets NAVROOT (am4.h) keep its exact
+  /// byte-for-byte AM4 macro syntax while TreeNav itself owns the device pack.
+  template<typename OutG> struct AsTreeNavT;
+  template<typename... Outs> struct AsTreeNavT<OutGroup<Outs...>> { using type = TreeNav<Outs...>; };
+  template<typename OutG> using AsTreeNav = typename AsTreeNavT<OutG>::type;
+
+  /// @brief Drives input polling for one nav, throttled to `fps` (default 60Hz) via
+  /// PeriodT<1000/fps> (default hw::Period, OneChip/clock.h — override PeriodT with a
+  /// chip's own hardware SysTick period type, e.g. chip::SysTick0<>::Period, where
+  /// timing precision matters more than the millis()-based software default).
+  /// Must be the FIRST component in the chain (e.g. `INavDef<Poll<InG>, EventDispatch,
+  /// TreeNav<Out>, Root<...>> id(in,&out);`) for its constructor to be reachable.
+  /// Output is owned by TreeNav<OO...> (its own OutGroup<OO...> member) — see TreeNav's
+  /// own doc comment for why the device list moved there instead of being a second
+  /// caller-assembled parameter here as it used to be (formerly Pool<InG,OutG>).
+  template<typename im,unsigned fps=60,template<uint32_t> class PeriodT=hw::Period>
+  struct Poll {
     template<typename N>
     struct Part:N {
       using Base=N;
-      InG& m_in;
-      OutG& m_out;
-      Part(InG& i,OutG& o):m_in(i),m_out(o) {}
-      // m_out.doOutput(Base::obj()) — the OutG side drives Nav::doOutput, not
-      // the other way around. OutDef/IOutDef/OutGroup (out.h) each provide
-      // their own doOutput(Nav&) one-liner-or-loop that internally calls
-      // nav.doOutput(*device) with the device's own concrete type intact —
-      // required, not stylistic: Menu::Part::printMenu (menu.h) needs that
-      // concrete type to run the templated print walk, and Base::obj() is
-      // exactly what supplies "the fully-assembled Nav" as that argument.
-      // Base::obj() itself (hapi::CRTP, reachable via ordinary inheritance
-      // from the API terminal every Part in the chain derives from) is
-      // needed here rather than `*this` alone for a *different*, unrelated
-      // reason: doOutput() lives on DefinedNav, which *wraps* the whole
-      // component chain from outside (nav.h, top of file), not inside it —
-      // Base=N only reaches downward into the rest of the II... pack, so a
-      // plain `*this` call would statically bind to this scope and miss
-      // doOutput entirely. obj() casts to the fully-assembled
-      // type, which *does* inherit doOutput, so `nav.doOutput(*device)`
-      // inside OutG's own doOutput(Nav&) resolves correctly once Base::obj()
-      // is what gets passed in as `nav`.
+      im& m_in;
+      // Forwards whatever the rest of the chain's own constructor wants (TreeNav<OO...>'s
+      // OO*... pack, or its OutGroup<OO...> overload for the AM4 NAVROOT path) — resolved
+      // by N's own overload set, not duplicated/disambiguated here.
+      template<typename... Args>
+      Part(im& i,Args&&... args):N(std::forward<Args>(args)...),m_in(i) {}
       bool poll(Sz maxCount=8) {
-        #ifdef __linux__
-          // Linux has no natural per-frame yield point (unlike AVR's bare-metal single-
-          // tasking or the Arduino runtime's own scheduling) — an unthrottled poll loop
-          // pegs a core at 100%. Cap to 60Hz here, once, so every caller's loop (main()'s
-          // while(running), a GUI timer, etc.) gets it for free instead of each
-          // reimplementing the same hw::Timeout dance.
-          static hw::Timeout<1000/60> fps;
-          if(!fps) { hw::delay_ms(fps.when()-hw::millis()); return false; }
-          fps.reset();
-        #endif
+        static PeriodT<1000/fps> t;
+        if(!t) { hw::delay_ms(t.when()-hw::millis()); return false; }
+        // Base::obj() (hapi::CRTP) — doOutput() lives on DefinedNav, which *wraps* the
+        // whole component chain from outside (nav.h, top of file), not inside it —
+        // Base=N only reaches downward into the rest of the II... pack, so a plain
+        // `*this` call would statically bind to this scope and miss doOutput entirely.
         bool i=m_in.doInput(*this,maxCount);
-        bool o=m_out.doOutput(Base::obj());
+        bool o=Base::obj().doOutput();
         return i||o;
       }
     };
   };
 
-  /// @brief hierarchical tree navigator: tracks path, level, selection, and scroll position
+  /// @brief hierarchical tree navigator: tracks path, level, selection, and scroll position.
+  /// OO... are the output devices THIS nav owns and drives together — see drawOutput()/
+  /// syncOutput()/doOutput() (no-arg) below, which iterate them via an owned OutGroup<OO...>
+  /// the same two-phase draw-everything-then-sync-everything way out.h's OutGroup already
+  /// does for any *externally* assembled group. TreeNav<> (empty pack) stays a fully
+  /// backward-compatible, zero-cost spelling for navs driven purely through the existing
+  /// per-call Out&-taking sync(Out&)/changed(Out&)/printTo(Out&) overloads below — those stay,
+  /// unconditionally, for one-off/asymmetric devices no single owned pack can express (see
+  /// e.g. webMenu's single nav pushing to two differently-triggered Out types).
+  template<typename... OO>
   struct TreeNav {
     template<typename N>
     struct Part:N {
@@ -290,6 +288,19 @@ namespace oneMenu {
       using Root=typename Base::Root;
       using Base::root;
       using Base::depth;
+
+      OutGroup<OO...> m_outs;
+      Part(OO*... outs):m_outs(outs...) {}
+      Part(OutGroup<OO...> og):m_outs(og) {}  // AM4 NAVROOT path: pre-built OutGroup handed in
+
+      // No-arg twins of drawOutput(Out&)/syncOutput(Out&)/doOutput(Out&) (DefinedNav, above) —
+      // drive the owned m_outs pack instead of one externally-passed device. Base::obj()
+      // (hapi::CRTP) is the fully-assembled Nav, same reasoning as Poll::poll()'s own use of it:
+      // OutGroup::drawAll/syncAll call back into nav.drawOutput(*p)/nav.syncOutput(*p) per
+      // device, which only exist on the fully-assembled type, not on this Part<N>'s own scope.
+      bool drawOutput() { return m_outs.drawAll(Base::obj()); }
+      void syncOutput() { m_outs.syncAll(Base::obj()); }
+      bool doOutput()   { return m_outs.doOutput(Base::obj()); }
 
       Path path() {return m_path;}
       Path focus(Sz i) {return m_path.focusAt(i);}
@@ -450,7 +461,7 @@ namespace oneMenu {
   };
 
   // Handles Cmd::Go from IdxParser: jumps to item N at current level then enters it.
-  // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav, Root<...>>
+  // Place above TreeNav in the nav chain:  NavDef<IndexGo, TreeNav<...>, Root<...>>
   // NOTE: must override in(), not doCmd() — TreeNav::Part::in() uses static dispatch
   // for doCmd and cannot reach a more-derived doCmd override without CRTP. Its own
   // internal doCmd calls route through Base::obj() (hapi::CRTP) for the same reason —
@@ -464,6 +475,12 @@ namespace oneMenu {
     template<typename N>
     struct Part : N {
       using Base = N;
+      // Forwards whatever constructor N (e.g. TreeNav<OO...>) exposes — needed since
+      // Poll<im,fps>'s own constructor now constructs N(outs...) directly (TreeNav<OO...>
+      // is no longer unconditionally default-constructible once OO... is non-empty), and
+      // hapi::Chain's own `using Base::Base;` (chain.h) only forwards ONE level, not through
+      // an intermediate pass-through component like this one.
+      using Base::Base;
       template<typename In>
       bool in(In& src) {
         CKE cke = src.cmd();
@@ -491,7 +508,7 @@ namespace oneMenu {
   };
 
   /// @brief Event dispatch: detects nav-level state transitions (selection and level changes) and raises EventMask events to the affected item's onEvent() (item.h).
-  /// Place above TreeNav: NavDef<EventDispatch, TreeNav, Root<...>>. v1 scope: only Enter/Exit/Focus/Blur.
+  /// Place above TreeNav: NavDef<EventDispatch, TreeNav<...>, Root<...>>. v1 scope: only Enter/Exit/Focus/Blur.
   namespace detail {
     // Detects "does this item have a nested .body" (i.e. it's an ItemDef<Menu<...>>) —
     // std::void_t/declval come from HAPI's avr_std.h shim on AVR (no <type_traits> there
@@ -542,6 +559,8 @@ namespace oneMenu {
     template<typename N>
     struct Part : N {
       using Base = N;
+      // See IndexGo::Part's own comment — same constructor-forwarding requirement.
+      using Base::Base;
       template<typename Fn>
       void fireAt(Depth level, Sz idx, Fn&& fn) {
         detail::eventVisit(Base::root().body, static_cast<Base&>(*this), (Depth)0, level, idx, std::forward<Fn>(fn));
@@ -589,11 +608,14 @@ namespace oneMenu {
   };
 
   /// @brief Drives per-frame animation: every output poll, dispatches tick() (item.h) to whichever item is currently focused.
-  /// Place above TreeNav: NavDef<TickFocus, TreeNav, Root<...>>.
+  /// Place above TreeNav: NavDef<TickFocus, TreeNav<...>, Root<...>>.
   struct TickFocus {
     template<typename N>
     struct Part : N {
       using Base = N;
+      // See IndexGo::Part's own comment (above TreeNav in file order — TickFocus is placed
+      // above TreeNav in a real chain too) — same constructor-forwarding requirement.
+      using Base::Base;
       // Defining changed(Out&) here hides ALL of Base's changed overloads by name, not
       // just that one signature (ordinary C++ name hiding, not overload resolution) —
       // the no-arg changed() (nav.h's own TreeNav::Part::changed(), and changed(Out&)'s

@@ -23,7 +23,7 @@ auto menu = menuDef<WrapNav>(
   )
 );
 
-INavDef<TreeNav, Root<menu>> nav;
+INavDef<TreeNav<>, Root<menu>> nav;
 
 void setup() {
   out.lockMode(LockMode::None);
@@ -441,7 +441,7 @@ big/normal font selection, title big by default).
 ### `INavDef` — the navigator
 
 ```cpp
-INavDef<TreeNav, Root<myMenu>> nav;
+INavDef<TreeNav<>, Root<myMenu>> nav;
 ```
 
 `Root<ref>` binds the nav to an existing menu variable. `StaticRoot<MenuType>` owns the menu inside the nav instead.
@@ -450,7 +450,7 @@ INavDef<TreeNav, Root<myMenu>> nav;
 
 | Component | What it does |
 |---|---|
-| `TreeNav` | Hierarchical navigator — tracks path, level, selection |
+| `TreeNav<OO...>` | Hierarchical navigator — tracks path, level, selection. Optionally owns its own output device(s) (`TreeNav<Out1,Out2,...>`) — see below |
 | `WrapNav` | Navigation wraps from last item to first and vice versa |
 
 `WrapNav` is per-menu — add it to each `menuDef<>` where you want wrapping:
@@ -472,6 +472,12 @@ if (nav.changed(out)) {
 }
 ```
 
+If `out` is one of `TreeNav<OO...>`'s own owned devices (declared as e.g.
+`TreeNav<decltype(out)>` and constructed `nav(&out)`), the three calls above collapse to
+`nav.doOutput()` — or, combined with `Poll<im,fps>` as the chain's first component
+(`INavDef<Poll<decltype(in)>, TreeNav<decltype(out)>, Root<...>> nav(in,&out);`), the
+whole loop body becomes just `nav.poll()` (input + fps-capped output together).
+
 ### `AsyncNav` — stateless path-based navigation (web/HTTP)
 
 A second nav component (add to `NavDef<...>`, not `menuDef<...>`) that adds `async(path)`:
@@ -480,8 +486,8 @@ start, no prior nav state needed — built for HTTP, where each request arrives 
 of the last and the nav can't just remember "where it was".
 
 ```cpp
-NavDef<AsyncNav, TreeNav, Root<mainMenu>> webNav;  // separate instance
-NavDef<TreeNav,  Root<mainMenu>>          nav;     // hardware nav, unaffected
+NavDef<AsyncNav, TreeNav<>, Root<mainMenu>> webNav;  // separate instance
+NavDef<TreeNav<>, Root<mainMenu>>           nav;     // hardware nav, unaffected
 
 webNav.async("/1/3/");             // reset to root, descend into submenu 1, select item 3
 webNav.enter();                    // then click — triggers the action or opens edit mode

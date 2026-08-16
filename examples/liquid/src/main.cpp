@@ -135,10 +135,11 @@ auto mainMenu = menuDef<WrapNav>(
 );
 
 INavDef<
+  Poll<decltype(in),30,SysTick::Period>,
   IndexGo,
-  TreeNav,
+  TreeNav<decltype(out)>,
   Root<mainMenu>
-> nav;
+> nav(in,&out);
 
 bool action::toggle(Sz) {
   static bool atA=true;
@@ -149,15 +150,11 @@ bool action::toggle(Sz) {
 }
 
 // loop ----------------------------------------------------------------------------
+// nav.poll() now does everything this hand-rolled fps/in/changed/printTo/sync dance
+// used to (Poll<decltype(in),30,SysTick::Period> above owns the 30Hz cap; TreeNav<decltype(out)>
+// owns `out` and drives it via its own internal OutGroup).
 bool run() {
-  static SysTick::Period<30> fps;
-  if (fps) {
-    fps.reset();
-    bool input=nav.in(in);
-    (void)input;
-    if (nav.changed(out)) { nav.printTo(out); nav.sync(out); }
-  }
-  if (!fps) hw::delay_ms(fps.when() - hw::millis());
+  nav.poll();
   return running;
 }
 

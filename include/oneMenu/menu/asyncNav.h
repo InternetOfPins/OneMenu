@@ -15,8 +15,8 @@
  *
  * Web nav should be a separate instance sharing the same Root<menu>:
  *
- *   NavDef<AsyncNav, TreeNav, Root<menu>> webNav;
- *   NavDef<TreeNav,  Root<menu>>          hwNav;   // unaffected
+ *   NavDef<AsyncNav, TreeNav<>, Root<menu>> webNav;
+ *   NavDef<TreeNav<>, Root<menu>>           hwNav;   // unaffected
  */
 
 #include "oneMenu/menu/nav.h"

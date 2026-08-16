@@ -7,7 +7,7 @@
  * Translates digit keys to a Cmd::Go event carrying the 1-based item index.
  * The nav side must include IndexGo (nav.h) to consume Cmd::Go events.
  *
- *   NavDef<IndexGo, TreeNav, Root<...>> nav;
+ *   NavDef<IndexGo, TreeNav<>, Root<...>> nav;
  *   InDef<LinuxKeyIn, IdxParser, PCKbd>  in;  // digits jump to item N directly
  */
 

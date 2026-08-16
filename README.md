@@ -88,7 +88,7 @@ auto mainMenu = menuDef<WrapNav>(
   )
 );
 
-NavDef<TreeNav, Root<mainMenu>> nav;
+NavDef<TreeNav<>, Root<mainMenu>> nav;
 OledDisplay<MyOled, GfxFmt<2, 0, true>> oledDisplay;
 
 void setup() {

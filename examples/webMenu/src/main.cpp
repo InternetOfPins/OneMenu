@@ -392,7 +392,7 @@ bool action::op2(Sz) {
 // handler's own "root" request param and webSocketEvent's activeRoot check
 // (below) pick this NavDef over dialogNav by a runtime id, at no runtime
 // cost over the id-less version.
-NavDef<AsyncNav, TreeNav, Root<mainMenu>, RootId<0>> webNav;
+NavDef<AsyncNav, TreeNav<>, Root<mainMenu>, RootId<0>> webNav;
 
 // Confirm-style dialog tree — reachable as root 1, opened by action::reset
 // above, closed by dialog::confirm below. Deliberately reuses the SAME
@@ -411,7 +411,7 @@ auto dialogMenu = menuDef<WrapNav>(
     ItemDef<Action<dialog::confirm>, Text>{"OK"}
   )
 );
-NavDef<AsyncNav, TreeNav, Root<dialogMenu>, RootId<1>> dialogNav;
+NavDef<AsyncNav, TreeNav<>, Root<dialogMenu>, RootId<1>> dialogNav;
 
 // Local JSON variant of webSocketOut.h's own WebSocketDisplay (which uses
 // XmlFmt) — kept example-scoped rather than editing that shared header, so
@@ -457,7 +457,7 @@ SerialDisplay serialDisplay;
 // Watch<>/m_sel/etc. live on the items themselves, not per-nav), so edits
 // made over the web ARE visible here too; only the Nav's OWN cursor/level
 // is independent.
-NavDef<TreeNav, Root<mainMenu>> serialNav;
+NavDef<TreeNav<>, Root<mainMenu>> serialNav;
 
 // PC keyboard over Serial: send arrow keys via a VT100-capable terminal
 // (or a serial monitor that forwards raw escape sequences — plain

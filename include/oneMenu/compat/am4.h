@@ -661,7 +661,7 @@ namespace am4compat {
 
 /**
  * Device-wiring macros (MENU_INPUTS/MENU_OUTPUTS/NAVROOT/NAVROOT_IDLE),
- * built on oneMenu's InGroup/OutGroup/Pool.
+ * built on oneMenu's InGroup/OutGroup/Poll/TreeNav<OO...>.
  */
 
 /// @brief AM4 MENU_INPUTS(id,&dev1,&dev2,...) — byte-for-byte AM4 syntax.
@@ -677,10 +677,14 @@ namespace am4compat {
 /// AM4 NAVROOT(id,menu,maxDepth,in,out) — declares the nav root; maxDepth is
 /// accepted but ignored. in/out must be InGroup/OutGroup (from
 /// MENU_INPUTS/MENU_OUTPUTS). id.poll() works like AM4's navRoot::poll().
+/// `out` (an OutGroup<Outs...> value) is expanded via oneMenu::AsTreeNav into
+/// TreeNav<Outs...>'s own template pack — TreeNav owns/drives the device list
+/// directly now (formerly a second Pool<InG,OutG> parameter); AM4-facing
+/// MENU_OUTPUTS/NAVROOT call syntax itself is unchanged.
 #define NAVROOT(id, menu, maxDepth, in, out) \
   ::oneMenu::INavDef< \
-      ::oneMenu::Pool<decltype(in), decltype(out)>, \
-      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<menu> \
+      ::oneMenu::Poll<decltype(in)>, \
+      ::oneMenu::EventDispatch, ::oneMenu::AsTreeNav<decltype(out)>, ::oneMenu::Root<menu> \
     > id(in, out)
 
 /* NAVROOT_IDLE: opt-in idle-control bridge, binding a RunLoop<mainFn> into a
@@ -731,8 +735,8 @@ namespace am4compat {
 /// already-built oneMenu::RunLoop<mainFn> type, passed as Run.
 #define NAVROOT_IDLE(id, menu, maxDepth, in, out, Run) \
   ::am4compat::NavRootDef<Run, \
-      ::oneMenu::Pool<decltype(in), decltype(out)>, \
-      ::oneMenu::EventDispatch, ::oneMenu::TreeNav, ::oneMenu::Root<menu> \
+      ::oneMenu::Poll<decltype(in)>, \
+      ::oneMenu::EventDispatch, ::oneMenu::AsTreeNav<decltype(out)>, ::oneMenu::Root<menu> \
     > id(in, out)
 
 /// AM4 NONE — empty placeholder satisfying MENU_OUTPUTS'/MENU_INPUTS'

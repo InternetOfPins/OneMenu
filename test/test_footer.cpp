@@ -57,7 +57,7 @@ std::string render() {
   using Out = OutDef<FullPrinter, Fmt, DataParser<>, Cursor<1,1>, StreamOut<std::ostringstream,ss>, StaticPos<0,0>, StaticArea<80,25>>;
   Out out;
   out.lockMode(LockMode::None);
-  NavDef<TreeNav, Root<testMenu>> nav;
+  NavDef<TreeNav<>, Root<testMenu>> nav;
   nav.printTo(out);
   return ss.str();
 }
