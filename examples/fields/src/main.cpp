@@ -19,9 +19,9 @@
   #include <oneMenu/menu/IO/arduino/serialIn.h>
   #ifdef IOP_GFX
     // Optional alternative output target (build_flags -D IOP_GFX, [env:unoGfx]):
-    // real Adafruit_ST7789 SPI TFT in place of plain Serial/ANSI — same proven
-    // stack as OneIO/.RnD/adaGfxVendorSt7789 (hardware-verified there). Mutually
-    // exclusive with the default ANSI/serial output, not a second parallel one —
+    // real Adafruit_ST7789 SPI TFT in place of plain Serial/ANSI — same
+    // proven, hardware-verified stack as an earlier local prototype.
+    // Mutually exclusive with the default ANSI/serial output, not a second parallel one —
     // every GFX-only block below is guarded the same way this file already
     // guards ARDUINO/RP2040/arm/native, just one more axis on top of __AVR__.
     #include <SPI.h>
@@ -93,7 +93,7 @@ using oneMenu::Action;
 
 #if defined(__AVR__) && defined(IOP_GFX)
 // ── GFX device (optional) ───────────────────────────────────────────────────
-// Pins/panel/font match OneIO/.RnD/adaGfxVendorSt7789 exactly (hardware-
+// Pins/panel/font match an earlier local prototype exactly (hardware-
 // verified there) — hardware SPI, board default MISO/MOSI/SCK.
 #define TFT_CS  10
 #define TFT_RST  9
@@ -151,7 +151,7 @@ InDef<
 > in;
 
 #if defined(__AVR__) && defined(IOP_GFX)
-// Same chain shape as OneIO/.RnD/adaGfxVendorSt7789's TftOut (hardware-
+// Same chain shape as an earlier local prototype's TftOut (hardware-
 // verified there): ScrollPrinter + GFX-aware fmt/ctrl/wrap layers + Cursor
 // (real partial-update capability, HasPartialUpdate — see nav.h) + Gate +
 // VendorGfxOut<Oled> + per-role ColorTable, instead of ANSIFmt+ANSIOut+
@@ -438,8 +438,8 @@ INavDef<
 // Was hand-rolled here (a plain RunFn activeRun, swapped by showIdle()/
 // showPrompt()/action::ok()) — now oneMenu::RunLoop<mainFn>, the same
 // pattern formalized into the library (see nav.h's own doc comment for why:
-// this exact code, duplicated across this file/.RnD/fields/.RnD/picoMenu/
-// .RnD/neurMenu, was the real motivating case).
+// this exact code, duplicated near-identically across several examples,
+// was the real motivating case).
 bool mainRun();  // forward — RunLoop binds this as its compile-time default
 using Run = RunLoop<mainRun>;
 
@@ -455,7 +455,7 @@ bool mainRun() {
     // full clear+redraw on nav.levelChanged() (entering/leaving Settings) and
     // restores lockMode to Update afterward — without it, a GFX partial-update
     // chain leaves stale glyphs from the old item set showing through the new
-    // one (see OneIO/.RnD/adaGfxVendorSt7789's own loop(), same fix).
+    // one (same fix as an earlier local prototype's own loop()).
     nav.doOutput(out);
   #else
     if (nav.changed(out)) { nav.printTo(out); nav.sync(out); }
@@ -533,7 +533,7 @@ void setup() {
     while (!Serial) delay(10);
   #endif
   #if defined(__AVR__) && defined(IOP_GFX)
-    // Same init sequence as OneIO/.RnD/adaGfxVendorSt7789's setup() —
+    // Same init sequence as an earlier local prototype's setup() —
     // hardware-verified there (MADCTL fix + invertDisplay(false) needed for
     // correct colors on this cheap ST7789 clone).
     gfx.setSPISpeed(40000000);
@@ -563,7 +563,7 @@ void setup() {
     // sync(Out&) restores lockMode to whatever it was at entry (still None) —
     // without this, mainRun()'s first doOutput() call starts at None too, so
     // only THAT call's own end-of-doOutput reset would engage Update; explicit
-    // here for the very first frame, same reasoning as the .RnD example.
+    // here for the very first frame, same reasoning as the earlier prototype.
     nav.sync(out);
     out.lockMode(LockMode::Update);
   #endif
