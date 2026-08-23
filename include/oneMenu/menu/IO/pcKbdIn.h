@@ -86,11 +86,10 @@ namespace oneMenu {
             // A real down-arrow (ESC[B, moves the cursor to a LATER/higher-
             // index item) therefore has to fire Cmd::Up (increment) to move
             // down the list — this mapping is deliberate, already correct.
-            // Confirmed by tracing a real down-arrow press through doNav()
-            // natively: swapping this to the visually-obvious A=Up/B=Down
-            // made a down-arrow press on sel=0 DECREMENT and wrap straight to
-            // the last item instead of advancing to item 1 — a self-inflicted
-            // regression from assuming Cmd names meant visual directions.
+            // Swapping this to the visually-obvious A=Up/B=Down would make a
+            // down-arrow press on sel=0 DECREMENT and wrap straight to the
+            // last item instead of advancing to item 1 — do not "fix" this
+            // by assuming Cmd names mean visual directions.
             case 'A': return {Cmd::Down};
             case 'B': return {Cmd::Up};
             case 'C': return {Cmd::Left};

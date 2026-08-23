@@ -604,8 +604,7 @@ namespace oneMenu {
       // own base default), but the out.put(low()/high()) calls in between are
       // NOT — put() is a real, unconditional device write on every format,
       // so without this gate a real ANSI/graphics display would show
-      // "Power0100755%" (confirmed empirically, 2026-07-22: the raw ANSI
-      // render literally printed the range numbers before the real value).
+      // "Power0100755%" — the range numbers rendered before the real value.
       // IsXmlFmt is a plain hapi::TagIs<aXmlFmt> predicate (base.h) — same
       // hapi::query<...,typename Out::Types> pattern already used
       // throughout this file (IsCursor/IsFillRect checks) — Out is the same
@@ -769,14 +768,13 @@ namespace oneMenu {
       // oneData's own StaticNumRange/StaticRange already use for their own
       // /set endpoint — NOT the same mechanism as nav()'s own path.len check
       // above (that one reflects the nav's stored multi-level cursor state
-      // for physical multi-level restore, not a caller-supplied index; an
-      // earlier attempt to reuse it for direct web option-jump via a deeper
-      // /nav?path=... turned out to misfire — AsyncNav::async() fires a real
-      // Cmd::Enter on every *intermediate* path segment, which cycles/opens
-      // whatever item sits there rather than reaching m_sel — confirmed on
-      // real ESP32 hardware, 2026-07-22 — this setStr()-based route sidesteps
-      // that entirely by addressing the field directly, one path, no nested
-      // segment).
+      // for physical multi-level restore, not a caller-supplied index).
+      // A deeper /nav?path=... route cannot be reused for direct web
+      // option-jump: AsyncNav::async() fires a real Cmd::Enter on every
+      // *intermediate* path segment, which cycles/opens whatever item sits
+      // there rather than reaching m_sel. This setStr()-based route
+      // sidesteps that entirely by addressing the field directly, one path,
+      // no nested segment.
       template<typename Nav,typename P>
       bool setStr(Nav&,const char* s,P p) {
         if(p.len==0) {
@@ -1436,11 +1434,10 @@ namespace hapi {
 
 // Hidden<II...>/Decor<II...>/EnDis<ens>/NumField<II...> are all the same
 // Chain<...>::Part<O>-wrapping shape as MenuPrinter (printers.h) — opaque to
-// hapi::query/Traverse without their own specialization. None have a confirmed live
-// trigger today (no real tag happens to be nested inside any of them yet), but
-// NumField is the single most widely-used wrapper in the codebase (every AM4
-// FIELD() macro expansion) and itself nests AsField<...> inside it, so it's the
-// most exposed of the four to a future real tag landing inside it unnoticed.
+// hapi::query/Traverse without their own specialization. None currently has a tag
+// nested inside it, but NumField is the single most widely-used wrapper in the
+// codebase (every AM4 FIELD() macro expansion) and itself nests AsField<...> inside
+// it, so it's the most exposed of the four to a future tag landing inside it unnoticed.
 namespace hapi {
   template<typename Op, typename... II>
   struct Traverse<Op, oneMenu::Hidden<II...>> {

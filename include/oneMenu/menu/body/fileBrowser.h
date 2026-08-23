@@ -82,9 +82,8 @@ namespace oneMenu {
   // compile on real avr-g++ 7.3 ("not a valid template argument ... must be
   // the name of a function with external linkage") even though native g++
   // and a *direct* (non-forwarded) reference-NTTP instantiation both accept
-  // it fine — confirmed via an isolated minimal repro before assuming this
-  // was the fix, not just the SD.h/FileEntryBody instantiation being large.
-  // A pointer-typed NTTP survives the same forwarding path on real hardware.
+  // it fine. A pointer-typed NTTP survives the same forwarding path on real
+  // hardware.
   using PickFunc=void(*)(const char*,const char*);
 
   // Windowed, folder-aware entry listing — holds a CacheBody<T,data,MaxSz,

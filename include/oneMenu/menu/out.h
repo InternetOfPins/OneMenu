@@ -257,14 +257,13 @@ namespace oneMenu {
   // "poll everything" semantics, matching how a compile-time OutDef<KK...>
   // chain already fuses multiple physical sources, and OutList's own.
   // Two-phase: draw every device first (drawAll), THEN sync every device (syncAll) — not
-  // draw+sync device 1 to completion before device 2 even starts, which is what a single
-  // per-device nav.doOutput(*p) call, repeated down the pack, used to do here. sync() mutates
-  // SHARED nav-wide state (TreeNav::Part's own m_level/m_navMode/m_prevSel, and any item's own
-  // Watch<>/Dirty<>-tracked field value) — not per-device — so the old interleaved order let
-  // device 1's sync() collapse the "did anything change" signal before device 2 ever got to
-  // check it, silently dropping device 2's redraw of the very same change (whichever device
-  // wasn't first in the pack would quietly fall behind). Mirrors upstream AM4's own
-  // outputsList::printMenu/clearChanged split exactly (two separate loops there too — draw
+  // draw+sync device 1 to completion before device 2 even starts. sync() mutates SHARED
+  // nav-wide state (TreeNav::Part's own m_level/m_navMode/m_prevSel, and any item's own
+  // Watch<>/Dirty<>-tracked field value) — not per-device — so an interleaved draw+sync
+  // order lets device 1's sync() collapse the "did anything change" signal before device 2
+  // ever gets to check it, silently dropping device 2's redraw of the very same change
+  // (whichever device isn't first in the pack would quietly fall behind). Mirrors upstream
+  // AM4's own outputsList::printMenu/clearChanged split exactly (two separate loops there too — draw
   // every device against the still-dirty shared flag, only clear once everyone's had a look).
   // drawAll/syncAll recurse into drawAll/syncAll at each pack level (NOT doOutput into
   // doOutput) — that's what actually keeps every device's draw phase ahead of every device's

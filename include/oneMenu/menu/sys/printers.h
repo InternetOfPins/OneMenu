@@ -91,13 +91,13 @@ namespace oneMenu {
 // it gets this same treatment explicitly. Without it, a flat query<Q, SomeOutDef::Types>
 // walk can never see a tag (e.g. ScrollBodyPrinter's aScrollBody) buried inside
 // MenuPrinter<TitlePrinter,ScrollBodyPrinter,ItemsPrinter>'s own template args
-// (ScrollPrinter, below) — confirmed via a real SIGSEGV: nav.h's printTo() gates
-// allocating a real tops[] array on exactly that check. This specialization alone
-// wasn't sufficient on its own, though — nav.h's own check was ALSO passing the bare
-// Out (an opaque OutDef<Chain<...>> wrapper) instead of Out::Types, so Traverse never
-// even got as far as this specialization; see nav.h's printTo() for that half of the
-// fix, plus TagIs<...>::Check<...>::value needing hapi::query<...> instead (Check<> on
-// a multi-element chain yields a Chain-of-results tree, not a plain bool).
+// (ScrollPrinter, below) — nav.h's printTo() gates allocating a real tops[] array on
+// exactly that check, so a miss there is a live crash. This specialization alone is not
+// sufficient on its own: nav.h's own check must also pass Out::Types rather than the
+// bare Out (an opaque OutDef<Chain<...>> wrapper), or Traverse never reaches this
+// specialization at all; and TagIs<...>::Check<...>::value must go through
+// hapi::query<...> rather than being read directly, since Check<> on a multi-element
+// chain yields a Chain-of-results tree, not a plain bool.
 namespace hapi {
   template<typename Op, typename... OO>
   struct Traverse<Op, oneMenu::MenuPrinter<OO...>> {
@@ -591,11 +591,10 @@ namespace oneMenu {
 
 // ItemPrinter<OO...> and AsFmt<Fmt tag,OO...> (above) are both the same
 // Chain<OO...>::Part<O>-wrapping shape as MenuPrinter — opaque to hapi::query/Traverse
-// without their own specialization, exactly like MenuPrinter was before its own fix
-// (see that specialization's own comment, above, for the real SIGSEGV this class of
-// bug already caused once). Neither has a confirmed live trigger today (no real tag
-// happens to be nested inside either one yet) — fixed prophylactically anyway, same
-// mechanical pattern, cheap. ItemPrinter is the closer of the two: it's the direct
+// without their own specialization (see MenuPrinter's specialization, above, for why
+// that matters: a miss here is a live crash, not just a missed query result). Neither
+// currently has a tag nested inside it, but both get the same specialization anyway,
+// same mechanical pattern, cheap. ItemPrinter is the closer of the two: it's the direct
 // one-level-nested sibling of MenuPrinter inside every stock printer stack above
 // (FullPrinter, ScrollPrinter, NoTitlePrinter, ...).
 namespace hapi {

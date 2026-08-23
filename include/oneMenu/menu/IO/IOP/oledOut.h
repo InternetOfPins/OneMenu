@@ -176,14 +176,12 @@ namespace oneMenu {
 
   // Ready-made OutDef for buffered, pixel-addressed vendor GFX devices.
   // Same shape as OledDisplay, using VendorGfxOut instead of OledOut. No
-  // trailing StaticArea here (unlike OledDisplay) — VendorGfxOut itself now
+  // trailing StaticArea here (unlike OledDisplay) — VendorGfxOut itself
   // defaults width()/height() to Oled::kWidth/kHeight (see its own comment
-  // above), so this alias no longer needs to repeat it. This also closes a
-  // latent footgun the old unconditional trailing StaticArea had: if a
-  // caller's Extra... already composed its own StaticArea, both it and this
-  // alias's own copy used to coexist in the chain with no guard; now there's
-  // only ever one real source — an Extra...-supplied StaticArea still wins
-  // exactly as before (VendorGfxOut checks HasArea<O> and forwards to it).
+  // above), so this alias does not need to repeat it. There is only ever one
+  // real StaticArea source in the chain this way: an Extra...-supplied
+  // StaticArea still wins (VendorGfxOut checks HasArea<O> and forwards to
+  // it), with no risk of a second, redundant StaticArea coexisting unguarded.
   template<typename Oled, typename GfxFmtT=GfxFmt<>, typename... Extra>
   using VendorGfxDisplay = OutDef<
     FullPrinter,

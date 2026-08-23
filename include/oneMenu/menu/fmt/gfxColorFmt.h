@@ -217,7 +217,7 @@ namespace oneMenu {
 
       // Real edit-mode separator glyph — same MenuChars ANSIFmt already uses
       // (':'/'='/'.'/' ' for Nav/Edit/Tune/blur), fired wherever the item composes
-      // AsEditMode<> (previously color-only here, no visible marker at all on GFX).
+      // AsEditMode<>, giving GFX a visible marker rather than color alone.
       // Narrow one-glyph fillRect, not the full-row-width fill Label/Field use:
       // this device's print() is always transparent-background (AdaGfxVendor never
       // calls the opaque 2-arg setTextColor), so the glyph needs ITS OWN small
@@ -385,19 +385,18 @@ namespace oneMenu {
         // verbatim here): that check assumes lineHeight() is a small page count
         // (1 or 2, page-addressed OledOut), where ">1" means "this row's real
         // driver state is big". On a pixel-addressed device lineHeight() is a
-        // real pixel height (16, 20+) — ALWAYS >1 — so this fired on every single
-        // item, double-nl()'ing every row: fillRect painted 1×lineHeight() but
-        // the cursor advanced 2×lineHeight(), leaving an unpainted gap of exactly
-        // one row's height before the next item — found on real hardware as a
-        // band of raw/leftover GRAM content (striping) between every item, that
-        // only a full clear() (level change) happens to paint over rather than
-        // actually fix. itemBig(ctx) is the same ctx-only decision fmtStart<Item>
-        // already used to size the fillRect in the first place, so it's
-        // guaranteed consistent with what was actually painted — narrower than
-        // GfxFmt's original live-state check (which also caught a sub-role
-        // Field/Unit going big independent of itemBig's Body-only guess), but
-        // AdaGfxVendor's setBigFont() is a no-op today so no sub-role can
-        // actually diverge from itemBig() here regardless.
+        // real pixel height (16, 20+) — ALWAYS >1 — so that check fires on every
+        // single item, double-nl()'ing every row: fillRect paints 1×lineHeight()
+        // but the cursor advances 2×lineHeight(), leaving an unpainted gap of
+        // exactly one row's height before the next item (a band of raw/leftover
+        // GRAM content between every item, that only a full clear() — a level
+        // change — happens to paint over). itemBig(ctx) is the same ctx-only
+        // decision fmtStart<Item> already uses to size the fillRect in the first
+        // place, so it's guaranteed consistent with what was actually painted —
+        // narrower than GfxFmt's original live-state check (which also catches a
+        // sub-role Field/Unit going big independent of itemBig's Body-only
+        // guess), but AdaGfxVendor's setBigFont() is a no-op today so no sub-role
+        // can actually diverge from itemBig() here regardless.
         bool bigItem = itemBig(ctx);
         if(bigItem) Base::setBigFont(false);
         if(!ctx.pad) {

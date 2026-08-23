@@ -245,7 +245,7 @@ namespace oneMenu {
   /// TreeNav<Out>, Root<...>> id(in,&out);`) for its constructor to be reachable.
   /// Output is owned by TreeNav<OO...> (its own OutGroup<OO...> member) — see TreeNav's
   /// own doc comment for why the device list moved there instead of being a second
-  /// caller-assembled parameter here as it used to be (formerly Pool<InG,OutG>).
+  /// caller-assembled parameter here.
   template<typename im,unsigned fps=60,template<uint32_t> class PeriodT=hw::Period>
   struct Poll {
     template<typename N>

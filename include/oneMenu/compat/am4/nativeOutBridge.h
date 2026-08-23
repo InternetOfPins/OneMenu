@@ -28,7 +28,7 @@
  * which already routes correctly through this bridge.
  *
  * Fidelity boundary, by explicit scope decision (not extending `oneMenu::
- * IOut` with new virtuals this round): `setColor`/`rect`/`box` have nowhere
+ * IOut` with new virtuals): `setColor`/`rect`/`box` have nowhere
  * to go — `IOut` has no color/box/rect primitive (all color/cursor/pixel
  * richness in OneMenu's own output chain is absorbed by the compile-time
  * `Chain<>` *before* the type-erasure boundary; nothing extra ever crosses

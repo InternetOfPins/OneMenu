@@ -150,9 +150,9 @@ bool action::toggle(Sz) {
 }
 
 // loop ----------------------------------------------------------------------------
-// nav.poll() now does everything this hand-rolled fps/in/changed/printTo/sync dance
-// used to (Poll<decltype(in),30,SysTick::Period> above owns the 30Hz cap; TreeNav<decltype(out)>
-// owns `out` and drives it via its own internal OutGroup).
+// nav.poll() covers the fps/in/changed/printTo/sync cycle entirely:
+// Poll<decltype(in),30,SysTick::Period> above owns the 30Hz cap; TreeNav<decltype(out)>
+// owns `out` and drives it via its own internal OutGroup.
 bool run() {
   nav.poll();
   return running;

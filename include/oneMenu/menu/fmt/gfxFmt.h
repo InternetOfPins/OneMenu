@@ -115,10 +115,10 @@ namespace oneMenu {
           : (ctx?big(typename PFNavDis::Selected{}):big(typename PFNavDis::Item::Body{}));
       }
 
-      // Per-role big/normal choice — Font<Fnt>::Item<Body,Field,EditMode> (fonts.h) already
-      // has separate slots for this; nothing previously read Field/EditMode specifically
-      // (every fmtStart/fmtStop below was Fmt::Item/Fmt::Title-granular, one font decision
-      // per whole item). Deliberately bypasses the Selected/focus branch itemBig() uses —
+      // Per-role big/normal choice — Font<Fnt>::Item<Body,Field,EditMode> (fonts.h) has
+      // separate slots for this, read here at Field/EditMode granularity rather than the
+      // coarser Fmt::Item/Fmt::Title granularity fmtStart/fmtStop use below (one font
+      // decision per whole item). Deliberately bypasses the Selected/focus branch itemBig() uses —
       // "is this item currently focused" is orthogonal to "which role within it is this
       // text" (a FullScreen item is always the focused one when it's shown at all, so
       // routing Label/Field through Selected would make them indistinguishable). Unit has

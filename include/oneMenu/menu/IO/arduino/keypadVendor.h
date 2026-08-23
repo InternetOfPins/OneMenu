@@ -16,8 +16,8 @@ namespace oneMenu {
   // translation itself either — it's a bare passthrough over the same
   // Keypad::getKey(), delegating 100% of key-to-char mapping to the real
   // vendor library's own keys[ROWS][COLS] table (confirmed directly
-  // against both the real AM4 source and the real Keypad library this
-  // session) — arbitrary chars (digits, letters, symbols), not just nav
+  // against both the real AM4 source and the real Keypad library) —
+  // arbitrary chars (digits, letters, symbols), not just nav
   // command codes. This wrapper reproduces that same "just produce chars"
   // role; any special-cased command chars (Enter/Esc/etc.) are handled the
   // same way as any other char-producing source: PCKbd/IdxParser above it

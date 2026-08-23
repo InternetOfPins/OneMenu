@@ -263,15 +263,12 @@ using Power = ItemDef<
 
 // Language selector, on the root menu (not buried in "Data fields...").
 // Select rather than Toggle — scales to a real language list (a dozen+),
-// where a pill-per-language Toggle wouldn't. A first Toggle+SyncValue
-// attempt didn't work over the web: SyncValue's own mirror-sync used to
-// fire only on a genuine Cmd::Enter routed through nav(), but the web's
-// /set and WS "S|" paths both go through AsyncNav::setAt(), which bypasses
-// nav()/Cmd::Enter entirely (confirmed live: the pill flipped, the synced
-// variable didn't). Fixed at the source instead of working around it:
-// SyncValue<W> (item.h) now ALSO syncs on setStr() (the same choke point
-// RecallNavPos already uses to apply a web-driven selection), so this
-// works for Select/Choose/Toggle alike, not just physical nav.
+// where a pill-per-language Toggle wouldn't. This depends on SyncValue<W>
+// (item.h) syncing on setStr() (the same choke point RecallNavPos uses to
+// apply a web-driven selection), not just on a genuine Cmd::Enter routed
+// through nav() — the web's /set and WS "S|" paths both go through
+// AsyncNav::setAt(), which bypasses nav()/Cmd::Enter entirely. This is what
+// makes it work for Select/Choose/Toggle alike, not just physical nav.
 // OnChange<action::onLangChange> composed straight into the same W chain
 // SyncValue mirrors through — fires on every sync (web or physical),
 // exactly like it does inside a NumField's own chain.
@@ -417,16 +414,13 @@ NavDef<AsyncNav, TreeNav<>, Root<dialogMenu>, RootId<1>> dialogNav;
 // XmlFmt) — kept example-scoped rather than editing that shared header, so
 // the plain-HTTP path (WebDisplay/XmlFmt/menu.xslt) stays untouched.
 //
-// DataParser<>/Cursor<1,1>/StaticPos/StaticArea genuinely aren't needed —
-// dropping them once surfaced a real bug (WebSocketOut had no put(int) at
-// all, so a numeric out.put() silently resolved via an implicit int->char
-// conversion instead of DataParser<>'s own snprintf/itoa-based one — a
-// garbage byte, not a digit; confirmed live via MultiLangText::current's
-// own "lang" attribute coming out empty, breaking JSON.parse() client-
-// side), but the real, targeted fix is webSocketOut.h's own new put(int)
-// overload — WebSocketOut can stringify a number itself now, the same way
-// ArduinoSerialOut's own put(T) already forwards to Serial.print(). No
-// need to pay for DataParser<>/Cursor/StaticPos/StaticArea just to reach
+// DataParser<>/Cursor<1,1>/StaticPos/StaticArea genuinely aren't needed:
+// webSocketOut.h's own put(int) overload lets WebSocketOut stringify a
+// number itself, the same way ArduinoSerialOut's own put(T) already
+// forwards to Serial.print() — without it, a numeric out.put() would
+// silently resolve via an implicit int->char conversion instead (a garbage
+// byte, not a digit). No need to pay for DataParser<>/Cursor/StaticPos/
+// StaticArea just to reach
 // a conversion this device can now do on its own.
 using WsJsonDisplay = OutDef<
   FullPrinter,
@@ -585,10 +579,7 @@ void handleWsCommand(Nav& nav, const char* msg) {
       // of re-deriving a "parent" server-side by truncating buf's own last
       // path segment, matters for a pad-nested field (dateField's own year/
       // month/day): buf="/4/5/1/"'s naive parent is "/4/5/" — ONE LEVEL PAST
-      // the pad's own boundary (confirmed live: async()+enter() on that
-      // landed a phantom level, pushed view's own "at" read "/4/5/" while
-      // its body was still structurally "/4/"'s six items, Date's own outer
-      // row never marked focused) — a plain string can't tell a pad
+      // the pad's own boundary — a plain string can't tell a pad
       // boundary apart from a real submenu one, but the client already
       // knows, since it's the same value the server itself last reported.
       char* at = strchr(val, '|');
@@ -891,10 +882,9 @@ void setup() {
   // FTP-editable via the FTP server above, no reflash needed to iterate on it.
   server.serveStatic("/menu.js", SPIFFS, "/menu.js");
   // Translation files for menu.xslt's own document() lookup — see
-  // sendLangXml's own comment. Registered from text::langCodes itself
-  // (adding a language used to also mean hand-adding its own explicit
-  // route here — missed once already when zh.txt was added, a 404 the
-  // client-side XSLT lookup silently fell back from).
+  // sendLangXml's own comment. Registered from text::langCodes itself, so
+  // adding a language never needs its own hand-added route here — a missing
+  // route is a 404 the client-side XSLT lookup silently falls back from.
   for(int i=0;i<text::langCount;i++) {
     String uri = String("/lang/")+text::langCodes[i]+".xml";
     String code = text::langCodes[i];

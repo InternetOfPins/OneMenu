@@ -67,13 +67,12 @@ namespace oneMenu {
 
 };//namespace oneMenu
 
-// JoinBody previously had zero HAPI integration at all (no ::Types, no Traverse, no
-// query<> specialization) — unlike its sibling StaticBody (staticBody.h), which this
-// mirrors exactly. A hapi::query/Traverse walk through a JoinBody-bodied Menu would
-// have silently seen nothing inside b1/b2 (Menu::find<Q>() is safe regardless — it
-// fails loudly, a compile error, via a different mechanism, detail::find's overload
-// set — but any direct hapi::query<Q,...> was exposed to the silent-false failure
-// mode this whole audit is about).
+// JoinBody needs its own ::Types/Traverse/query<> specialization, mirroring its
+// sibling StaticBody (staticBody.h) exactly — without it, a hapi::query/Traverse
+// walk through a JoinBody-bodied Menu would silently see nothing inside b1/b2.
+// Menu::find<Q>() is safe regardless (it fails loudly, a compile error, via a
+// different mechanism, detail::find's overload set), but any direct
+// hapi::query<Q,...> would otherwise be exposed to a silent-false result.
 template<typename Q, typename BodyA, typename BodyB>
 constexpr const bool hapi::template query<Q, oneMenu::JoinBody<BodyA,BodyB>>{
   hapi::template query<Q, BodyA> || hapi::template query<Q, BodyB>

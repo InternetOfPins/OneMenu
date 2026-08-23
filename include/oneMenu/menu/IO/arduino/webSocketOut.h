@@ -31,9 +31,9 @@ namespace oneMenu {
       // Without this, any numeric put() (e.g. xmlFmt.h/jsonFmt.h's own
       // out.put((int)someIndex)) has no exact-match overload here and
       // silently resolves via an implicit int->char conversion instead —
-      // a garbage/control byte, not a decimal string — confirmed live via
-      // MultiLangText::current's own "lang" attribute coming out empty,
-      // breaking JSON.parse() client-side. Arduino's own String(int)
+      // a garbage/control byte, not a decimal string, which shows up as an
+      // attribute (e.g. MultiLangText::current's "lang") coming out empty
+      // and breaking JSON.parse() client-side. Arduino's own String(int)
       // constructor does the conversion; integral PROMOTIONS (e.g. this
       // uint8_t) rank ahead of the integral CONVERSION to char above, so
       // this correctly wins overload resolution for any smaller integer

@@ -59,11 +59,9 @@ namespace oneMenu {
   struct Menu {
     using Chain_=hapi::Chain<OO...>;
     // Includes Title (T): matches the query<Q,Menu<...>> specialization below and
-    // find<Q>()'s own logic (both treat Title as a valid match target) — previously
-    // excluded here (comment used to read "expose body only"), which let
-    // hapi::query<Q,SomeMenu::Types> and hapi::query<Q,SomeMenu> silently disagree
-    // about anything tagged on Title. Nothing tags Title today, so this was latent,
-    // not live — fixed for consistency between the two mechanisms regardless.
+    // find<Q>()'s own logic (both treat Title as a valid match target). Excluding it
+    // here would let hapi::query<Q,SomeMenu::Types> and hapi::query<Q,SomeMenu>
+    // silently disagree about anything tagged on Title.
     using Types=hapi::Chain<T, OO..., B>;
     template<typename O>
     struct Part : Chain_::template Part<O> {

@@ -42,9 +42,9 @@ namespace oneMenu {
 
   // long, not int: Fmt (below) needs 22 independent bits (up to Footer=1<<21).
   // int is only guaranteed 16 bits — genuinely just 16 on AVR (avr-gcc), where
-  // 1<<16 and up silently wrap/collide (confirmed live: building XmlFmt for
-  // Uno hit "duplicate case value" — Option/Selected/Choice/Dropdown/Enabled
-  // had all collapsed onto earlier tags' values). long is guaranteed >=32
+  // 1<<16 and up silently wrap/collide (e.g. Option/Selected/Choice/Dropdown/
+  // Enabled would all collapse onto earlier tags' values, surfacing as a
+  // "duplicate case value" build error). long is guaranteed >=32
   // bits on every target this project builds for, AVR included. Widening
   // return type AND the raw-int overloads together matters: a 3+-way chain
   // like `Fmt::A|Fmt::B|Fmt::C` associates left-to-right, so the first `|`'s
