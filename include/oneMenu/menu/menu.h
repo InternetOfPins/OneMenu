@@ -72,7 +72,15 @@ namespace oneMenu {
       using Body=B;
       Title title;
       Body body;
-      Part(Title&& t,Body&& b):title{std::move(t)},body{std::move(b)} {}
+      // std::forward, not std::move: when Body is instantiated as a
+      // reference type (e.g. PoolBody<T,VSize>&, see hostedPoolBody.h),
+      // Body&& reference-collapses to Body& in the parameter, but
+      // std::move(b) would force an rvalue that can't bind to the
+      // reference member `body` below. std::forward<Body>(b) collapses
+      // the same way and is a no-op change for every existing by-value
+      // Body -- StaticBody's own constructor (staticBody.h) already uses
+      // std::forward for this exact reason.
+      Part(Title&& t,Body&& b):title{std::forward<Title>(t)},body{std::forward<Body>(b)} {}
 
       template<typename Out>
       void print(Out& out) const {title.print(out);}
@@ -180,7 +188,11 @@ namespace oneMenu {
         return r;
       }
 
-      static constexpr Depth depth() {return Body::depth()+1;}
+      // std::remove_reference_t: when Body is instantiated as a reference
+      // type (e.g. PoolBody<T,VSize>&, see hostedPoolBody.h), Body::depth()
+      // is invalid (a reference type has no members reachable via ::) --
+      // the underlying class type is what actually declares depth().
+      static constexpr Depth depth() {return std::remove_reference_t<Body>::depth()+1;}
 
       template<typename Nav>
       bool setStr(Nav& n,const char* s,Path p) {
