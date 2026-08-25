@@ -78,7 +78,7 @@ namespace oneMenu {
 
       static constexpr Sz size() {return sz;}
       static constexpr Sz depth() {return 2;}
-      bool changed() const {return edited;}
+      [[nodiscard]] bool changed() const {return edited;}
       void sync() {edited=false;}
 
       template<typename Out>
@@ -166,7 +166,7 @@ namespace oneMenu {
         if constexpr (IsPositionalMask<Mask>::value) return Mask::down(pos,c);
         else return Mask::down(c);
       }
-      static bool maskChk(Sz pos,char c) {
+      [[nodiscard]] static bool maskChk(Sz pos,char c) {
         if constexpr (IsPositionalMask<Mask>::value) return Mask::chk(pos,c);
         else return Mask::chk(c);
       }
@@ -187,7 +187,7 @@ namespace oneMenu {
                          // breaking IItem's virtual sync(IOut&) override
                          // (item.h) for any chain built through IItemDef.
       template<typename... OO> Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
-      bool changed() const {return m_changed;}
+      [[nodiscard]] bool changed() const {return m_changed;}
       bool sync() {return m_changed=false;Base::sync();}
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {

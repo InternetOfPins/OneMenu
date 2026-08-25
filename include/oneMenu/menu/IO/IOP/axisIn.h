@@ -32,7 +32,7 @@ namespace oneMenu {
   struct AxisIn {
     template<typename O>
     struct Part : O {
-      static bool available() {
+      [[nodiscard]] static bool available() {
         return HW::delta() != 0 || O::available();
       }
       static CKE cmd() {

@@ -20,7 +20,7 @@ namespace oneMenu {
   struct EncIn {
     template<typename O>
     struct Part : O {
-      static bool available() {
+      [[nodiscard]] static bool available() {
         int8_t d = HW::delta();
         return d >= int8_t(Steps) || d <= -int8_t(Steps) || O::available();
       }

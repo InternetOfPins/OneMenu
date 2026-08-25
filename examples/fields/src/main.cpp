@@ -475,7 +475,7 @@ bool idleRun() {
 }
 
 bool promptRun() {
-  promptNav.in(in);
+  (void)promptNav.in(in); // handled-ness is read back below via changed(), not this return
   #if defined(__AVR__) && defined(IOP_GFX)
     promptNav.doOutput(promptOut);
   #else

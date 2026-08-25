@@ -27,11 +27,11 @@ namespace oneMenu {
     template<typename> using Requires=std::false_type;
     template<typename> using Excludes=std::true_type;
     static constexpr Depth depth() {return 1;}
-    static constexpr bool enabled() {return true;}
+    [[nodiscard]] static constexpr bool enabled() {return true;}
     static constexpr bool wraps() {return false;}
     static constexpr bool isPad() {return false;}
     static constexpr void enable(bool=true) {}
-    static constexpr bool changed() {return false;}
+    [[nodiscard]] static constexpr bool changed() {return false;}
     static constexpr Pos pos() {return {0,0};}
     static constexpr void sync() {}
     template<typename Out> static constexpr void sync(Out&) {}
@@ -62,7 +62,7 @@ namespace oneMenu {
     using Base::print;
 
     template<bool isKbd,typename Nav>
-    bool nav(Nav& n,const CKE& cke,const Path p) {
+    [[nodiscard]] bool nav(Nav& n,const CKE& cke,const Path p) {
       return enabled()?Base::template nav<isKbd>(n,cke,p):cke.cmd==Cmd::Enter;
     }
 
@@ -98,13 +98,13 @@ namespace oneMenu {
     virtual bool printMenu(IOut& out,Ctx& ctx)=0;
     virtual bool printBody(IOut& out,Ctx&)=0;
 
-    virtual bool enabled() const=0;
+    [[nodiscard]] virtual bool enabled() const=0;
     virtual void enable(bool=true)=0;
-    virtual bool changed() const=0;
+    [[nodiscard]] virtual bool changed() const=0;
     virtual void sync()=0;
     virtual void sync(IOut& out)=0;
-    virtual bool up() const=0;
-    virtual bool down() const=0;
+    [[nodiscard]] virtual bool up() const=0;
+    [[nodiscard]] virtual bool down() const=0;
     virtual bool _kbdNav(INav& n,const CKE& cke,const Path p)=0;
     virtual bool _nav(INav& n,const CKE& cke,const Path p)=0;
 
@@ -182,7 +182,7 @@ namespace oneMenu {
     virtual void printItem(IOut& out,Ctx& ctx) override {Base::printItem(out,ctx);}
     virtual bool enabled() const override {return Base::enabled();}
     virtual void enable(bool o=true) override {return Base::enable(o);}
-    virtual bool changed() const override {return Base::changed();}
+    [[nodiscard]] virtual bool changed() const override {return Base::changed();}
     virtual void sync() override {Base::sync();}
     virtual void sync(IOut& out) override {Base::sync(out);}
     // Not Base::up()/down(): those names collide with an unrelated concept
@@ -310,7 +310,7 @@ namespace oneMenu {
       // when *this item's* changed() is true — TickFocus's own changed(Out&) (nav.h) only
       // decides whether a redraw pass happens *at all*, not which rows within it actually
       // get re-sent to the device. Cleared by sync() below, same contract as Watch<>.
-      bool changed() const {return Base::changed()||m_ticked;}
+      [[nodiscard]] bool changed() const {return Base::changed()||m_ticked;}
       void sync() {m_ticked=false; Base::sync();}
 
       template<typename Out,typename Ctx>
@@ -910,7 +910,7 @@ namespace oneMenu {
       static constexpr const Depth depth() {return ref.depth();}
       static constexpr bool enabled() {return ref.enable(); }
       static constexpr void enable(bool o=true) {ref.enable(o);}
-      static constexpr bool changed() {return ref.changed();}
+      [[nodiscard]] static constexpr bool changed() {return ref.changed();}
       static constexpr void sync() {ref.sync();}
       static constexpr bool up() {return ref.up();}
       static constexpr bool down() {return ref.down();}
@@ -1181,7 +1181,7 @@ namespace oneMenu {
       bool nav(Nav& n,const CKE& cke,const Path p) {return centerItem.template nav<isKbd>(n,cke,p);}
       template<typename Nav,typename P>
       bool setStr(Nav& n,const char* s,P p) {return centerItem.setStr(n,s,p);}
-      bool changed() const {return centerItem.changed();}
+      [[nodiscard]] bool changed() const {return centerItem.changed();}
       void sync() {centerItem.sync();}
       template<typename Out> void sync(Out& out) {centerItem.sync(out);}
       bool enabled() const {return centerItem.enabled();}
@@ -1298,7 +1298,7 @@ namespace oneMenu {
       bool nav(Nav& n,const CKE& cke,const Path p) {return bodyItem.template nav<isKbd>(n,cke,p);}
       template<typename Nav,typename P>
       bool setStr(Nav& n,const char* s,P p) {return bodyItem.setStr(n,s,p);}
-      bool changed() const {return bodyItem.changed();}
+      [[nodiscard]] bool changed() const {return bodyItem.changed();}
       void sync() {bodyItem.sync();}
       template<typename Out> void sync(Out& out) {bodyItem.sync(out);}
       bool enabled() const {return bodyItem.enabled();}

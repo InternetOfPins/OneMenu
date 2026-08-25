@@ -48,7 +48,7 @@ namespace oneMenu {
       _prevAB = (ChangeSource::read() & 0x03);
     }
 
-    bool available() override {
+    [[nodiscard]] bool available() override {
       if (ChangeSource::changed()) {
         uint8_t pins = ChangeSource::read();
         uint8_t currAB = (pins & 0x03);
@@ -76,7 +76,7 @@ namespace oneMenu {
       return _pending;
     }
 
-    CKE cmd() override {
+    [[nodiscard]] CKE cmd() override {
       _pending = false;
       return _last;
     }

@@ -217,26 +217,26 @@ namespace oneMenu {
       /// @brief locate the item carrying Q (e.g. an Id<V>): own chain (OO...) wins,
       /// else descend into body. Compile error if Q is nowhere to be found.
       template<typename Q>
-      decltype(auto) find() {
+      [[nodiscard]] decltype(auto) find() {
         if constexpr((hapi::query<Q,OO> || ...) || hapi::query<Q,Title>) return (*this);
         else return oneMenu::detail::find<Q>(body);
       }
       template<typename Q>
-      decltype(auto) find() const {
+      [[nodiscard]] decltype(auto) find() const {
         if constexpr((hapi::query<Q,OO> || ...) || hapi::query<Q,Title>) return (*this);
         else return oneMenu::detail::find<Q>(body);
       }
       /// @brief same as find<Q>(), Q passed by value to avoid `<>` at the call site, e.g. find(byId<id>)
       template<typename Q>
-      decltype(auto) find(Q) {return find<Q>();}
+      [[nodiscard]] decltype(auto) find(Q) {return find<Q>();}
       template<typename Q>
-      decltype(auto) find(Q) const {return find<Q>();}
+      [[nodiscard]] decltype(auto) find(Q) const {return find<Q>();}
     };
   };
 
   //menu factory ---
   template<typename... MM,typename T,typename B>
-  constexpr ItemDef<Menu<T,B,MM...>> menuDef(T&& t,B&& b) {return {std::forward<T>(t),std::forward<B>(b)};}
+  [[nodiscard]] constexpr ItemDef<Menu<T,B,MM...>> menuDef(T&& t,B&& b) {return {std::forward<T>(t),std::forward<B>(b)};}
 
   template <typename T, typename B,typename... OO> using PadMenu=ItemDef<Menu<T,B,PadDraw,OO...>>;
   template <typename T, typename B,typename... OO> using MenuDef=ItemDef<Menu<T,B,OO...>>;

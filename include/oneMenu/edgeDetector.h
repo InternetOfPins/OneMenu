@@ -35,7 +35,7 @@ namespace oneMenu {
       _last = ChangeSource::read();
     }
 
-    bool available() override {
+    [[nodiscard]] bool available() override {
       if (ChangeSource::changed()) {
         uint8_t now = ChangeSource::read();
         uint8_t diff = now ^ _last;
@@ -50,7 +50,7 @@ namespace oneMenu {
       return _edge_seen;
     }
 
-    CKE cmd() override {
+    [[nodiscard]] CKE cmd() override {
       _edge_seen = false;
       return _last_cke;
     }

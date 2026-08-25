@@ -371,8 +371,8 @@ namespace oneMenu {
       }
       void resume() {m_lock_mode=LockMode::None;Base::resume();}
       bool unlocked() const {return lockMode()==LockMode::None;}
-      bool updating() const {return lockMode()==LockMode::Update;}
-      bool locked() const {return !unlocked();}
+      [[nodiscard]] bool updating() const {return lockMode()==LockMode::Update;}
+      [[nodiscard]] bool locked() const {return !unlocked();}
       LockMode lockMode() const {return m_lock_mode;}
       void lockMode(LockMode m) {m_lock_mode=m;}
       protected: LockMode m_lock_mode{LockMode::None};

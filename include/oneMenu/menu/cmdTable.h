@@ -32,7 +32,7 @@ namespace oneMenu {
   // "#SAVE" vs "#SAVEWIFI"), list the longer/more specific one FIRST or it
   // will never be reached.
   template<Sz N>
-  bool translateCmd(const char* input, const CmdEntry (&table)[N], char* buf, Sz sz) {
+  [[nodiscard]] bool translateCmd(const char* input, const CmdEntry (&table)[N], char* buf, Sz sz) {
     for(Sz n = 0; n < N; n++) {
       Sz cmdLen = (Sz)strlen(table[n].cmd);
       if(strncmp(input, table[n].cmd, cmdLen) == 0) {

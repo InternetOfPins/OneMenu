@@ -24,7 +24,7 @@ namespace oneMenu {
   struct BtnIn {
     template<typename O>
     struct Part : O {
-      static bool available() {
+      [[nodiscard]] static bool available() {
         HW::available();              // drives Hold::check() time poll
         return HW::pending() != 0 || O::available();
       }

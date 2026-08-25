@@ -28,8 +28,8 @@ namespace oneMenu {
   template<typename K>
   struct InAPI : K {
     using Base = K;
-    static constexpr bool available()       { return false; }
-    static constexpr CKE  cmd()             { return {}; }
+    [[nodiscard]] static constexpr bool available()       { return false; }
+    [[nodiscard]] static constexpr CKE  cmd()             { return {}; }
     static constexpr CKE  parseKey(Key)     { return {}; }
   };
 
@@ -85,8 +85,8 @@ namespace oneMenu {
 
   /// @brief input interface base for runtime-polymorphic input dispatch (mirrors out.h's IOut)
   struct IIn {
-    virtual bool available()=0;
-    virtual CKE  cmd()=0;
+    [[nodiscard]] virtual bool available()=0;
+    [[nodiscard]] virtual CKE  cmd()=0;
   };
 
   /// @brief InDef variant with virtual dispatch for runtime-polymorphic input
@@ -101,8 +101,8 @@ namespace oneMenu {
     // injected class name hits "incomplete type" this early in the class
     // body, and the property can't silently regress anyway: it's baked
     // into the IIn base right above.
-    virtual bool available() override {return Base::available();}
-    virtual CKE  cmd()       override {return Base::cmd();}
+    [[nodiscard]] virtual bool available() override {return Base::available();}
+    [[nodiscard]] virtual CKE  cmd()       override {return Base::cmd();}
   };
 
   // Runtime *list* of independent IIn* sources, polled in sequence, first with an event
@@ -135,11 +135,11 @@ namespace oneMenu {
       if(i<N) m_items[m_count++]=&in;
       return i;
     }
-    bool available() const {
+    [[nodiscard]] bool available() const {
       for(Sz i=0;i<m_count;i++) if(m_items[i]->available()) return true;
       return false;
     }
-    CKE cmd() {
+    [[nodiscard]] CKE cmd() {
       for(Sz i=0;i<m_count;i++) {
         if(m_items[i]->available()) {
           CKE r=m_items[i]->cmd();

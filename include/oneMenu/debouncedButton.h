@@ -35,7 +35,7 @@ namespace oneMenu {
       _current = !(ChangeSource::read() & 0x01);  // active low
     }
 
-    bool available() override {
+    [[nodiscard]] bool available() override {
       if (ChangeSource::changed()) {
         bool now = !(ChangeSource::read() & 0x01);
 
@@ -58,7 +58,7 @@ namespace oneMenu {
       return _pending;
     }
 
-    CKE cmd() override {
+    [[nodiscard]] CKE cmd() override {
       _pending = false;
       return _last;
     }

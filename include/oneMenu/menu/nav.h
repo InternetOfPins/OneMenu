@@ -50,10 +50,10 @@ namespace oneMenu {
     // motivating case). Every existing NN... component stays purely default-constructible
     // today, so this only *adds* reachability, it changes nothing for current chains.
     using Base::Base;
-    bool up() {return Base::template doCmd<false>(Cmd::Up);}
-    bool down() {return Base::template doCmd<false>(Cmd::Down);}
-    bool enter() {return Base::template doCmd<false>(Cmd::Enter);}
-    bool esc() {return Base::template doCmd<false>(Cmd::Esc);}
+    [[nodiscard]] bool up() {return Base::template doCmd<false>(Cmd::Up);}
+    [[nodiscard]] bool down() {return Base::template doCmd<false>(Cmd::Down);}
+    [[nodiscard]] bool enter() {return Base::template doCmd<false>(Cmd::Enter);}
+    [[nodiscard]] bool esc() {return Base::template doCmd<false>(Cmd::Esc);}
 
     // AM4's poll(){doInput();doOutput();} half: self-gating output step — redraws (and syncs)
     // only if something visible actually changed, else a no-op. Callers needing to react to
@@ -146,17 +146,17 @@ namespace oneMenu {
     virtual NavMode navMode() const=0;
 
     /// @brief Whether this nav is still the one in control (not backgrounded by an idle/dialog alternative).
-    bool isFocused() const {return !idling();}
+    [[nodiscard]] bool isFocused() const {return !idling();}
 
     virtual bool idling() const {return false;}
     virtual void idleOn(AltRunFn) {}
     virtual void idleOff() {}
 
     /// @brief Level-mutating primitives (open/close/padOpen/doNav) — the only way a nav chain's selection/depth changes. Default no-op (not pure).
-    virtual bool open() {return false;}
-    virtual bool close() {return false;}
-    virtual bool padOpen() {return false;}
-    virtual bool doNav(CKE,Sz,bool) {return false;}
+    [[nodiscard]] virtual bool open() {return false;}
+    [[nodiscard]] virtual bool close() {return false;}
+    [[nodiscard]] virtual bool padOpen() {return false;}
+    [[nodiscard]] virtual bool doNav(CKE,Sz,bool) {return false;}
   };
 
   template<typename... II>
@@ -316,7 +316,7 @@ namespace oneMenu {
       // entering/leaving a level swaps the whole displayed page for unrelated content (a
       // submenu's items don't correspond 1:1 with the parent's) — doOutput() needs this to
       // force a real clear+full redraw instead of the normal per-item selective Update pass.
-      bool levelChanged() const {return m_level.changed();}
+      [[nodiscard]] bool levelChanged() const {return m_level.changed();}
 
       void sync() {
         m_level.sync();
@@ -333,14 +333,14 @@ namespace oneMenu {
         out.lockMode(om);
       }
 
-      bool changed() const {
+      [[nodiscard]] bool changed() const {
         return m_level.changed()
           ||m_navMode.changed()
           ||m_prevSel!=sel();//however items will check later if the are on focus or just blur (Ctx sel and prev. sel) and signal a draw (on update)
       }
 
       template<typename Out>
-      bool changed(Out& out) {
+      [[nodiscard]] bool changed(Out& out) {
         if(changed()) return true;
         // changed() must never modify the output — it has to remain faithful to the print process
         LockMode om=out.lockMode();
@@ -384,7 +384,7 @@ namespace oneMenu {
       }
 
       template<bool isKbd>
-      bool doCmd(Cmd cmd,Key k=0, bool e=false) {
+      [[nodiscard]] bool doCmd(Cmd cmd,Key k=0, bool e=false) {
         CKE cke{cmd,k,e};
         bool r=root().template nav<isKbd>(Base::obj(),cke,focus(m_level+1));
         if(!r&&cmd==Cmd::Esc) return close();  // items get first chance; close only if unhandled
@@ -394,7 +394,7 @@ namespace oneMenu {
       // aux function for items to call and complete a navigation request with default actions
       // Data<Sz&> would dangle: Data constructor takes by-value, binds reference to local.
       // Use Data<Sz> (owned copy) + writeback through the actual sel reference.
-      bool doNav(CKE cke,Sz len,bool w) {
+      [[nodiscard]] bool doNav(CKE cke,Sz len,bool w) {
         // dout<<colors<GREEN,BLACK><<" len:"<<len<<" wraps:"<<w;
         Sz& sel=m_path.data[(int)level()];
         oneData::DataDef<NumRange<Sz>,oneData::Data<Sz>> at(0,len-1,w,sel);
@@ -410,7 +410,7 @@ namespace oneMenu {
       }
 
       template<typename In>
-      bool in(In& in) {
+      [[nodiscard]] bool in(In& in) {
         CKE cke = in.cmd();
         if (cke.cmd == Cmd::None) return false;
         // Base::obj() (hapi::CRTP) routes through the fully-assembled chain type instead
@@ -427,7 +427,7 @@ namespace oneMenu {
         m_path.data[m_level+delta]=i;
       }
 
-      bool padOpen() {
+      [[nodiscard]] bool padOpen() {
         if(m_level.get()<depth()) {
           m_level.set(m_level+1);
           m_path.data[m_level]=0;
@@ -435,14 +435,14 @@ namespace oneMenu {
           return true;
         } else return false;
       }
-      bool open() {
+      [[nodiscard]] bool open() {
         if(padOpen()) {
           m_print_level++;//=m_level;
           return true;
         } else return false;
       }
-      
-      bool close() {
+
+      [[nodiscard]] bool close() {
         navMode(NavMode::Nav);
         if(m_level) {
           m_level.set(m_level-1);

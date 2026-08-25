@@ -27,7 +27,7 @@ namespace oneMenu {
   struct JoyIn {
     template<typename O>
     struct Part : O {
-      static bool available() {
+      [[nodiscard]] static bool available() {
         return HW::dx() != 0 || HW::dy() != 0 || O::available();
       }
       static CKE cmd() {
