@@ -533,30 +533,29 @@ namespace am4compat {
 namespace Menu {
   enum SystemStyles : int { noStyle = am4compat::noStyle, wrapStyle = am4compat::wrapStyle };
   inline bool doNothing(int) noexcept { return false; }
-  // Shared void() no-op for FIELD()/altFIELD()'s fn slot -- a distinct,
-  // non-overloaded name (not another doNothing() overload, see the note
-  // below for why that's rejected), so every port needing a placeholder
-  // field handler can reuse this instead of writing its own local
-  // noField()-shaped function.
-  inline void noField() noexcept {}
-  // NOTE: deliberately NOT also overloading doNothing() as void() here.
-  // avr-g++ 7.3 rejects an *overloaded* function name used directly as a
-  // void(&)() template argument ("not a valid template argument for type void(&)()...
-  // must be the name of a function with external linkage") even though the same
-  // overload set resolves fine on native g++ 13. FIELD()'s fn (wired to EventCall,
-  // item.h) therefore needs a real, non-overloaded void() handler — which is what every
-  // actual AM4 field handler already is in practice (e.g. Fielduino's updateWave); this
-  // only ever bit placeholder/no-op field handlers, not real ports.
-  //
-  // `Menu::doNothing` (bool(int)) IS a valid OP() placeholder again — OP()'s
-  // fn auto-dispatches on its own signature (am4compat::opItem), and bool(int)
-  // falls back to the original zero-cost Action<fn> binding, same as v1. It
-  // hits the *same* avr-g++ 7.3 overloaded/inline-as-NTTP limitation documented
-  // above, though, so it's still not real-AVR-safe as an OP() placeholder —
-  // every real port needing a no-op OP() handler still needs its own local
-  // non-inline function, same shape as FIELD()'s noField()/action::noField()
-  // workaround (bool(int) if you want the cheap path, bool(EventMask,IItem&)
-  // if you specifically want the placeholder to exercise real event dispatch).
+  // NOTE: deliberately NOT also overloading doNothing() as void() here, and
+  // deliberately NOT providing a shared Menu::noField()-style void() no-op
+  // in this header either — avr-g++ 7.3's void(&)() NTTP restriction is
+  // broader than just "overloaded": empirically confirmed (real avr-g++
+  // 7.3.0-atmel3.6.1-arduino7 compile, A/B toggling only this one property)
+  // that it also rejects a SINGLE, non-overloaded function marked `inline`
+  // or `static` used as this exact NTTP — both fail identically to an
+  // overloaded name ("not a valid template argument for type void(&)()...
+  // must be the name of a function with external linkage"), even though
+  // native g++ accepts all of the above. Since a shared header-defined
+  // function needs `inline` or `static` to stay ODR-safe across multiple
+  // translation units, and both are rejected, there is no safe way to give
+  // FIELD()/OP() a shared no-op handler here at all — every port needing
+  // one still needs its own local, plain (non-inline, non-static) function,
+  // same shape as `action::noField()`/`action::onPowerChanged()` elsewhere
+  // in this codebase (bool(int) for OP(), void() for FIELD() via EventCall,
+  // item.h — bool(EventMask,IItem&) instead if the placeholder specifically
+  // needs to exercise real event dispatch). `Menu::doNothing` (bool(int))
+  // stays valid as an OP() placeholder only because OP()'s fn auto-dispatch
+  // (am4compat::opItem) falls back to the zero-cost Action<fn> binding for
+  // a bool(int) shape, sidestepping the NTTP path entirely — it hits this
+  // same limitation the moment it's forced through EventCall instead (e.g.
+  // as FIELD()'s fn), which is why it's rejected there.
 }
 
 // ── item-tree macros — each expands to a value expression ──────────────────
