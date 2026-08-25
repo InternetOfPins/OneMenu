@@ -533,6 +533,12 @@ namespace am4compat {
 namespace Menu {
   enum SystemStyles : int { noStyle = am4compat::noStyle, wrapStyle = am4compat::wrapStyle };
   inline bool doNothing(int) noexcept { return false; }
+  // Shared void() no-op for FIELD()/altFIELD()'s fn slot -- a distinct,
+  // non-overloaded name (not another doNothing() overload, see the note
+  // below for why that's rejected), so every port needing a placeholder
+  // field handler can reuse this instead of writing its own local
+  // noField()-shaped function.
+  inline void noField() noexcept {}
   // NOTE: deliberately NOT also overloading doNothing() as void() here.
   // avr-g++ 7.3 rejects an *overloaded* function name used directly as a
   // void(&)() template argument ("not a valid template argument for type void(&)()...
