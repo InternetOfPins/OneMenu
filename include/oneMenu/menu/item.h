@@ -1414,7 +1414,7 @@ namespace oneMenu {
 
 //rules ItemDef query specialization --
 template<typename Q,typename... OO>
-constexpr const bool hapi::template query<Q,oneMenu::template ItemDef<OO...>>{(hapi::template query<Q,OO>||...)};
+constexpr const bool hapi::query<Q,oneMenu::ItemDef<OO...>>{(hapi::query<Q,OO>||...)};
 
 // ItemDef's own query<> bypass (above) only covers the *bare* form,
 // hapi::query<Q,ItemDef<OO...>> — every real call site elsewhere in this codebase

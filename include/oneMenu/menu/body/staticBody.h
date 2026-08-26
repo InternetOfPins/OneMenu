@@ -102,8 +102,8 @@ namespace oneMenu {
 } // namespace oneMenu
 
 template<typename Q, typename... OO>
-constexpr const bool hapi::template query<Q, oneMenu::StaticBody<OO...>>{
-  (hapi::template query<Q, OO> || ...)
+constexpr const bool hapi::query<Q, oneMenu::StaticBody<OO...>>{
+  (hapi::query<Q, OO> || ...)
 };
 
 namespace hapi {

@@ -217,14 +217,20 @@ namespace oneMenu {
       /// @brief locate the item carrying Q (e.g. an Id<V>): own chain (OO...) wins,
       /// else descend into body. Compile error if Q is nowhere to be found.
       template<typename Q>
+      [[nodiscard]] static constexpr bool has() {return hapi::query<Q,Types>;}
+      template<typename Q>
       [[nodiscard]] decltype(auto) find() {
+        static_assert(hapi::query<Q,Types>, "find<Q>(): Q not found anywhere in this Menu");
         if constexpr((hapi::query<Q,OO> || ...) || hapi::query<Q,Title>) return (*this);
-        else return oneMenu::detail::find<Q>(body);
+        else if constexpr(hapi::query<Q,Types>) return oneMenu::detail::find<Q>(body);
+        else return (*this);
       }
       template<typename Q>
       [[nodiscard]] decltype(auto) find() const {
+        static_assert(hapi::query<Q,Types>, "find<Q>(): Q not found anywhere in this Menu");
         if constexpr((hapi::query<Q,OO> || ...) || hapi::query<Q,Title>) return (*this);
-        else return oneMenu::detail::find<Q>(body);
+        else if constexpr(hapi::query<Q,Types>) return oneMenu::detail::find<Q>(body);
+        else return (*this);
       }
       /// @brief same as find<Q>(), Q passed by value to avoid `<>` at the call site, e.g. find(byId<id>)
       template<typename Q>
@@ -257,8 +263,8 @@ namespace hapi {
 // query<Q,Menu<...>> specialization: keeps hapi::query recursive through Menu nesting,
 // consistent with the ItemDef/StaticBody specializations (Title, own chain OO..., or the body).
 template<typename Q, typename T, typename B, typename... OO>
-constexpr const bool hapi::template query<Q, oneMenu::Menu<T,B,OO...>>{
-  hapi::template query<Q, T> || (hapi::template query<Q, OO> || ...) || hapi::template query<Q, B>
+constexpr const bool hapi::query<Q, oneMenu::Menu<T,B,OO...>>{
+  hapi::query<Q, T> || (hapi::query<Q, OO> || ...) || hapi::query<Q, B>
 };
 
 // detail::find definitions — needs Menu and ItemDef complete (above), so they live here.

@@ -74,8 +74,8 @@ namespace oneMenu {
 // different mechanism, detail::find's overload set), but any direct
 // hapi::query<Q,...> would otherwise be exposed to a silent-false result.
 template<typename Q, typename BodyA, typename BodyB>
-constexpr const bool hapi::template query<Q, oneMenu::JoinBody<BodyA,BodyB>>{
-  hapi::template query<Q, BodyA> || hapi::template query<Q, BodyB>
+constexpr const bool hapi::query<Q, oneMenu::JoinBody<BodyA,BodyB>>{
+  hapi::query<Q, BodyA> || hapi::query<Q, BodyB>
 };
 
 namespace hapi {
