@@ -201,9 +201,9 @@ namespace oneMenu {
     template<typename N>
     struct Part:N {
       using Base=N;
-      using Root=std::remove_reference_t<decltype(menu)>;
-      static constexpr Root& root() {return menu;}
-      static constexpr const Depth depth() {return Root::depth();}
+      using MenuT=std::remove_reference_t<decltype(menu)>;
+      static constexpr MenuT& root() {return menu;}
+      static constexpr const Depth depth() {return MenuT::depth();}
     };
   };
 
@@ -285,7 +285,7 @@ namespace oneMenu {
     template<typename N>
     struct Part:N {
       using Base=N;
-      using Root=typename Base::Root;
+      using MenuT=typename Base::MenuT;
       using Base::root;
       using Base::depth;
 
