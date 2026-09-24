@@ -101,7 +101,8 @@ namespace oneMenu {
 
 } // namespace oneMenu
 
-// What a StaticBody holds, for HAPI's structural walks: its elements (none, for StaticBody<>).
+// What a StaticBody holds, for HAPI's structural walks: its elements (none, for StaticBody<>). Not validated: they are
+// independent items (see Menu, menu.h).
 namespace hapi {
   template<typename... OO>
   struct Expand<oneMenu::StaticBody<OO...>> : Expansion<Chain<OO...>,true,true> {};

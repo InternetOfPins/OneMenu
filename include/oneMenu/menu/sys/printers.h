@@ -98,9 +98,10 @@ namespace oneMenu {
 // entry at all; and TagIs<...>::Check<...>::value must go through
 // hapi::query<...> rather than being read directly, since Check<> on a multi-element
 // chain yields a Chain-of-results tree, not a plain bool.
+// (Validated too: the rules() of what it wraps run as if placed directly, like ItemPrinter and AsFmt below.)
 namespace hapi {
   template<typename... OO>
-  struct Expand<oneMenu::MenuPrinter<OO...>> : Expansion<Chain<OO...>,true,true> {};
+  struct Expand<oneMenu::MenuPrinter<OO...>> : Expansion<Chain<OO...>,true,true,true> {};
 }
 
 namespace oneMenu {
@@ -597,7 +598,7 @@ namespace oneMenu {
 // (FullPrinter, ScrollPrinter, NoTitlePrinter, ...).
 namespace hapi {
   template<typename... OO>
-  struct Expand<oneMenu::ItemPrinter<OO...>> : Expansion<Chain<OO...>,true,true> {};
+  struct Expand<oneMenu::ItemPrinter<OO...>> : Expansion<Chain<OO...>,true,true,true> {};
 
   // AsFmt<tag,OO...>::Part<O> is built from Chain<OO...,PartEnd>::Part<O> (PartEnd is
   // AsFmt's own inert terminal sentinel, see its definition above) — mirrored here for
@@ -605,5 +606,5 @@ namespace hapi {
   // never changes a query's outcome either way.
   template<oneMenu::Fmt tag, typename... OO>
   struct Expand<oneMenu::AsFmt<tag,OO...>>
-    : Expansion<Chain<OO...,typename oneMenu::AsFmt<tag,OO...>::PartEnd>,true,true> {};
+    : Expansion<Chain<OO...,typename oneMenu::AsFmt<tag,OO...>::PartEnd>,true,true,true> {};
 }

@@ -251,7 +251,9 @@ namespace oneMenu {
 };//oneMenu
 
 // What a Menu holds, for HAPI's structural walks: its Title, its own chain, then its body.
-// Queries and selection (Filter/Map/Partition) look inside; rules() inside it are not run (yet).
+// Queries and selection (Filter/Map/Partition) look inside. It does NOT validate (rules() of what it holds are not spliced
+// into its own rule context): the body holds OTHER items, and their components would land in the Title/own chain's
+// Before/After, e.g. a PadDraw menu around items that each carry ParentDraw would trip PadDraw's "not both" rule.
 namespace hapi {
   template<typename T, typename B, typename... MM>
   struct Expand<oneMenu::Menu<T,B,MM...>> : Expansion<Chain<T,MM...,B>,true,true> {};

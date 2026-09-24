@@ -1414,7 +1414,12 @@ namespace oneMenu {
 
 // What each of these holds, for HAPI's structural walks. Without an entry a container is an opaque leaf: a
 // hapi::query/Traverse walk that reaches it (e.g. through a StaticBody/JoinBody/Menu, or Out::Types) silently sees
-// nothing inside. Queries and selection (Filter/Map/Partition) look inside; rules() inside them are not run (yet).
+// nothing inside. Queries and selection (Filter/Map/Partition) look inside.
+// The WRAPPERS below (Hidden/Decor/NumField/EnDis, and MenuPrinter/ItemPrinter/AsFmt in printers.h) also validate: the
+// rules() of the components inside them run, spliced into the enclosing item's chain as if placed directly, so e.g.
+// ItemDef<Hidden<ParentDraw,ItemNav>> is rejected like ItemDef<ParentDraw,ItemNav>. ItemDef itself does not (an ItemDef
+// validates its own chain when instantiated), and neither do Menu/StaticBody/JoinBody: they hold OTHER items, whose
+// components would land in each other's Before/After (see menu.h).
 namespace hapi {
   // ItemDef holds its components OO... only, not its ItemAPI, although ItemDef::Types is Chain<ItemAPI,OO...>
   // (plan D1: kept as is). Queries look inside (queried), but Filter/Map/Partition take an item WHOLE
@@ -1426,13 +1431,13 @@ namespace hapi {
   // Hidden/Decor/NumField are Chain<...>::Part<O>-wrapping like MenuPrinter (printers.h); NumField is the
   // most widely used of them (every AM4 FIELD() expansion) and nests AsField<...> inside it.
   template<typename... II>
-  struct Expand<oneMenu::Hidden<II...>>   : Expansion<Chain<II...>,true,true> {};
+  struct Expand<oneMenu::Hidden<II...>>   : Expansion<Chain<II...>,true,true,true> {};
   template<typename... II>
-  struct Expand<oneMenu::Decor<II...>>    : Expansion<Chain<II...>,true,true> {};
+  struct Expand<oneMenu::Decor<II...>>    : Expansion<Chain<II...>,true,true,true> {};
   template<typename... II>
-  struct Expand<oneMenu::NumField<II...>> : Expansion<Chain<II...>,true,true> {};
+  struct Expand<oneMenu::NumField<II...>> : Expansion<Chain<II...>,true,true,true> {};
   // EnDis<ens>::Part<I> wraps a single element, Hidden<Default<Bool,ens>>
   template<bool ens>
-  struct Expand<oneMenu::EnDis<ens>>      : Expansion<Chain<oneMenu::Hidden<oneData::Default<oneData::Bool,ens>>>,true,true> {};
+  struct Expand<oneMenu::EnDis<ens>>      : Expansion<Chain<oneMenu::Hidden<oneData::Default<oneData::Bool,ens>>>,true,true,true> {};
 }
 
