@@ -23,7 +23,7 @@
   "license": "MIT",
   "homepage": "https://github.com/InternetOfPins/OneMenu",
   "dependencies": {
-    "HAPI":">=0.4.1",
+    "HAPI":">=0.7.0",
     "OneChip":"https://github.com/InternetOfPins/OneChip.git",
     "OneData":">=0.1.13",
     "OneInput":"https://github.com/InternetOfPins/OneInput.git",
