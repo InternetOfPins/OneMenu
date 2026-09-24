@@ -86,23 +86,21 @@ namespace oneMenu {
 
 }; // namespace oneMenu (reopened below)
 
-// hapi::Traverse only auto-recurses a real Chain<OO...> — oneMenu::MenuPrinter<OO...>
+// hapi's walks only open a real Chain<OO...> — oneMenu::MenuPrinter<OO...>
 // (above) is a distinct wrapping struct, opaque to any hapi::TagIs/query scan unless
-// it gets this same treatment explicitly. Without it, a flat query<Q, SomeOutDef::Types>
+// it says what it holds (Expand) explicitly. Without it, a flat query<Q, SomeOutDef::Types>
 // walk can never see a tag (e.g. ScrollBodyPrinter's aScrollBody) buried inside
 // MenuPrinter<TitlePrinter,ScrollBodyPrinter,ItemsPrinter>'s own template args
 // (ScrollPrinter, below) — nav.h's printTo() gates allocating a real tops[] array on
-// exactly that check, so a miss there is a live crash. This specialization alone is not
+// exactly that check, so a miss there is a live crash. This entry alone is not
 // sufficient on its own: nav.h's own check must also pass Out::Types rather than the
-// bare Out (an opaque OutDef<Chain<...>> wrapper), or Traverse never reaches this
-// specialization at all; and TagIs<...>::Check<...>::value must go through
+// bare Out (an opaque OutDef<Chain<...>> wrapper), or the walk never reaches this
+// entry at all; and TagIs<...>::Check<...>::value must go through
 // hapi::query<...> rather than being read directly, since Check<> on a multi-element
 // chain yields a Chain-of-results tree, not a plain bool.
 namespace hapi {
-  template<typename Op, typename... OO>
-  struct Traverse<Op, oneMenu::MenuPrinter<OO...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...>;
-  };
+  template<typename... OO>
+  struct Expand<oneMenu::MenuPrinter<OO...>> : Expansion<Chain<OO...>,true,true> {};
 }
 
 namespace oneMenu {
@@ -591,25 +589,21 @@ namespace oneMenu {
 
 // ItemPrinter<OO...> and AsFmt<Fmt tag,OO...> (above) are both the same
 // Chain<OO...>::Part<O>-wrapping shape as MenuPrinter — opaque to hapi::query/Traverse
-// without their own specialization (see MenuPrinter's specialization, above, for why
+// without their own entry (see MenuPrinter's, above, for why
 // that matters: a miss here is a live crash, not just a missed query result). Neither
-// currently has a tag nested inside it, but both get the same specialization anyway,
+// currently has a tag nested inside it, but both get the same entry anyway,
 // same mechanical pattern, cheap. ItemPrinter is the closer of the two: it's the direct
 // one-level-nested sibling of MenuPrinter inside every stock printer stack above
 // (FullPrinter, ScrollPrinter, NoTitlePrinter, ...).
 namespace hapi {
-  template<typename Op, typename... OO>
-  struct Traverse<Op, oneMenu::ItemPrinter<OO...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...>;
-  };
+  template<typename... OO>
+  struct Expand<oneMenu::ItemPrinter<OO...>> : Expansion<Chain<OO...>,true,true> {};
 
   // AsFmt<tag,OO...>::Part<O> is built from Chain<OO...,PartEnd>::Part<O> (PartEnd is
   // AsFmt's own inert terminal sentinel, see its definition above) — mirrored here for
   // structural faithfulness, though PartEnd itself carries no tag so its presence
   // never changes a query's outcome either way.
-  template<typename Op, oneMenu::Fmt tag, typename... OO>
-  struct Traverse<Op, oneMenu::AsFmt<tag,OO...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...,
-                                                   typename Traverse<Op, typename oneMenu::AsFmt<tag,OO...>::PartEnd>::Beta>;
-  };
+  template<oneMenu::Fmt tag, typename... OO>
+  struct Expand<oneMenu::AsFmt<tag,OO...>>
+    : Expansion<Chain<OO...,typename oneMenu::AsFmt<tag,OO...>::PartEnd>,true,true> {};
 }

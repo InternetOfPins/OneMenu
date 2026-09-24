@@ -101,22 +101,8 @@ namespace oneMenu {
 
 } // namespace oneMenu
 
-template<typename Q, typename... OO>
-constexpr const bool hapi::query<Q, oneMenu::StaticBody<OO...>>{
-  (hapi::query<Q, OO> || ...)
-};
-
+// What a StaticBody holds, for HAPI's structural walks: its elements (none, for StaticBody<>).
 namespace hapi {
-  // Traverse specialization for empty body
-  template<typename Op>
-  struct Traverse<Op, oneMenu::StaticBody<>> {
-    using Beta = typename Op::template ApplyPack<>;
-  };
-
-  // Traverse specialization for non-empty body: expand all elements
-  template<typename Op, typename O, typename... OO>
-  struct Traverse<Op, oneMenu::StaticBody<O, OO...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, O>::Beta,
-                                                   typename Traverse<Op, OO>::Beta...>;
-  };
+  template<typename... OO>
+  struct Expand<oneMenu::StaticBody<OO...>> : Expansion<Chain<OO...>,true,true> {};
 }

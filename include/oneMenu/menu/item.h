@@ -1412,50 +1412,26 @@ namespace oneMenu {
 
 };//namespace oneMenu
 
-//rules ItemDef query specialization --
-template<typename Q,typename... OO>
-constexpr const bool hapi::query<Q,oneMenu::ItemDef<OO...>>{(hapi::query<Q,OO>||...)};
-
-// ItemDef's own query<> bypass (above) only covers the *bare* form,
-// hapi::query<Q,ItemDef<OO...>> — every real call site elsewhere in this codebase
-// instead queries through ::Types (hapi::query<Tag,typename Out::Types> and siblings),
-// which for a StaticBody/JoinBody/Menu element goes through THEIR Traverse
-// specializations recursing via Traverse<Op,O> (not query<Q,O>) — so without this,
-// ItemDef was still an opaque leaf on that path despite the bypass above. Found via
-// this audit's own verification test (StaticBody/JoinBody/Menu's ::Types-based
-// hapi::query silently missing a tag nested inside an ItemDef element) — the same
-// bug class the whole audit is about, one level deeper than initially mapped.
+// What each of these holds, for HAPI's structural walks. Without an entry a container is an opaque leaf: a
+// hapi::query/Traverse walk that reaches it (e.g. through a StaticBody/JoinBody/Menu, or Out::Types) silently sees
+// nothing inside. Queries and selection (Filter/Map/Partition) look inside; rules() inside them are not run (yet).
 namespace hapi {
-  template<typename Op,typename... OO>
-  struct Traverse<Op, oneMenu::ItemDef<OO...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, OO>::Beta...>;
-  };
-}
+  // ItemDef holds its components OO... only, not its ItemAPI, although ItemDef::Types is Chain<ItemAPI,OO...>
+  // (plan D1: kept as is). `selected` is what makes Filter descend into items, which OneMenu's View cannot
+  // have (it selects items whole with Filter<FromTypes<..>>): flipping it off is the planned View fix.
+  template<typename... OO>
+  struct Expand<oneMenu::ItemDef<OO...>> : Expansion<Chain<OO...>,true,true> {};
 
-// Hidden<II...>/Decor<II...>/EnDis<ens>/NumField<II...> are all the same
-// Chain<...>::Part<O>-wrapping shape as MenuPrinter (printers.h) — opaque to
-// hapi::query/Traverse without their own specialization. None currently has a tag
-// nested inside it, but NumField is the single most widely-used wrapper in the
-// codebase (every AM4 FIELD() macro expansion) and itself nests AsField<...> inside
-// it, so it's the most exposed of the four to a future tag landing inside it unnoticed.
-namespace hapi {
-  template<typename Op, typename... II>
-  struct Traverse<Op, oneMenu::Hidden<II...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, II>::Beta...>;
-  };
-  template<typename Op, typename... II>
-  struct Traverse<Op, oneMenu::Decor<II...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, II>::Beta...>;
-  };
-  // EnDis<ens>::Part<I> wraps a single element, Hidden<Default<Bool,ens>> — not a
-  // pack, so ApplyPack takes that one Beta directly rather than expanding II....
-  template<typename Op, bool ens>
-  struct Traverse<Op, oneMenu::EnDis<ens>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, oneMenu::Hidden<oneData::Default<oneData::Bool,ens>>>::Beta>;
-  };
-  template<typename Op, typename... II>
-  struct Traverse<Op, oneMenu::NumField<II...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, II>::Beta...>;
-  };
+  // Hidden/Decor/NumField are Chain<...>::Part<O>-wrapping like MenuPrinter (printers.h); NumField is the
+  // most widely used of them (every AM4 FIELD() expansion) and nests AsField<...> inside it.
+  template<typename... II>
+  struct Expand<oneMenu::Hidden<II...>>   : Expansion<Chain<II...>,true,true> {};
+  template<typename... II>
+  struct Expand<oneMenu::Decor<II...>>    : Expansion<Chain<II...>,true,true> {};
+  template<typename... II>
+  struct Expand<oneMenu::NumField<II...>> : Expansion<Chain<II...>,true,true> {};
+  // EnDis<ens>::Part<I> wraps a single element, Hidden<Default<Bool,ens>>
+  template<bool ens>
+  struct Expand<oneMenu::EnDis<ens>>      : Expansion<Chain<oneMenu::Hidden<oneData::Default<oneData::Bool,ens>>>,true,true> {};
 }
 

@@ -250,22 +250,12 @@ namespace oneMenu {
 
 };//oneMenu
 
-// Traverse specialization: expose body structure to HAPI queries
+// What a Menu holds, for HAPI's structural walks: its Title, its own chain, then its body.
+// Queries and selection (Filter/Map/Partition) look inside; rules() inside it are not run (yet).
 namespace hapi {
-  template<typename Op, typename T, typename B, typename... MM>
-  struct Traverse<Op, oneMenu::Menu<T,B,MM...>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, T>::Beta,
-                                                   typename Traverse<Op, MM>::Beta...,
-                                                   typename Traverse<Op, B>::Beta>;
-  };
+  template<typename T, typename B, typename... MM>
+  struct Expand<oneMenu::Menu<T,B,MM...>> : Expansion<Chain<T,MM...,B>,true,true> {};
 }
-
-// query<Q,Menu<...>> specialization: keeps hapi::query recursive through Menu nesting,
-// consistent with the ItemDef/StaticBody specializations (Title, own chain OO..., or the body).
-template<typename Q, typename T, typename B, typename... OO>
-constexpr const bool hapi::query<Q, oneMenu::Menu<T,B,OO...>>{
-  hapi::query<Q, T> || (hapi::query<Q, OO> || ...) || hapi::query<Q, B>
-};
 
 // detail::find definitions — needs Menu and ItemDef complete (above), so they live here.
 namespace oneMenu { namespace detail {

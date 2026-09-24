@@ -67,21 +67,12 @@ namespace oneMenu {
 
 };//namespace oneMenu
 
-// JoinBody needs its own ::Types/Traverse/query<> specialization, mirroring its
-// sibling StaticBody (staticBody.h) exactly — without it, a hapi::query/Traverse
-// walk through a JoinBody-bodied Menu would silently see nothing inside b1/b2.
-// Menu::find<Q>() is safe regardless (it fails loudly, a compile error, via a
-// different mechanism, detail::find's overload set), but any direct
-// hapi::query<Q,...> would otherwise be exposed to a silent-false result.
-template<typename Q, typename BodyA, typename BodyB>
-constexpr const bool hapi::query<Q, oneMenu::JoinBody<BodyA,BodyB>>{
-  hapi::query<Q, BodyA> || hapi::query<Q, BodyB>
-};
-
+// JoinBody must say what it holds, mirroring its sibling StaticBody (staticBody.h) — without
+// it, a hapi::query/Traverse walk through a JoinBody-bodied Menu would silently see nothing
+// inside b1/b2. (Menu::find<Q>() is safe regardless: it fails loudly, a compile error, via a
+// different mechanism, detail::find's overload set; but any direct hapi::query<Q,...> would
+// otherwise be exposed to a silent-false result.)
 namespace hapi {
-  template<typename Op, typename BodyA, typename BodyB>
-  struct Traverse<Op, oneMenu::JoinBody<BodyA,BodyB>> {
-    using Beta = typename Op::template ApplyPack<typename Traverse<Op, BodyA>::Beta,
-                                                   typename Traverse<Op, BodyB>::Beta>;
-  };
+  template<typename BodyA, typename BodyB>
+  struct Expand<oneMenu::JoinBody<BodyA,BodyB>> : Expansion<Chain<BodyA,BodyB>,true,true> {};
 }
