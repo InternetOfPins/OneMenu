@@ -1417,10 +1417,11 @@ namespace oneMenu {
 // nothing inside. Queries and selection (Filter/Map/Partition) look inside; rules() inside them are not run (yet).
 namespace hapi {
   // ItemDef holds its components OO... only, not its ItemAPI, although ItemDef::Types is Chain<ItemAPI,OO...>
-  // (plan D1: kept as is). `selected` is what makes Filter descend into items, which OneMenu's View cannot
-  // have (it selects items whole with Filter<FromTypes<..>>): flipping it off is the planned View fix.
+  // (plan D1: kept as is). Queries look inside (queried), but Filter/Map/Partition take an item WHOLE
+  // (selected off): View selects items with Filter<FromTypes<..>>, which must return the ItemDef itself, not
+  // descend and return the components inside it. Both are needed at once, hence two separate bits.
   template<typename... OO>
-  struct Expand<oneMenu::ItemDef<OO...>> : Expansion<Chain<OO...>,true,true> {};
+  struct Expand<oneMenu::ItemDef<OO...>> : Expansion<Chain<OO...>,true,false> {};
 
   // Hidden/Decor/NumField are Chain<...>::Part<O>-wrapping like MenuPrinter (printers.h); NumField is the
   // most widely used of them (every AM4 FIELD() expansion) and nests AsField<...> inside it.
