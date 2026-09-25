@@ -528,6 +528,7 @@ bool run() {
 }
 
 void setup() {
+  idleTimer.reset();
   #ifdef ARDUINO_ARCH_RP2040
     Serial.begin(115200);
     while (!Serial) delay(10);
