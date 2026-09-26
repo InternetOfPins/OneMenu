@@ -94,8 +94,7 @@ namespace am4compat {
     struct Part : In {
       static bool available() { return In::available() || (driver && driver->available()); }
       static oneMenu::CKE cmd() {
-        if(In::available()) return In::cmd();
-        if(!driver || !driver->available()) return In::cmd();
+        if(In::queued() || !driver || !driver->available()) return In::cmd();   // a waiting byte outranks the parser's ESC timeout
         uint8_t ch = (uint8_t)driver->read();
         oneMenu::Cmd c = translate(ch);
         if(c != oneMenu::Cmd::None) return {c, 0, false, false};

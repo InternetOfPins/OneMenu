@@ -56,9 +56,9 @@ struct LinuxKeyIn {
     static bool available() { return In::available() || kbhit(); }
 
     oneMenu::CKE cmd() {
-      // Drain any pending event from the inner component first.
-      if (In::available()) return In::cmd();
-      // Otherwise read stdin if ready.
+      // A queued key goes out first, then a waiting byte, ahead of the parser's ESC timeout (one byte is read per
+      // call, so a slow caller must not time the ESC out while its '[' is waiting).
+      if (In::queued()) return In::cmd();
       return kbhit() ? In::parseKey(oneMenu::Key(getch())) : In::cmd();
     }
   };

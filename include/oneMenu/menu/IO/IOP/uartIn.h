@@ -12,7 +12,7 @@ namespace oneMenu {
     struct Part : In {
       static bool available() { return In::available() || Uart::available(); }
       static CKE cmd() {
-        if (In::available()) return In::cmd();
+        if (In::queued()) return In::cmd();   // a waiting byte outranks the parser's ESC timeout
         return Uart::available() ? In::parseKey(Key(Uart::getch())) : In::cmd();
       }
     };

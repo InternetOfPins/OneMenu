@@ -25,10 +25,12 @@ namespace oneMenu {
   // cmd()      — poll for a command event; returns CKE{Cmd::None} = no event.
   // parseKey() — translate a raw key character; terminal silently drops it.
   // available()— true if the component has a pending event ready to deliver.
+  // queued()   — true if an event already parsed is waiting; a driver delivers it before reading more input.
   template<typename K>
   struct InAPI : K {
     using Base = K;
     [[nodiscard]] static constexpr bool available()       { return false; }
+    [[nodiscard]] static constexpr bool queued()          { return false; }
     [[nodiscard]] static constexpr CKE  cmd()             { return {}; }
     static constexpr CKE  parseKey(Key)     { return {}; }
   };

@@ -14,7 +14,7 @@ namespace oneMenu {
     struct Part : In {
       static bool available() { return In::available() || dev.available(); }
       static CKE cmd() {
-        if (In::available()) return In::cmd();
+        if (In::queued()) return In::cmd();   // a waiting byte outranks the parser's ESC timeout
         return available() ? In::parseKey(Key(dev.read())) : In::cmd();
       }
     };
@@ -28,7 +28,7 @@ namespace oneMenu {
       #ifndef ARDUINO
         static bool available() { return In::available() || dev.peek(); }
         static CKE cmd() {
-          if (In::available()) return In::cmd();
+          if (In::queued()) return In::cmd();
           return available() ? In::parseKey(Key(dev.read())) : In::cmd();
         }
       #endif

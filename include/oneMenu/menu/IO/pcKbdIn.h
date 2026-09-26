@@ -41,6 +41,9 @@ namespace oneMenu {
       // available() going false is the loop's only other exit condition.
       static bool available() { return _pending.cmd != Cmd::None || (escState()==1 && escTimerState()) || O::available(); }
 
+      // The ESC timeout is not queued: a driver reads a waiting byte ahead of it, since that byte may be the '['.
+      static bool queued() { return _pending.cmd != Cmd::None; }
+
       // Poll with no new key — used for ESC timeout and draining _pending.
       static CKE cmd() {
         if (_pending.cmd != Cmd::None) {
