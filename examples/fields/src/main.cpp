@@ -448,7 +448,9 @@ static SysTick::Period<30000> idleTimer;
 void showIdle();  // forward
 
 bool mainRun() {
-  bool input = nav.in(in);
+  // inBurst: a key is several bytes (an arrow is ESC [ A) and the driver reads one per call, so one call per frame
+  // takes three frames per arrow and falls behind a held key.
+  bool input = in.inBurst(nav) > 0;
   if (input) idleTimer.reset();
   #if defined(__AVR__) && defined(IOP_GFX)
     // doOutput(), not the manual changed()/printTo()/sync() below: it forces a
@@ -465,7 +467,7 @@ bool mainRun() {
 }
 
 bool idleRun() {
-  if (nav.in(in)) {
+  if (in.inBurst(nav, 1)) {   // one command per frame: the handler is swapped by the first one
     idleTimer.reset();
     Run::idleOff();  // back to mainRun
     out.lockMode(LockMode::None);
@@ -475,7 +477,7 @@ bool idleRun() {
 }
 
 bool promptRun() {
-  promptNav.in(in);
+  in.inBurst(promptNav, 1);
   #if defined(__AVR__) && defined(IOP_GFX)
     promptNav.doOutput(promptOut);
   #else
