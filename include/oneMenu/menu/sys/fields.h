@@ -188,7 +188,7 @@ namespace oneMenu {
                          // (item.h) for any chain built through IItemDef.
       template<typename... OO> Part(OO&&... oo):Base{std::forward<OO>(oo)...}{}
       [[nodiscard]] bool changed() const {return m_changed;}
-      bool sync() {return m_changed=false;Base::sync();}
+      bool sync() {m_changed=false;Base::sync();return false;}
       template<bool isKbd,typename Nav>
       bool nav(Nav& n,const CKE& cke,const Path& path) {
         I::template nav<isKbd>(n,cke,path);
