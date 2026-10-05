@@ -900,6 +900,7 @@ namespace oneMenu {
       static constexpr void enable(bool o=true) {ref.enable(o);}
       [[nodiscard]] static constexpr bool changed() {return ref.changed();}
       static constexpr void sync() {ref.sync();}
+      static decltype(auto) get() {return ref.get();}   // the referred value, for a component over this node (OnSync)
       static constexpr bool up() {return ref.up();}
       static constexpr bool down() {return ref.down();}
 
