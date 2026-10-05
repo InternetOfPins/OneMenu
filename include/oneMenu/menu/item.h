@@ -519,19 +519,7 @@ namespace oneMenu {
     };
   };
 
-  /// @brief Fires fn(v) on every value mutation while editing; v is re-read via get() after Base::set() (may be clamped/transformed).
-  /// Compose inside NumField<...>'s range/storage chain, e.g. NumField<StaticNumRange<...>, OnChange<fn>, AsField<Watch<...>>>.
-  template<auto fn>
-  struct OnChange {
-    template<typename I>
-    struct Part:I {
-      using Base=I;
-      using Base::Base;
-      using Base::get;
-      using Type=typename Base::Type;
-      void set(Type v) {Base::set(v); fn(Base::get());}
-    };
-  };
+  using oneData::OnChange;
 
   /// @brief Fires fn(v) once when edit mode is left (Enter-to-commit or Esc-while-editing; Esc is treated as a commit, not a cancel).
   /// Compose outside (wrapping) EditField, e.g. ItemDef<..., OnUpdate<fn>, EditField, NumField<...>>.
